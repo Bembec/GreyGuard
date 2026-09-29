@@ -1,8 +1,11 @@
 """
-GreyGuard V9 FastAPI control plane.
+GreyGuard V10 FastAPI control plane.
 
 Agent requests must authenticate with an agent name and credential.
-Authenticated identities must also possess the requested action scope.
+Each authenticated identity must possess the requested action scope.
+
+V10 adds persistent controlled-tool requests, sandbox execution,
+human approval decisions, dry runs, replay protection, and evidence.
 """
 
 import hmac
@@ -20,24 +23,25 @@ from pydantic import BaseModel, Field
 import main
 from database import (
     get_audit_summary,
-    get_recent_audit_events,
     get_recent_authentication_events,
+    get_recent_audit_events,
+    get_tool_request_details,
 )
 
 
 app = FastAPI(
     title="GreyGuard Control Plane API",
     description=(
-        "A multi-agent identity, scope, "
-        "permission, risk, suspension, "
-        "and audit control plane."
+        "A multi-agent identity, scope, policy, "
+        "risk, approval, controlled-tool, "
+        "suspension, and audit control plane."
     ),
-    version="9.0",
+    version="10.0",
 )
 
 
 class AgentRegistration(BaseModel):
-    """Information required to register an identity."""
+    """Information required to register an agent."""
 
     agent_name: str = Field(
         min_length=1,
@@ -49,6 +53,7 @@ class AgentRegistration(BaseModel):
         min_length=1,
         examples=[
             [
+                "list_files",
                 "read_file",
                 "search_logs",
             ]
@@ -63,8 +68,10 @@ class ScopeUpdate(BaseModel):
         min_length=1,
         examples=[
             [
+                "list_files",
                 "read_file",
                 "search_logs",
+                "write_note",
                 "view_audit",
             ]
         ],
@@ -72,7 +79,7 @@ class ScopeUpdate(BaseModel):
 
 
 class ActionRequest(BaseModel):
-    """An action requested by an authenticated agent."""
+    """An action requested by an agent."""
 
     action: str = Field(
         min_length=1,
@@ -86,16 +93,62 @@ class ActionRequest(BaseModel):
     ] | None = Field(
         default=None,
         description=(
-            "Human decision for an action "
-            "whose policy is ASK."
+            "Human decision for a legacy "
+            "policy-evaluation request."
         ),
         examples=["APPROVED"],
     )
 
 
+class ToolRequestCreate(BaseModel):
+    """A controlled tool request."""
+
+    action: str = Field(
+        min_length=1,
+        max_length=100,
+        examples=["read_file"],
+    )
+
+    target: str = Field(
+        default="",
+        max_length=500,
+        examples=["public_report.txt"],
+    )
+
+    payload: dict = Field(
+        default_factory=dict,
+        examples=[{}],
+    )
+
+    dry_run: bool = Field(
+        default=False,
+        description=(
+            "Preview the operation without "
+            "changing sandbox files."
+        ),
+    )
+
+
+class ToolApprovalDecision(BaseModel):
+    """An administrator's approval decision."""
+
+    decision: Literal[
+        "APPROVED",
+        "DENIED",
+    ]
+
+    note: str | None = Field(
+        default=None,
+        max_length=1000,
+        examples=[
+            "Approved after reviewing the target."
+        ],
+    )
+
+
 @app.on_event("startup")
 def startup_event():
-    """Initialize GreyGuard when the API starts."""
+    """Initialize GreyGuard when FastAPI starts."""
 
     main.initialize_greyguard()
 
@@ -103,7 +156,7 @@ def startup_event():
 def require_admin(
     x_admin_pin: str | None,
 ):
-    """Verify the administrative API PIN."""
+    """Authenticate an administrator."""
 
     configured_pin = os.getenv(
         "GREYGUARD_ADMIN_PIN"
@@ -154,6 +207,7 @@ def serialize_agent(
                 agent_name
             )
         )
+
     except KeyError:
         identity = None
 
@@ -189,7 +243,9 @@ def authenticate_request(
             )
         )
 
-    except main.AgentAuthenticationError as error:
+    except (
+        main.AgentAuthenticationError
+    ) as error:
         raise HTTPException(
             status_code=401,
             detail=str(error),
@@ -213,25 +269,15 @@ def authenticate_agent_owner(
     x_agent_key,
     required_scope,
 ):
-    """Authenticate an agent accessing its own data."""
+    """Authenticate an agent accessing its records."""
 
-    try:
-        identity = main.authenticate_agent(
-            agent_name=x_agent_name,
-            credential=x_agent_key,
-            action=required_scope,
-        )
+    authentication = authenticate_request(
+        x_agent_name=x_agent_name,
+        x_agent_key=x_agent_key,
+        action=required_scope,
+    )
 
-    except main.AgentAuthenticationError as error:
-        raise HTTPException(
-            status_code=401,
-            detail=str(error),
-            headers={
-                "WWW-Authenticate": (
-                    "AgentCredential"
-                )
-            },
-        ) from error
+    identity = authentication["identity"]
 
     normalized_requested_name = (
         main.normalize_agent_name(
@@ -266,18 +312,6 @@ def authenticate_agent_owner(
             ),
         )
 
-    try:
-        main.enforce_agent_scope(
-            identity,
-            required_scope,
-        )
-
-    except main.AgentScopeError as error:
-        raise HTTPException(
-            status_code=403,
-            detail=str(error),
-        ) from error
-
     return identity
 
 
@@ -287,11 +321,11 @@ def home():
 
     return {
         "application": "GreyGuard",
-        "version": "9.0",
+        "version": "10.0",
         "status": "running",
         "purpose": (
             "Multi-agent identity, permission, "
-            "and security control plane"
+            "and controlled-tool security"
         ),
         "documentation": "/docs",
     }
@@ -303,19 +337,23 @@ def health():
 
     return {
         "status": "healthy",
-        "version": "9.0",
+        "version": "10.0",
         "registered_agents": len(
             main.agent_states
         ),
         "registered_identities": len(
             main.list_public_agent_identities()
         ),
+        "controlled_tools": len(
+            main.get_supported_tools()
+        ),
+        "sandbox_initialized": True,
     }
 
 
 @app.get("/permissions")
 def permissions():
-    """Return the available action policy."""
+    """Return GreyGuard's action policy."""
 
     return {
         "permissions": main.permissions,
@@ -323,12 +361,29 @@ def permissions():
         "available_scopes": sorted(
             main.permissions.keys()
         ),
+        "controlled_tools": (
+            main.get_supported_tools()
+        ),
         "max_blocked_attempts": (
             main.max_blocked_attempts
         ),
         "max_risk_score": (
             main.max_risk_score
         ),
+    }
+
+
+@app.get("/tools")
+def tools():
+    """Return controlled gateway information."""
+
+    return {
+        "tools": main.get_supported_tools(),
+        "sandbox_only": True,
+        "network_access": False,
+        "arbitrary_command_execution": False,
+        "absolute_paths_allowed": False,
+        "path_escape_allowed": False,
     }
 
 
@@ -363,7 +418,7 @@ def register_agent_identity(
         default=None,
     ),
 ):
-    """Register an agent and issue its credential."""
+    """Register an agent and issue a credential."""
 
     require_admin(x_admin_pin)
 
@@ -394,7 +449,9 @@ def get_agent(
     require_admin(x_admin_pin)
 
     normalized_name = (
-        main.normalize_agent_name(agent_name)
+        main.normalize_agent_name(
+            agent_name
+        )
     )
 
     try:
@@ -422,7 +479,7 @@ def update_agent_scopes(
         default=None,
     ),
 ):
-    """Replace an agent's permission scopes."""
+    """Replace an agent's scopes."""
 
     require_admin(x_admin_pin)
 
@@ -510,7 +567,7 @@ def evaluate_action(
         default=None,
     ),
 ):
-    """Authenticate and evaluate an agent action."""
+    """Authenticate and evaluate an action."""
 
     authentication = authenticate_request(
         x_agent_name=x_agent_name,
@@ -544,6 +601,153 @@ def evaluate_action(
     }
 
 
+@app.post(
+    "/tool-requests",
+    status_code=201,
+)
+def create_tool_request(
+    request: ToolRequestCreate,
+    x_agent_name: str | None = Header(
+        default=None,
+    ),
+    x_agent_key: str | None = Header(
+        default=None,
+    ),
+):
+    """Submit a controlled tool request."""
+
+    authentication = authenticate_request(
+        x_agent_name=x_agent_name,
+        x_agent_key=x_agent_key,
+        action=request.action,
+    )
+
+    authenticated_name = (
+        authentication["identity"][
+            "agent_name"
+        ]
+    )
+
+    try:
+        return main.submit_tool_request(
+            agent_name=authenticated_name,
+            action=authentication["action"],
+            target=request.target,
+            payload=request.payload,
+            dry_run=request.dry_run,
+        )
+
+    except KeyError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+
+
+@app.get("/tool-requests/{request_id}")
+def get_tool_request(
+    request_id: str,
+    x_agent_name: str | None = Header(
+        default=None,
+    ),
+    x_agent_key: str | None = Header(
+        default=None,
+    ),
+):
+    """Return an agent's tool-request evidence."""
+
+    details = get_tool_request_details(
+        request_id
+    )
+
+    if details is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Tool request not found.",
+        )
+
+    request_data = details["request"]
+
+    authentication = authenticate_request(
+        x_agent_name=x_agent_name,
+        x_agent_key=x_agent_key,
+        action=request_data["action"],
+    )
+
+    identity = authentication["identity"]
+
+    if (
+        identity["agent_name"]
+        != request_data["agent_name"]
+    ):
+        main.record_authentication_event(
+            claimed_agent_name=(
+                identity["agent_name"]
+            ),
+            authenticated_agent_name=(
+                identity["agent_name"]
+            ),
+            action=request_data["action"],
+            outcome="RESOURCE_DENIED",
+            reason=(
+                "Agent attempted to access "
+                "another agent's tool request."
+            ),
+        )
+
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Authenticated agent cannot "
+                "access another agent's "
+                "tool request."
+            ),
+        )
+
+    return details
+
+
+@app.post(
+    "/tool-requests/{request_id}/decision"
+)
+def review_tool_request(
+    request_id: str,
+    review: ToolApprovalDecision,
+    x_admin_pin: str | None = Header(
+        default=None,
+    ),
+):
+    """Approve or deny a pending tool request."""
+
+    require_admin(x_admin_pin)
+
+    try:
+        return main.review_tool_request(
+            request_id=request_id,
+            actor="administrator",
+            decision=review.decision,
+            note=review.note,
+        )
+
+    except KeyError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from error
+
+
 @app.get("/agents/{agent_name}/audit")
 def recent_audit_events(
     agent_name: str,
@@ -559,7 +763,7 @@ def recent_audit_events(
         default=None,
     ),
 ):
-    """Return an authenticated agent's audit events."""
+    """Return an agent's audit events."""
 
     authenticate_agent_owner(
         requested_agent_name=agent_name,
@@ -600,7 +804,7 @@ def audit_summary(
         default=None,
     ),
 ):
-    """Return an authenticated agent's summary."""
+    """Return an agent's audit summary."""
 
     authenticate_agent_owner(
         requested_agent_name=agent_name,
@@ -610,16 +814,16 @@ def audit_summary(
     )
 
     normalized_name = (
-        main.normalize_agent_name(agent_name)
-    )
-
-    summary = get_audit_summary(
-        normalized_name
+        main.normalize_agent_name(
+            agent_name
+        )
     )
 
     return {
         "agent_name": normalized_name,
-        **summary,
+        **get_audit_summary(
+            normalized_name
+        ),
     }
 
 
@@ -642,7 +846,9 @@ def authentication_events(
     require_admin(x_admin_pin)
 
     normalized_name = (
-        main.normalize_agent_name(agent_name)
+        main.normalize_agent_name(
+            agent_name
+        )
     )
 
     return get_recent_authentication_events(
@@ -663,7 +869,9 @@ def reset_agent(
     require_admin(x_admin_pin)
 
     normalized_name = (
-        main.normalize_agent_name(agent_name)
+        main.normalize_agent_name(
+            agent_name
+        )
     )
 
     try:

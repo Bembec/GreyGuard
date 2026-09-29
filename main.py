@@ -1,8 +1,9 @@
 """
 GreyGuard evaluates AI-agent actions before tools execute them.
 
-Version 9 adds agent identity authentication, hashed credentials,
-credential rotation and revocation, and per-agent scope boundaries.
+Version 10 adds a policy-enforced tool gateway, persistent tool
+requests, human approvals, dry runs, replay protection, controlled
+execution, and execution evidence.
 """
 
 import hashlib
@@ -10,28 +11,44 @@ import hmac
 import json
 import os
 import secrets
+import uuid
 from datetime import datetime
 from getpass import getpass
 from pathlib import Path
 
 from database import (
+    claim_tool_request_execution,
+    complete_tool_request_execution,
     create_agent_identity as save_agent_identity,
+    decide_tool_request,
     get_agent_identities,
     get_agent_identity,
     get_audit_summary,
     get_recent_audit_events,
+    get_tool_request,
+    get_tool_request_details,
     initialize_database,
     revoke_agent_credential as revoke_stored_credential,
     rotate_agent_credential as rotate_stored_credential,
     save_audit_event,
     save_authentication_event,
+    save_blocked_execution_result,
+    save_tool_request,
     update_agent_scopes as update_stored_scopes,
+)
+from tool_gateway import (
+    ToolGatewayError,
+    execute_tool,
+    get_supported_tools,
+    initialize_sandbox,
 )
 
 
 permissions = {
+    "list_files": "ALLOW",
     "read_file": "ALLOW",
     "search_logs": "ALLOW",
+    "write_note": "ASK",
     "delete_file": "ASK",
     "run_program": "ASK",
     "send_email": "BLOCK",
@@ -40,8 +57,10 @@ permissions = {
 }
 
 risk_weights = {
+    "list_files": 0,
     "read_file": 0,
     "search_logs": 0,
+    "write_note": 10,
     "delete_file": 20,
     "run_program": 25,
     "send_email": 40,
@@ -56,8 +75,12 @@ credential_prefix = "gg_"
 credential_hash_iterations = 310_000
 
 project_path = Path(__file__).parent
-log_path = project_path / "greyguard_greyguard_greyguard_security.log"
-state_path = project_path / "greyguard_state.json"
+log_path = (
+    project_path / "greyguard_security.log"
+)
+state_path = (
+    project_path / "greyguard_state.json"
+)
 
 agent_states = {}
 active_agent_name = ""
@@ -82,7 +105,7 @@ def current_timestamp():
 
 
 def create_agent_state():
-    """Create a clean security state for a new agent."""
+    """Create a clean security state."""
 
     return {
         "agent_status": "ACTIVE",
@@ -92,7 +115,7 @@ def create_agent_state():
 
 
 def normalize_agent_name(name):
-    """Convert an agent name into a consistent identifier."""
+    """Normalize an agent name."""
 
     return (
         str(name)
@@ -103,7 +126,7 @@ def normalize_agent_name(name):
 
 
 def normalize_action(action):
-    """Convert an action into a consistent identifier."""
+    """Normalize an action name."""
 
     return (
         str(action)
@@ -114,7 +137,7 @@ def normalize_action(action):
 
 
 def get_risk_level(score):
-    """Convert a numerical risk score into a risk level."""
+    """Convert a risk score into a level."""
 
     if score >= 100:
         return "CRITICAL"
@@ -129,7 +152,7 @@ def get_risk_level(score):
 
 
 def get_agent_state(agent_name):
-    """Return one registered agent's security state."""
+    """Return one agent's security state."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -144,13 +167,15 @@ def get_agent_state(agent_name):
 
 
 def get_current_state():
-    """Return the active agent's security state."""
+    """Return the active terminal agent's state."""
 
-    return get_agent_state(active_agent_name)
+    return get_agent_state(
+        active_agent_name
+    )
 
 
 def request_human_approval(action):
-    """Ask a human to approve or deny a sensitive action."""
+    """Ask for terminal approval."""
 
     while True:
         response = input(
@@ -164,12 +189,12 @@ def request_human_approval(action):
             return "DENIED"
 
         print(
-            "Invalid response. Please enter yes or no."
+            "Invalid response. Enter yes or no."
         )
 
 
 def authenticate_admin():
-    """Verify the administrator before resetting GreyGuard."""
+    """Authenticate the terminal administrator."""
 
     admin_pin = os.getenv(
         "GREYGUARD_ADMIN_PIN"
@@ -192,12 +217,14 @@ def authenticate_admin():
 
 
 def load_state():
-    """Load all previous agent security states."""
+    """Load saved multi-agent state."""
 
     default_data = {
         "active_agent": "default_agent",
         "agents": {
-            "default_agent": create_agent_state(),
+            "default_agent": (
+                create_agent_state()
+            ),
         },
     }
 
@@ -213,15 +240,15 @@ def load_state():
 
         if not isinstance(saved_state, dict):
             raise ValueError(
-                "State must be a dictionary."
+                "Invalid state format."
             )
 
         if (
-            "agents" in saved_state
-            and isinstance(
-                saved_state["agents"],
+            isinstance(
+                saved_state.get("agents"),
                 dict,
             )
+            and saved_state["agents"]
         ):
             return saved_state
 
@@ -287,12 +314,13 @@ def save_state():
 
 
 def initialize_greyguard():
-    """Initialize the database and load agent states."""
+    """Initialize GreyGuard V10."""
 
     global agent_states
     global active_agent_name
 
     initialize_database()
+    initialize_sandbox()
 
     saved_state = load_state()
 
@@ -310,7 +338,7 @@ def initialize_greyguard():
 
 
 def register_agent(agent_name):
-    """Register a new agent if it does not exist."""
+    """Register a security state for an agent."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -333,12 +361,14 @@ def register_agent(agent_name):
     return {
         "agent_name": normalized_name,
         "created": created,
-        "state": agent_states[normalized_name],
+        "state": agent_states[
+            normalized_name
+        ],
     }
 
 
 def normalize_scopes(scopes):
-    """Validate and normalize action scopes."""
+    """Validate and normalize scopes."""
 
     if not isinstance(scopes, list):
         raise ValueError(
@@ -361,7 +391,10 @@ def normalize_scopes(scopes):
                 f"{normalized_scope}"
             )
 
-        if normalized_scope not in normalized_scopes:
+        if (
+            normalized_scope
+            not in normalized_scopes
+        ):
             normalized_scopes.append(
                 normalized_scope
             )
@@ -375,7 +408,7 @@ def normalize_scopes(scopes):
 
 
 def generate_agent_credential():
-    """Generate a strong credential shown only once."""
+    """Generate a credential shown once."""
 
     return (
         credential_prefix
@@ -384,7 +417,7 @@ def generate_agent_credential():
 
 
 def generate_credential_salt():
-    """Generate a random salt for credential hashing."""
+    """Generate a credential salt."""
 
     return secrets.token_hex(16)
 
@@ -404,6 +437,7 @@ def hash_agent_credential(
         salt_bytes = bytes.fromhex(
             credential_salt
         )
+
     except ValueError as error:
         raise ValueError(
             "Stored credential salt is invalid."
@@ -420,7 +454,7 @@ def hash_agent_credential(
 
 
 def public_identity(identity):
-    """Remove credential hash data from an identity."""
+    """Remove private hash information."""
 
     if identity is None:
         return None
@@ -438,7 +472,7 @@ def public_identity(identity):
 
 
 def get_public_agent_identity(agent_name):
-    """Return one identity without secret hash data."""
+    """Return one safe identity record."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -458,7 +492,7 @@ def get_public_agent_identity(agent_name):
 
 
 def list_public_agent_identities():
-    """Return all identities without credential data."""
+    """Return all safe identity records."""
 
     return get_agent_identities()
 
@@ -467,7 +501,7 @@ def issue_agent_credential(
     agent_name,
     scopes,
 ):
-    """Create an agent identity and credential."""
+    """Create an identity and credential."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -482,9 +516,12 @@ def issue_agent_credential(
         scopes
     )
 
-    if get_agent_identity(
-        normalized_name
-    ) is not None:
+    if (
+        get_agent_identity(
+            normalized_name
+        )
+        is not None
+    ):
         raise ValueError(
             "An identity already exists for "
             f"{normalized_name}."
@@ -502,20 +539,18 @@ def issue_agent_credential(
         credential,
         credential_salt,
     )
-    timestamp = current_timestamp()
 
     created = save_agent_identity(
         agent_name=normalized_name,
         credential_salt=credential_salt,
         credential_hash=credential_hash,
         scopes=normalized_scopes,
-        timestamp=timestamp,
+        timestamp=current_timestamp(),
     )
 
     if not created:
         raise ValueError(
-            "The agent identity could not "
-            "be created."
+            "Agent identity could not be created."
         )
 
     identity = get_agent_identity(
@@ -537,7 +572,7 @@ def issue_agent_credential(
 
 
 def rotate_agent_credential(agent_name):
-    """Generate a replacement credential."""
+    """Replace an agent credential."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -561,13 +596,12 @@ def rotate_agent_credential(agent_name):
         credential,
         credential_salt,
     )
-    timestamp = current_timestamp()
 
     updated = rotate_stored_credential(
         agent_name=normalized_name,
         credential_salt=credential_salt,
         credential_hash=credential_hash,
-        timestamp=timestamp,
+        timestamp=current_timestamp(),
     )
 
     if not updated:
@@ -594,7 +628,7 @@ def rotate_agent_credential(agent_name):
 
 
 def revoke_agent_credential(agent_name):
-    """Revoke an agent's current credential."""
+    """Revoke an agent credential."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -656,7 +690,7 @@ def set_agent_scopes(
     agent_name,
     scopes,
 ):
-    """Replace the scopes assigned to an identity."""
+    """Replace an identity's scopes."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -665,11 +699,12 @@ def set_agent_scopes(
         scopes
     )
 
-    identity = get_agent_identity(
-        normalized_name
-    )
-
-    if identity is None:
+    if (
+        get_agent_identity(
+            normalized_name
+        )
+        is None
+    ):
         raise KeyError(
             f"Identity not found: "
             f"{normalized_name}"
@@ -686,12 +721,10 @@ def set_agent_scopes(
             f"{normalized_name}"
         )
 
-    updated_identity = get_agent_identity(
-        normalized_name
-    )
-
     return public_identity(
-        updated_identity
+        get_agent_identity(
+            normalized_name
+        )
     )
 
 
@@ -702,7 +735,7 @@ def record_authentication_event(
     outcome,
     reason,
 ):
-    """Store an authentication or scope event."""
+    """Store an authentication event."""
 
     save_authentication_event(
         timestamp=current_timestamp(),
@@ -718,6 +751,28 @@ def record_authentication_event(
     )
 
 
+def authentication_failed(
+    claimed_agent_name,
+    action,
+    reason,
+):
+    """Record and raise a generic authentication error."""
+
+    record_authentication_event(
+        claimed_agent_name=(
+            claimed_agent_name
+        ),
+        authenticated_agent_name=None,
+        action=action,
+        outcome="AUTHENTICATION_FAILED",
+        reason=reason,
+    )
+
+    raise AgentAuthenticationError(
+        "Agent authentication failed."
+    )
+
+
 def authenticate_agent(
     agent_name,
     credential,
@@ -730,16 +785,10 @@ def authenticate_agent(
     )
 
     if not normalized_name:
-        record_authentication_event(
+        authentication_failed(
             claimed_agent_name=None,
-            authenticated_agent_name=None,
             action=action,
-            outcome="AUTHENTICATION_FAILED",
             reason="Agent name was missing.",
-        )
-
-        raise AgentAuthenticationError(
-            "Agent authentication failed."
         )
 
     identity = get_agent_identity(
@@ -747,45 +796,33 @@ def authenticate_agent(
     )
 
     if identity is None:
-        record_authentication_event(
+        authentication_failed(
             claimed_agent_name=normalized_name,
-            authenticated_agent_name=None,
             action=action,
-            outcome="AUTHENTICATION_FAILED",
-            reason="Agent identity was not found.",
-        )
-
-        raise AgentAuthenticationError(
-            "Agent authentication failed."
+            reason=(
+                "Agent identity was not found."
+            ),
         )
 
     if (
         identity["credential_status"]
         != "ACTIVE"
     ):
-        record_authentication_event(
+        authentication_failed(
             claimed_agent_name=normalized_name,
-            authenticated_agent_name=None,
             action=action,
-            outcome="AUTHENTICATION_FAILED",
-            reason="Agent credential is revoked.",
-        )
-
-        raise AgentAuthenticationError(
-            "Agent authentication failed."
+            reason=(
+                "Agent credential is revoked."
+            ),
         )
 
     if not credential:
-        record_authentication_event(
+        authentication_failed(
             claimed_agent_name=normalized_name,
-            authenticated_agent_name=None,
             action=action,
-            outcome="AUTHENTICATION_FAILED",
-            reason="Agent credential was missing.",
-        )
-
-        raise AgentAuthenticationError(
-            "Agent authentication failed."
+            reason=(
+                "Agent credential was missing."
+            ),
         )
 
     supplied_hash = hash_agent_credential(
@@ -793,24 +830,16 @@ def authenticate_agent(
         identity["credential_salt"],
     )
 
-    credential_matches = (
-        hmac.compare_digest(
-            supplied_hash,
-            identity["credential_hash"],
-        )
-    )
-
-    if not credential_matches:
-        record_authentication_event(
+    if not hmac.compare_digest(
+        supplied_hash,
+        identity["credential_hash"],
+    ):
+        authentication_failed(
             claimed_agent_name=normalized_name,
-            authenticated_agent_name=None,
             action=action,
-            outcome="AUTHENTICATION_FAILED",
-            reason="Agent credential was invalid.",
-        )
-
-        raise AgentAuthenticationError(
-            "Agent authentication failed."
+            reason=(
+                "Agent credential was invalid."
+            ),
         )
 
     record_authentication_event(
@@ -832,7 +861,7 @@ def enforce_agent_scope(
     authenticated_identity,
     action,
 ):
-    """Confirm that an identity has an action scope."""
+    """Require the requested action scope."""
 
     normalized_action = normalize_action(
         action
@@ -840,11 +869,11 @@ def enforce_agent_scope(
     agent_name = authenticated_identity[
         "agent_name"
     ]
-    scopes = authenticated_identity[
-        "scopes"
-    ]
 
-    if normalized_action not in scopes:
+    if (
+        normalized_action
+        not in authenticated_identity["scopes"]
+    ):
         record_authentication_event(
             claimed_agent_name=agent_name,
             authenticated_agent_name=(
@@ -859,15 +888,13 @@ def enforce_agent_scope(
         )
 
         raise AgentScopeError(
-            f"Agent is not authorized for "
+            "Agent is not authorized for "
             f"scope: {normalized_action}"
         )
 
     record_authentication_event(
         claimed_agent_name=agent_name,
-        authenticated_agent_name=(
-            agent_name
-        ),
+        authenticated_agent_name=agent_name,
         action=normalized_action,
         outcome="SCOPE_ALLOWED",
         reason=(
@@ -886,21 +913,19 @@ def authenticate_and_authorize_agent(
 ):
     """Authenticate identity and enforce scope."""
 
-    authenticated_identity = (
-        authenticate_agent(
-            agent_name=agent_name,
-            credential=credential,
-            action=normalize_action(action),
-        )
+    identity = authenticate_agent(
+        agent_name=agent_name,
+        credential=credential,
+        action=normalize_action(action),
     )
 
     normalized_action = enforce_agent_scope(
-        authenticated_identity,
+        identity,
         action,
     )
 
     return {
-        "identity": authenticated_identity,
+        "identity": identity,
         "action": normalized_action,
     }
 
@@ -912,18 +937,20 @@ def write_log(
     approval="NOT_REQUIRED",
     risk_added=0,
 ):
-    """Record one security event."""
+    """Record one policy event."""
 
     normalized_name = normalize_agent_name(
         agent_name
     )
-
     current_state = get_agent_state(
         normalized_name
     )
 
     timestamp = current_timestamp()
     risk_score = current_state["risk_score"]
+    risk_level = get_risk_level(
+        risk_score
+    )
     agent_status = current_state[
         "agent_status"
     ]
@@ -942,8 +969,7 @@ def write_log(
             f"Decision: {decision} | "
             f"Approval: {approval} | "
             f"Risk score: {risk_score} | "
-            f"Risk level: "
-            f"{get_risk_level(risk_score)} | "
+            f"Risk level: {risk_level} | "
             f"Agent status: {agent_status} | "
             f"Blocked attempts: "
             f"{blocked_attempts}\n"
@@ -957,12 +983,44 @@ def write_log(
         approval=approval,
         risk_added=risk_added,
         risk_score=risk_score,
-        risk_level=get_risk_level(
-            risk_score
-        ),
+        risk_level=risk_level,
         agent_status=agent_status,
         blocked_attempts=blocked_attempts,
     )
+
+
+def action_result(
+    agent_name,
+    action,
+    policy_decision,
+    approval,
+    risk_added,
+    message,
+):
+    """Build a policy result."""
+
+    state = get_agent_state(
+        agent_name
+    )
+
+    return {
+        "agent_name": agent_name,
+        "action": action,
+        "policy_decision": policy_decision,
+        "approval": approval,
+        "risk_added": risk_added,
+        "risk_score": state["risk_score"],
+        "risk_level": get_risk_level(
+            state["risk_score"]
+        ),
+        "blocked_attempts": state[
+            "blocked_attempts"
+        ],
+        "agent_status": state[
+            "agent_status"
+        ],
+        "message": message,
+    }
 
 
 def evaluate_action(
@@ -970,7 +1028,7 @@ def evaluate_action(
     action,
     approval=None,
 ):
-    """Evaluate one action for one registered agent."""
+    """Evaluate one action for an agent."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -978,15 +1036,11 @@ def evaluate_action(
     normalized_action = normalize_action(
         action
     )
-
-    current_state = get_agent_state(
+    state = get_agent_state(
         normalized_name
     )
 
-    if (
-        current_state["agent_status"]
-        == "SUSPENDED"
-    ):
+    if state["agent_status"] == "SUSPENDED":
         write_log(
             agent_name=normalized_name,
             action=normalized_action,
@@ -995,45 +1049,28 @@ def evaluate_action(
             risk_added=0,
         )
 
-        return {
-            "agent_name": normalized_name,
-            "action": normalized_action,
-            "policy_decision": "REFUSED",
-            "approval": "NOT_REQUIRED",
-            "risk_added": 0,
-            "risk_score": current_state[
-                "risk_score"
-            ],
-            "risk_level": get_risk_level(
-                current_state["risk_score"]
-            ),
-            "blocked_attempts": current_state[
-                "blocked_attempts"
-            ],
-            "agent_status": current_state[
-                "agent_status"
-            ],
-            "message": (
+        return action_result(
+            agent_name=normalized_name,
+            action=normalized_action,
+            policy_decision="REFUSED",
+            approval="NOT_REQUIRED",
+            risk_added=0,
+            message=(
                 "Action refused because the "
                 "agent is suspended."
             ),
-        }
+        )
 
     policy_decision = permissions.get(
         normalized_action,
         "BLOCK",
     )
-
-    action_risk = risk_weights.get(
+    risk_added = risk_weights.get(
         normalized_action,
         50,
     )
 
-    current_state["risk_score"] += (
-        action_risk
-    )
-
-    approval_result = "NOT_REQUIRED"
+    state["risk_score"] += risk_added
 
     if policy_decision == "ASK":
         if approval in (
@@ -1044,20 +1081,19 @@ def evaluate_action(
         else:
             approval_result = "PENDING"
 
+    else:
+        approval_result = "NOT_REQUIRED"
+
     if policy_decision == "BLOCK":
-        current_state[
-            "blocked_attempts"
-        ] += 1
+        state["blocked_attempts"] += 1
 
     if (
-        current_state["blocked_attempts"]
+        state["blocked_attempts"]
         >= max_blocked_attempts
-        or current_state["risk_score"]
+        or state["risk_score"]
         >= max_risk_score
     ):
-        current_state[
-            "agent_status"
-        ] = "SUSPENDED"
+        state["agent_status"] = "SUSPENDED"
 
     save_state()
 
@@ -1066,13 +1102,11 @@ def evaluate_action(
         action=normalized_action,
         decision=policy_decision,
         approval=approval_result,
-        risk_added=action_risk,
+        risk_added=risk_added,
     )
 
     if policy_decision == "ALLOW":
-        message = (
-            "Action allowed by policy."
-        )
+        message = "Action allowed by policy."
 
     elif policy_decision == "ASK":
         if approval_result == "APPROVED":
@@ -1091,56 +1125,302 @@ def evaluate_action(
             )
 
     else:
-        message = (
-            "Action blocked by policy."
-        )
+        message = "Action blocked by policy."
 
-    if (
-        current_state["agent_status"]
-        == "SUSPENDED"
-    ):
+    if state["agent_status"] == "SUSPENDED":
         message += (
-            " Agent has reached a security "
+            " Agent reached a security "
             "threshold and is now suspended."
         )
 
-    return {
-        "agent_name": normalized_name,
-        "action": normalized_action,
-        "policy_decision": policy_decision,
-        "approval": approval_result,
-        "risk_added": action_risk,
-        "risk_score": current_state[
-            "risk_score"
-        ],
-        "risk_level": get_risk_level(
-            current_state["risk_score"]
-        ),
-        "blocked_attempts": current_state[
-            "blocked_attempts"
-        ],
-        "agent_status": current_state[
-            "agent_status"
-        ],
-        "message": message,
-    }
+    return action_result(
+        agent_name=normalized_name,
+        action=normalized_action,
+        policy_decision=policy_decision,
+        approval=approval_result,
+        risk_added=risk_added,
+        message=message,
+    )
 
 
-def reset_agent(agent_name):
-    """Reset one suspended agent's state."""
+def execute_saved_tool_request(request_id):
+    """Execute one authorized saved request."""
+
+    request = get_tool_request(
+        request_id
+    )
+
+    if request is None:
+        raise KeyError(
+            f"Tool request not found: "
+            f"{request_id}"
+        )
+
+    if request["policy_decision"] not in (
+        "ALLOW",
+        "ASK",
+    ):
+        result = {
+            "success": False,
+            "message": (
+                "Policy does not permit execution."
+            ),
+        }
+
+        save_blocked_execution_result(
+            request_id=request_id,
+            timestamp=current_timestamp(),
+            result=result,
+        )
+
+        return get_tool_request_details(
+            request_id
+        )
+
+    if (
+        request["policy_decision"] == "ASK"
+        and request["approval_status"]
+        != "APPROVED"
+    ):
+        return get_tool_request_details(
+            request_id
+        )
+
+    claimed = claim_tool_request_execution(
+        request_id=request_id,
+        timestamp=current_timestamp(),
+    )
+
+    if not claimed:
+        return get_tool_request_details(
+            request_id
+        )
+
+    try:
+        result = execute_tool(
+            action=request["action"],
+            target=request["target"],
+            payload=request["payload"],
+            dry_run=request["dry_run"],
+        )
+        execution_status = ("DRY_RUN" if request["dry_run"] else "SUCCEEDED")
+
+    except ToolGatewayError as error:
+        execution_status = "FAILED"
+        result = {
+            "success": False,
+            "error": str(error),
+        }
+
+    except Exception:
+        execution_status = "FAILED"
+        result = {
+            "success": False,
+            "error": (
+                "Controlled tool execution failed."
+            ),
+        }
+
+    complete_tool_request_execution(
+        request_id=request_id,
+        timestamp=current_timestamp(),
+        execution_status=execution_status,
+        result=result,
+    )
+
+    return get_tool_request_details(
+        request_id
+    )
+
+
+def submit_tool_request(
+    agent_name,
+    action,
+    target="",
+    payload=None,
+    dry_run=False,
+):
+    """Create and process a tool request."""
 
     normalized_name = normalize_agent_name(
         agent_name
     )
+    normalized_action = normalize_action(
+        action
+    )
 
-    current_state = get_agent_state(
+    if payload is None:
+        payload = {}
+
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "Tool payload must be a JSON object."
+        )
+
+    if not isinstance(target, str):
+        raise ValueError(
+            "Tool target must be a string."
+        )
+
+    if not isinstance(dry_run, bool):
+        raise ValueError(
+            "Dry-run must be true or false."
+        )
+
+    policy_result = evaluate_action(
+        agent_name=normalized_name,
+        action=normalized_action,
+    )
+
+    policy_decision = policy_result[
+        "policy_decision"
+    ]
+    approval_status = policy_result[
+        "approval"
+    ]
+
+    if (
+        normalized_action
+        not in get_supported_tools()
+    ):
+        execution_status = "BLOCKED"
+
+    elif policy_decision == "ALLOW":
+        execution_status = "NOT_STARTED"
+
+    elif policy_decision == "ASK":
+        execution_status = (
+            "NOT_STARTED"
+        )
+
+    else:
+        execution_status = "BLOCKED"
+
+    request_id = str(uuid.uuid4())
+
+    save_tool_request(
+        request_id=request_id,
+        agent_name=normalized_name,
+        timestamp=current_timestamp(),
+        action=normalized_action,
+        target=target.strip(),
+        payload=payload,
+        dry_run=dry_run,
+        policy_decision=policy_decision,
+        approval_status=approval_status,
+        execution_status=execution_status,
+        risk_added=policy_result[
+            "risk_added"
+        ],
+        risk_score=policy_result[
+            "risk_score"
+        ],
+    )
+
+    if execution_status == "BLOCKED":
+        save_blocked_execution_result(
+            request_id=request_id,
+            timestamp=current_timestamp(),
+            result={
+                "success": False,
+                "message": (
+                    "Tool execution was blocked."
+                ),
+            },
+        )
+
+        return get_tool_request_details(
+            request_id
+        )
+
+    if execution_status == "NOT_STARTED":
+        return execute_saved_tool_request(
+            request_id
+        )
+
+    return get_tool_request_details(
+        request_id
+    )
+
+
+def review_tool_request(
+    request_id,
+    actor,
+    decision,
+    note=None,
+):
+    """Approve or deny a pending tool request."""
+
+    normalized_decision = (
+        str(decision)
+        .strip()
+        .upper()
+    )
+
+    if normalized_decision not in (
+        "APPROVED",
+        "DENIED",
+    ):
+        raise ValueError(
+            "Decision must be APPROVED or DENIED."
+        )
+
+    request = get_tool_request(
+        request_id
+    )
+
+    if request is None:
+        raise KeyError(
+            f"Tool request not found: "
+            f"{request_id}"
+        )
+
+    if (
+        request["approval_status"]
+        != "PENDING"
+    ):
+        raise ValueError(
+            "Tool request is no longer "
+            "awaiting approval."
+        )
+
+    changed = decide_tool_request(
+        request_id=request_id,
+        timestamp=current_timestamp(),
+        actor=(
+            str(actor).strip()
+            or "administrator"
+        ),
+        decision=normalized_decision,
+        note=note,
+    )
+
+    if not changed:
+        raise ValueError(
+            "Tool request could not be reviewed."
+        )
+
+    if normalized_decision == "APPROVED":
+        return execute_saved_tool_request(
+            request_id
+        )
+
+    return get_tool_request_details(
+        request_id
+    )
+
+
+def reset_agent(agent_name):
+    """Reset one suspended agent."""
+
+    normalized_name = normalize_agent_name(
+        agent_name
+    )
+    state = get_agent_state(
         normalized_name
     )
 
-    if (
-        current_state["agent_status"]
-        == "ACTIVE"
-    ):
+    if state["agent_status"] == "ACTIVE":
         write_log(
             agent_name=normalized_name,
             action="reset",
@@ -1153,15 +1433,15 @@ def reset_agent(agent_name):
             "agent_name": normalized_name,
             "reset": False,
             "message": (
-                "Reset not required because "
+                "Reset is not required because "
                 "the agent is already active."
             ),
-            "state": current_state,
+            "state": state,
         }
 
-    current_state["agent_status"] = "ACTIVE"
-    current_state["blocked_attempts"] = 0
-    current_state["risk_score"] = 0
+    state["agent_status"] = "ACTIVE"
+    state["blocked_attempts"] = 0
+    state["risk_score"] = 0
 
     save_state()
 
@@ -1179,12 +1459,12 @@ def reset_agent(agent_name):
         "message": (
             "Agent has been manually reset."
         ),
-        "state": current_state,
+        "state": state,
     }
 
 
 def display_agents():
-    """Display all registered agents."""
+    """Display registered agents."""
 
     print(
         "\nGreyGuard - Registered Agents"
@@ -1212,7 +1492,7 @@ def display_agents():
 
 
 def switch_agent():
-    """Switch to or create an agent."""
+    """Switch the terminal agent."""
 
     global active_agent_name
 
@@ -1220,13 +1500,9 @@ def switch_agent():
         "Enter the agent name: "
     ).strip()
 
-    try:
-        registration = register_agent(
-            entered_name
-        )
-    except ValueError as error:
-        print(error)
-        return
+    registration = register_agent(
+        entered_name
+    )
 
     active_agent_name = registration[
         "agent_name"
@@ -1247,7 +1523,7 @@ def switch_agent():
 
 
 def display_recent_audit_events():
-    """Display recent events for the active agent."""
+    """Display recent agent audit events."""
 
     events = get_recent_audit_events(
         active_agent_name,
@@ -1261,36 +1537,24 @@ def display_recent_audit_events():
 
     if not events:
         print(
-            "No audit events found for this agent."
+            "No audit events found."
         )
         return
 
     for event in events:
-        (
-            event_agent_name,
-            timestamp,
-            action,
-            decision,
-            approval,
-            event_risk_score,
-            risk_level,
-            event_agent_status,
-        ) = event
-
         print(
-            f"{timestamp} | "
-            f"Agent: {event_agent_name} | "
-            f"Action: {action} | "
-            f"Decision: {decision} | "
-            f"Approval: {approval} | "
-            f"Risk: {event_risk_score} "
-            f"({risk_level}) | "
-            f"Status: {event_agent_status}"
+            f"{event[1]} | "
+            f"Action: {event[2]} | "
+            f"Decision: {event[3]} | "
+            f"Approval: {event[4]} | "
+            f"Risk: {event[5]} "
+            f"({event[6]}) | "
+            f"Status: {event[7]}"
         )
 
 
 def display_audit_summary():
-    """Display active-agent audit statistics."""
+    """Display the current agent's summary."""
 
     summary = get_audit_summary(
         active_agent_name
@@ -1301,63 +1565,36 @@ def display_audit_summary():
         active_agent_name,
     )
 
-    print(
-        "Total events:",
-        summary["total_events"],
-    )
-    print(
-        "Allowed actions:",
-        summary["allowed"],
-    )
-    print(
-        "Approval requests:",
-        summary["asked"],
-    )
-    print(
-        "Blocked actions:",
-        summary["blocked"],
-    )
-    print(
-        "Refused actions:",
-        summary["refused"],
-    )
-    print(
-        "Highest risk score:",
-        summary["highest_risk_score"],
-    )
+    for name, value in summary.items():
+        print(
+            name.replace("_", " ").title(),
+            ":",
+            value,
+        )
 
 
 def display_action_result(result):
-    """Display an evaluated action result."""
+    """Display an action evaluation."""
 
     print(
         "Policy decision:",
         result["policy_decision"],
     )
-
-    if result["policy_decision"] == "ASK":
-        print(
-            "Final approval:",
-            result["approval"],
-        )
-
+    print(
+        "Approval:",
+        result["approval"],
+    )
     print(
         "Risk added:",
         result["risk_added"],
     )
     print(
-        "Total risk score:",
+        "Risk score:",
         result["risk_score"],
     )
     print(
         "Risk level:",
         result["risk_level"],
-    )
-    print(
-        "Blocked attempts:",
-        result["blocked_attempts"],
-        "/",
-        max_blocked_attempts,
     )
     print(
         "Agent status:",
@@ -1370,14 +1607,14 @@ def display_action_result(result):
 
 
 def run_cli():
-    """Start the GreyGuard command-line interface."""
+    """Start the GreyGuard terminal interface."""
 
     global active_agent_name
 
     initialize_greyguard()
 
     print(
-        "GreyGuard multi-agent state loaded."
+        "GreyGuard V10 multi-agent state loaded."
     )
     print(
         "Active agent:",
@@ -1385,7 +1622,7 @@ def run_cli():
     )
 
     while True:
-        current_state = get_current_state()
+        state = get_current_state()
 
         print(
             "\nActive agent:",
@@ -1393,22 +1630,22 @@ def run_cli():
         )
         print(
             "Agent status:",
-            current_state["agent_status"],
+            state["agent_status"],
         )
         print(
             "Risk score:",
-            current_state["risk_score"],
+            state["risk_score"],
         )
 
         action = input(
             "Enter an action, 'list_agents', "
-            "'switch_agent', 'reset', or "
+            "'switch_agent', 'recent_audit', "
+            "'audit_summary', 'reset', or "
             "'quit': "
         ).strip().lower()
 
         if action == "quit":
             save_state()
-
             print(
                 "GreyGuard state saved."
             )
@@ -1422,18 +1659,27 @@ def run_cli():
             continue
 
         if action == "switch_agent":
-            switch_agent()
+            try:
+                switch_agent()
+
+            except ValueError as error:
+                print(error)
+
+            continue
+
+        if action == "recent_audit":
+            display_recent_audit_events()
+            continue
+
+        if action == "audit_summary":
+            display_audit_summary()
             continue
 
         if action == "reset":
-            if (
-                current_state["agent_status"]
-                == "ACTIVE"
-            ):
+            if state["agent_status"] == "ACTIVE":
                 result = reset_agent(
                     active_agent_name
                 )
-
                 print(result["message"])
                 continue
 
@@ -1441,65 +1687,40 @@ def run_cli():
                 result = reset_agent(
                     active_agent_name
                 )
-
-                print(
-                    "Administrator verified."
-                )
                 print(result["message"])
 
             else:
                 print(
-                    "Reset denied: administrator "
-                    "verification failed."
-                )
-
-                write_log(
-                    agent_name=active_agent_name,
-                    action="reset",
-                    decision="RESET",
-                    approval="DENIED",
-                    risk_added=0,
+                    "Reset denied."
                 )
 
             continue
 
-        if (
-            current_state["agent_status"]
-            == "SUSPENDED"
-        ):
-            result = evaluate_action(
-                active_agent_name,
-                action,
-            )
-
-            display_action_result(result)
-            continue
-
-        policy_decision = permissions.get(
-            action,
+        normalized_action = normalize_action(
+            action
+        )
+        policy = permissions.get(
+            normalized_action,
             "BLOCK",
         )
+        approval = None
 
-        approval_result = None
-
-        if policy_decision == "ASK":
-            approval_result = (
-                request_human_approval(action)
+        if (
+            policy == "ASK"
+            and state["agent_status"]
+            == "ACTIVE"
+        ):
+            approval = request_human_approval(
+                normalized_action
             )
 
         result = evaluate_action(
             agent_name=active_agent_name,
-            action=action,
-            approval=approval_result,
+            action=normalized_action,
+            approval=approval,
         )
 
         display_action_result(result)
-
-        if action == "view_audit":
-            display_recent_audit_events()
-
-        if action == "audit_summary":
-            display_audit_summary()
 
 
 if __name__ == "__main__":

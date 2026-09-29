@@ -1,3 +1,11 @@
+"""
+GreyGuard database layer.
+
+Version 10 preserves all previous identity, authentication,
+risk, and audit records while adding persistent tool requests,
+human approvals, and execution evidence.
+"""
+
 import json
 import sqlite3
 from pathlib import Path
@@ -83,6 +91,60 @@ def initialize_database():
 
         connection.execute(
             """
+            CREATE TABLE IF NOT EXISTS
+            tool_requests (
+                request_id TEXT PRIMARY KEY,
+                agent_name TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                action TEXT NOT NULL,
+                target TEXT,
+                payload_json TEXT NOT NULL,
+                dry_run INTEGER NOT NULL DEFAULT 0,
+                policy_decision TEXT NOT NULL,
+                approval_status TEXT NOT NULL,
+                execution_status TEXT NOT NULL,
+                risk_added INTEGER NOT NULL,
+                risk_score INTEGER NOT NULL,
+                result_json TEXT,
+                executed_at TEXT
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS
+            approval_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                note TEXT,
+                FOREIGN KEY (request_id)
+                    REFERENCES tool_requests(request_id)
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS
+            execution_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                request_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                execution_status TEXT NOT NULL,
+                result_json TEXT NOT NULL,
+                FOREIGN KEY (request_id)
+                    REFERENCES tool_requests(request_id)
+            )
+            """
+        )
+
+        connection.execute(
+            """
             CREATE INDEX IF NOT EXISTS
             idx_audit_events_agent
             ON audit_events (
@@ -98,6 +160,61 @@ def initialize_database():
             idx_authentication_events_agent
             ON authentication_events (
                 claimed_agent_name,
+                id
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_tool_requests_agent
+            ON tool_requests (
+                agent_name,
+                timestamp
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_tool_requests_approval
+            ON tool_requests (
+                approval_status,
+                timestamp
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_tool_requests_execution
+            ON tool_requests (
+                execution_status,
+                timestamp
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_approval_events_request
+            ON approval_events (
+                request_id,
+                id
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_execution_events_request
+            ON execution_events (
+                request_id,
                 id
             )
             """
@@ -154,7 +271,7 @@ def get_recent_audit_events(
     agent_name,
     limit=5,
 ):
-    """Return recent events for one agent."""
+    """Return recent policy events for one agent."""
 
     with sqlite3.connect(database_path) as connection:
         cursor = connection.execute(
@@ -183,7 +300,7 @@ def get_recent_audit_events(
 
 
 def get_audit_summary(agent_name):
-    """Return audit statistics for one agent."""
+    """Return policy-audit statistics for one agent."""
 
     with sqlite3.connect(database_path) as connection:
         summary = connection.execute(
@@ -267,7 +384,16 @@ def create_agent_identity(
                     rotated_at,
                     revoked_at
                 )
-                VALUES (?, ?, ?, ?, 'ACTIVE', ?, NULL, NULL)
+                VALUES (
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    'ACTIVE',
+                    ?,
+                    NULL,
+                    NULL
+                )
                 """,
                 (
                     agent_name,
@@ -326,7 +452,7 @@ def get_agent_identity(agent_name):
 
 
 def get_agent_identities():
-    """Return all identities without credential data."""
+    """Return all identities without credential hashes."""
 
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
@@ -454,7 +580,7 @@ def save_authentication_event(
     outcome,
     reason,
 ):
-    """Save an identity-authentication event."""
+    """Save an identity or scope event."""
 
     with sqlite3.connect(database_path) as connection:
         connection.execute(
@@ -519,10 +645,549 @@ def get_recent_authentication_events(
     ]
 
 
+def decode_json_object(value):
+    """Convert stored JSON into a dictionary."""
+
+    if value is None:
+        return None
+
+    try:
+        decoded_value = json.loads(value)
+    except (
+        json.JSONDecodeError,
+        TypeError,
+    ):
+        return {
+            "error": (
+                "Stored JSON could not be decoded."
+            )
+        }
+
+    if isinstance(decoded_value, dict):
+        return decoded_value
+
+    return {
+        "value": decoded_value
+    }
+
+
+def serialize_tool_request(row):
+    """Convert one tool-request row into API data."""
+
+    if row is None:
+        return None
+
+    request = dict(row)
+
+    request["payload"] = decode_json_object(
+        request.pop("payload_json")
+    ) or {}
+
+    request["result"] = decode_json_object(
+        request.pop("result_json")
+    )
+
+    request["dry_run"] = bool(
+        request["dry_run"]
+    )
+
+    return request
+
+
+def save_tool_request(
+    request_id,
+    agent_name,
+    timestamp,
+    action,
+    target,
+    payload,
+    dry_run,
+    policy_decision,
+    approval_status,
+    execution_status,
+    risk_added,
+    risk_score,
+):
+    """Store a new tool request."""
+
+    payload_json = json.dumps(
+        payload or {},
+        sort_keys=True,
+    )
+
+    try:
+        with sqlite3.connect(
+            database_path
+        ) as connection:
+            connection.execute(
+                """
+                INSERT INTO tool_requests (
+                    request_id,
+                    agent_name,
+                    timestamp,
+                    updated_at,
+                    action,
+                    target,
+                    payload_json,
+                    dry_run,
+                    policy_decision,
+                    approval_status,
+                    execution_status,
+                    risk_added,
+                    risk_score,
+                    result_json,
+                    executed_at
+                )
+                VALUES (
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    ?,
+                    NULL,
+                    NULL
+                )
+                """,
+                (
+                    request_id,
+                    agent_name,
+                    timestamp,
+                    timestamp,
+                    action,
+                    target,
+                    payload_json,
+                    int(bool(dry_run)),
+                    policy_decision,
+                    approval_status,
+                    execution_status,
+                    risk_added,
+                    risk_score,
+                ),
+            )
+
+    except sqlite3.IntegrityError:
+        return False
+
+    return True
+
+
+def get_tool_request(request_id):
+    """Return one stored tool request."""
+
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+
+        row = connection.execute(
+            """
+            SELECT
+                request_id,
+                agent_name,
+                timestamp,
+                updated_at,
+                action,
+                target,
+                payload_json,
+                dry_run,
+                policy_decision,
+                approval_status,
+                execution_status,
+                risk_added,
+                risk_score,
+                result_json,
+                executed_at
+            FROM tool_requests
+            WHERE request_id = ?
+            """,
+            (request_id,),
+        ).fetchone()
+
+    return serialize_tool_request(row)
+
+
+def get_tool_requests(
+    agent_name=None,
+    approval_status=None,
+    execution_status=None,
+    limit=50,
+):
+    """Return filtered tool requests."""
+
+    conditions = []
+    parameters = []
+
+    if agent_name is not None:
+        conditions.append(
+            "agent_name = ?"
+        )
+        parameters.append(agent_name)
+
+    if approval_status is not None:
+        conditions.append(
+            "approval_status = ?"
+        )
+        parameters.append(approval_status)
+
+    if execution_status is not None:
+        conditions.append(
+            "execution_status = ?"
+        )
+        parameters.append(execution_status)
+
+    where_clause = ""
+
+    if conditions:
+        where_clause = (
+            "WHERE "
+            + " AND ".join(conditions)
+        )
+
+    parameters.append(limit)
+
+    query = f"""
+        SELECT
+            request_id,
+            agent_name,
+            timestamp,
+            updated_at,
+            action,
+            target,
+            payload_json,
+            dry_run,
+            policy_decision,
+            approval_status,
+            execution_status,
+            risk_added,
+            risk_score,
+            result_json,
+            executed_at
+        FROM tool_requests
+        {where_clause}
+        ORDER BY timestamp DESC
+        LIMIT ?
+    """
+
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute(
+            query,
+            tuple(parameters),
+        ).fetchall()
+
+    return [
+        serialize_tool_request(row)
+        for row in rows
+    ]
+
+
+def decide_tool_request(
+    request_id,
+    timestamp,
+    actor,
+    decision,
+    note=None,
+):
+    """Approve or deny one pending tool request."""
+
+    normalized_decision = (
+        str(decision).strip().upper()
+    )
+
+    if normalized_decision not in (
+        "APPROVED",
+        "DENIED",
+    ):
+        raise ValueError(
+            "Decision must be APPROVED or DENIED."
+        )
+
+    if normalized_decision == "DENIED":
+        execution_status = "DENIED"
+    else:
+        execution_status = "NOT_STARTED"
+
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE tool_requests
+            SET
+                approval_status = ?,
+                execution_status = ?,
+                updated_at = ?
+            WHERE
+                request_id = ?
+                AND approval_status = 'PENDING'
+                AND execution_status = 'NOT_STARTED'
+            """,
+            (
+                normalized_decision,
+                execution_status,
+                timestamp,
+                request_id,
+            ),
+        )
+
+        if cursor.rowcount == 0:
+            return False
+
+        connection.execute(
+            """
+            INSERT INTO approval_events (
+                request_id,
+                timestamp,
+                actor,
+                decision,
+                note
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                request_id,
+                timestamp,
+                actor,
+                normalized_decision,
+                note,
+            ),
+        )
+
+    return True
+
+
+def claim_tool_request_execution(
+    request_id,
+    timestamp,
+):
+    """Atomically claim a request for one execution."""
+
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE tool_requests
+            SET
+                execution_status = 'RUNNING',
+                updated_at = ?
+            WHERE
+                request_id = ?
+                AND execution_status = 'NOT_STARTED'
+                AND approval_status IN (
+                    'NOT_REQUIRED',
+                    'APPROVED'
+                )
+            """,
+            (
+                timestamp,
+                request_id,
+            ),
+        )
+
+        return cursor.rowcount > 0
+
+
+def complete_tool_request_execution(
+    request_id,
+    timestamp,
+    execution_status,
+    result,
+):
+    """Finish an execution and save its evidence."""
+
+    normalized_status = (
+        str(execution_status).strip().upper()
+    )
+
+    valid_statuses = {
+        "SUCCEEDED",
+        "FAILED",
+        "DRY_RUN",
+    }
+
+    if normalized_status not in valid_statuses:
+        raise ValueError(
+            "Invalid final execution status."
+        )
+
+    result_json = json.dumps(
+        result or {},
+        sort_keys=True,
+    )
+
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE tool_requests
+            SET
+                execution_status = ?,
+                result_json = ?,
+                executed_at = ?,
+                updated_at = ?
+            WHERE
+                request_id = ?
+                AND execution_status = 'RUNNING'
+            """,
+            (
+                normalized_status,
+                result_json,
+                timestamp,
+                timestamp,
+                request_id,
+            ),
+        )
+
+        if cursor.rowcount == 0:
+            return False
+
+        connection.execute(
+            """
+            INSERT INTO execution_events (
+                request_id,
+                timestamp,
+                execution_status,
+                result_json
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                request_id,
+                timestamp,
+                normalized_status,
+                result_json,
+            ),
+        )
+
+    return True
+
+
+def save_blocked_execution_result(
+    request_id,
+    timestamp,
+    result,
+):
+    """Attach evidence to a blocked request."""
+
+    result_json = json.dumps(
+        result or {},
+        sort_keys=True,
+    )
+
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.execute(
+            """
+            UPDATE tool_requests
+            SET
+                result_json = ?,
+                updated_at = ?
+            WHERE
+                request_id = ?
+                AND execution_status = 'BLOCKED'
+            """,
+            (
+                result_json,
+                timestamp,
+                request_id,
+            ),
+        )
+
+        return cursor.rowcount > 0
+
+
+def get_approval_events(
+    request_id,
+):
+    """Return approval history for a request."""
+
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                request_id,
+                timestamp,
+                actor,
+                decision,
+                note
+            FROM approval_events
+            WHERE request_id = ?
+            ORDER BY id
+            """,
+            (request_id,),
+        ).fetchall()
+
+    return [
+        dict(row)
+        for row in rows
+    ]
+
+
+def get_execution_events(
+    request_id,
+):
+    """Return execution history for a request."""
+
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute(
+            """
+            SELECT
+                id,
+                request_id,
+                timestamp,
+                execution_status,
+                result_json
+            FROM execution_events
+            WHERE request_id = ?
+            ORDER BY id
+            """,
+            (request_id,),
+        ).fetchall()
+
+    events = []
+
+    for row in rows:
+        event = dict(row)
+        event["result"] = decode_json_object(
+            event.pop("result_json")
+        ) or {}
+        events.append(event)
+
+    return events
+
+
+def get_tool_request_details(request_id):
+    """Return a request with approval and execution history."""
+
+    request = get_tool_request(
+        request_id
+    )
+
+    if request is None:
+        return None
+
+    request["approval_events"] = (
+        get_approval_events(request_id)
+    )
+
+    request["execution_events"] = (
+        get_execution_events(request_id)
+    )
+
+    return request
+
+
 if __name__ == "__main__":
     initialize_database()
 
     print(
-        "GreyGuard V9 database initialized:"
+        "GreyGuard V10 database initialized:"
     )
     print(database_path)

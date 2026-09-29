@@ -530,6 +530,34 @@ Current limitations include:
 
 Do not expose the development API directly to the public internet.
 
+## Version 10 — Policy-Enforced Tool Gateway
+
+Version 10 connects GreyGuard’s identity, scope, and policy controls to a restricted execution gateway.
+
+### Controlled Tools
+
+GreyGuard currently exposes four controlled tools:
+
+- `list_files` — lists resources inside the sandbox
+- `read_file` — reads approved UTF-8 sandbox files
+- `search_logs` — searches the GreyGuard security log
+- `write_note` — writes approved text notes inside `sandbox_data/notes`
+
+GreyGuard does not provide arbitrary terminal, network, program-execution, or unrestricted filesystem access.
+
+### V10 Security Workflow
+
+```text
+Agent credential
+→ scope validation
+→ policy evaluation
+→ ALLOW, ASK, BLOCK, or REFUSED
+→ human approval when required
+→ controlled tool gateway
+→ sandbox validation
+→ execution
+→ audit and execution evidence
+
 ## Future Development
 
 Possible future improvements include:
