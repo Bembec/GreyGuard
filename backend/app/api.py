@@ -20,8 +20,8 @@ from fastapi import (
 )
 from pydantic import BaseModel, Field
 
-import main
-from database import (
+from . import main
+from .database import (
     get_audit_summary,
     get_recent_authentication_events,
     get_recent_audit_events,

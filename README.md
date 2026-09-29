@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/greyguard-symbol.png" alt="GreyGuard official symbol" width="180">
+  <img src="frontend/public/brand/greyguard-symbol.png" alt="GreyGuard official symbol" width="180">
 </p>
 
 # GreyGuard

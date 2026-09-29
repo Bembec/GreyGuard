@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 database_path = (
-    Path(__file__).parent / "greyguard.db"
+    Path(__file__).resolve().parents[1] / "data" / "greyguard.db"
 )
 
 

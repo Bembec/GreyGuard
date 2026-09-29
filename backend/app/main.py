@@ -16,7 +16,7 @@ from datetime import datetime
 from getpass import getpass
 from pathlib import Path
 
-from database import (
+from .database import (
     claim_tool_request_execution,
     complete_tool_request_execution,
     create_agent_identity as save_agent_identity,
@@ -36,7 +36,7 @@ from database import (
     save_tool_request,
     update_agent_scopes as update_stored_scopes,
 )
-from tool_gateway import (
+from .tool_gateway import (
     ToolGatewayError,
     execute_tool,
     get_supported_tools,
@@ -74,12 +74,13 @@ max_risk_score = 100
 credential_prefix = "gg_"
 credential_hash_iterations = 310_000
 
-project_path = Path(__file__).parent
+backend_path = Path(__file__).resolve().parents[1]
+data_path = backend_path / "data"
 log_path = (
-    project_path / "greyguard_security.log"
+    data_path / "greyguard_security.log"
 )
 state_path = (
-    project_path / "greyguard_state.json"
+    data_path / "greyguard_state.json"
 )
 
 agent_states = {}

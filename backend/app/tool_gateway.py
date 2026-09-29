@@ -9,14 +9,15 @@ network access.
 from pathlib import Path
 
 
-project_path = Path(__file__).parent.resolve()
+backend_path = Path(__file__).resolve().parents[1]
+data_path = backend_path / "data"
 
 sandbox_root = (
-    project_path / "sandbox_data"
+    data_path / "sandbox_data"
 ).resolve()
 
 security_log_path = (
-    project_path / "greyguard_security.log"
+    data_path / "greyguard_security.log"
 ).resolve()
 
 maximum_read_bytes = 100_000
