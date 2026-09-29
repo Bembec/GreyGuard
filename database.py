@@ -4,12 +4,12 @@ from pathlib import Path
 
 
 database_path = (
-    Path(__file__).parent / "agentguard.db"
+    Path(__file__).parent / "greyguard.db"
 )
 
 
 def initialize_database():
-    """Create or upgrade the AgentGuard database."""
+    """Create or upgrade the GreyGuard database."""
 
     with sqlite3.connect(database_path) as connection:
         connection.execute(
@@ -116,7 +116,7 @@ def save_audit_event(
     agent_status,
     blocked_attempts,
 ):
-    """Save one AgentGuard security event."""
+    """Save one GreyGuard security event."""
 
     with sqlite3.connect(database_path) as connection:
         connection.execute(
@@ -523,6 +523,6 @@ if __name__ == "__main__":
     initialize_database()
 
     print(
-        "AgentGuard V9 database initialized:"
+        "GreyGuard V9 database initialized:"
     )
     print(database_path)

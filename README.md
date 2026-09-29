@@ -1,6 +1,6 @@
-﻿# AgentGuard
+# GreyGuard
 
-AgentGuard is a defensive AI-agent identity, permission, risk, and security control plane written in Python.
+GreyGuard is a defensive AI-agent identity, permission, risk, and security control plane written in Python.
 
 It authenticates agents before accepting requests, enforces agent-specific scope boundaries, evaluates actions using `ALLOW`, `ASK`, or `BLOCK` policies, tracks risk independently, suspends unsafe agents, and stores audit evidence.
 
@@ -10,7 +10,7 @@ It authenticates agents before accepting requests, enforces agent-specific scope
 
 **Version 9 — Agent Identity and Scope Boundary Enforcement**
 
-AgentGuard now follows this security flow:
+GreyGuard now follows this security flow:
 
 ```text
 Agent credential
@@ -47,7 +47,7 @@ Agent credential
 ## Project Structure
 
 ```text
-AgentGuard/
+GreyGuard/
 ├── api.py
 ├── database.py
 ├── main.py
@@ -59,15 +59,15 @@ AgentGuard/
 The following runtime files are generated locally and excluded from Git:
 
 ```text
-agent_state.json
-agentguard.db
-security.log
+greyguard_state.json
+greyguard.db
+greyguard_greyguard_greyguard_security.log
 __pycache__/
 ```
 
 ## Security Layers
 
-AgentGuard evaluates requests through three separate controls.
+GreyGuard evaluates requests through three separate controls.
 
 ### 1. Authentication
 
@@ -84,7 +84,7 @@ X-Agent-Name
 X-Agent-Key
 ```
 
-AgentGuard verifies the credential against its stored salted hash.
+GreyGuard verifies the credential against its stored salted hash.
 
 ### 2. Scope Authorization
 
@@ -104,7 +104,7 @@ Policy evaluation answers:
 What security decision applies to this permitted request?
 ```
 
-Even when an agent is authenticated and has the correct scope, AgentGuard may still return `ASK` or `BLOCK`.
+Even when an agent is authenticated and has the correct scope, GreyGuard may still return `ASK` or `BLOCK`.
 
 Example:
 
@@ -194,7 +194,7 @@ The terminal interface remains available for local development and recovery. V9 
 Set an administrator PIN for the current PowerShell session:
 
 ```powershell
-$env:AGENTGUARD_ADMIN_PIN = "choose-a-private-pin"
+$env:GREYGUARD_ADMIN_PIN = "choose-a-private-pin"
 ```
 
 Start the API:
@@ -218,7 +218,7 @@ Do not commit the administrator PIN or place a real PIN in the README.
 Agent credentials begin with:
 
 ```text
-ag_
+gg_
 ```
 
 The original credential is displayed only when:
@@ -226,7 +226,7 @@ The original credential is displayed only when:
 * An identity is created
 * A credential is rotated
 
-AgentGuard stores only:
+GreyGuard stores only:
 
 * A random salt
 * A PBKDF2-derived hash
@@ -292,12 +292,12 @@ The response contains a credential once:
 ```json
 {
   "agent_name": "research_agent",
-  "credential": "ag_REDACTED",
-  "credential_notice": "Save this credential now. AgentGuard will not display it again."
+  "credential": "gg_REDACTED",
+  "credential_notice": "Save this credential now. GreyGuard will not display it again."
 }
 ```
 
-`ag_REDACTED` is documentation text, not a working credential.
+`gg_REDACTED` is documentation text, not a working credential.
 
 ## Evaluating an Action
 
@@ -417,7 +417,7 @@ Example:
 }
 ```
 
-Only actions defined in the AgentGuard policy can be assigned as scopes.
+Only actions defined in the GreyGuard policy can be assigned as scopes.
 
 ## Audit Evidence
 
@@ -511,7 +511,7 @@ V9 was manually verified through the running FastAPI application:
 
 ## Security Limitations
 
-AgentGuard V9 is a local defensive learning project.
+GreyGuard V9 is a local defensive learning project.
 
 Current limitations include:
 
@@ -538,7 +538,7 @@ Possible future improvements include:
 * Resource-specific scopes
 * Real-time security alerts
 * Sandboxed tool execution
-* AgentGuard integration with CanaryLab AI
+* GreyGuard integration with CanaryLab AI
 * PostgreSQL deployment support
 * Docker isolation
 * Signed agent requests
@@ -546,7 +546,7 @@ Possible future improvements include:
 
 ## Safety Notice
 
-AgentGuard is a defensive educational project. It evaluates and records simulated agent actions. It does not provide unrestricted operating-system, filesystem, browser, or network execution.
+GreyGuard is a defensive educational project. It evaluates and records simulated agent actions. It does not provide unrestricted operating-system, filesystem, browser, or network execution.
 
 ## Author
 

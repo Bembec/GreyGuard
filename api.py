@@ -1,5 +1,5 @@
 """
-AgentGuard V9 FastAPI control plane.
+GreyGuard V9 FastAPI control plane.
 
 Agent requests must authenticate with an agent name and credential.
 Authenticated identities must also possess the requested action scope.
@@ -26,7 +26,7 @@ from database import (
 
 
 app = FastAPI(
-    title="AgentGuard Control Plane API",
+    title="GreyGuard Control Plane API",
     description=(
         "A multi-agent identity, scope, "
         "permission, risk, suspension, "
@@ -95,9 +95,9 @@ class ActionRequest(BaseModel):
 
 @app.on_event("startup")
 def startup_event():
-    """Initialize AgentGuard when the API starts."""
+    """Initialize GreyGuard when the API starts."""
 
-    main.initialize_agentguard()
+    main.initialize_greyguard()
 
 
 def require_admin(
@@ -106,7 +106,7 @@ def require_admin(
     """Verify the administrative API PIN."""
 
     configured_pin = os.getenv(
-        "AGENTGUARD_ADMIN_PIN"
+        "GREYGUARD_ADMIN_PIN"
     )
 
     if not configured_pin:
@@ -283,10 +283,10 @@ def authenticate_agent_owner(
 
 @app.get("/")
 def home():
-    """Return basic AgentGuard information."""
+    """Return basic GreyGuard information."""
 
     return {
-        "application": "AgentGuard",
+        "application": "GreyGuard",
         "version": "9.0",
         "status": "running",
         "purpose": (

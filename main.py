@@ -1,5 +1,5 @@
 """
-AgentGuard evaluates AI-agent actions before tools execute them.
+GreyGuard evaluates AI-agent actions before tools execute them.
 
 Version 9 adds agent identity authentication, hashed credentials,
 credential rotation and revocation, and per-agent scope boundaries.
@@ -52,12 +52,12 @@ risk_weights = {
 max_blocked_attempts = 3
 max_risk_score = 100
 
-credential_prefix = "ag_"
+credential_prefix = "gg_"
 credential_hash_iterations = 310_000
 
 project_path = Path(__file__).parent
-log_path = project_path / "security.log"
-state_path = project_path / "agent_state.json"
+log_path = project_path / "greyguard_greyguard_greyguard_security.log"
+state_path = project_path / "greyguard_state.json"
 
 agent_states = {}
 active_agent_name = ""
@@ -169,10 +169,10 @@ def request_human_approval(action):
 
 
 def authenticate_admin():
-    """Verify the administrator before resetting AgentGuard."""
+    """Verify the administrator before resetting GreyGuard."""
 
     admin_pin = os.getenv(
-        "AGENTGUARD_ADMIN_PIN"
+        "GREYGUARD_ADMIN_PIN"
     )
 
     if not admin_pin:
@@ -286,7 +286,7 @@ def save_state():
         )
 
 
-def initialize_agentguard():
+def initialize_greyguard():
     """Initialize the database and load agent states."""
 
     global agent_states
@@ -530,7 +530,7 @@ def issue_agent_credential(
         "credential": credential,
         "credential_notice": (
             "Save this credential now. "
-            "AgentGuard will not display it again."
+            "GreyGuard will not display it again."
         ),
         "identity": public_identity(identity),
     }
@@ -1187,7 +1187,7 @@ def display_agents():
     """Display all registered agents."""
 
     print(
-        "\nAgentGuard - Registered Agents"
+        "\nGreyGuard - Registered Agents"
     )
 
     for agent_name, state in sorted(
@@ -1255,7 +1255,7 @@ def display_recent_audit_events():
     )
 
     print(
-        "\nAgentGuard - Recent Audit Events:",
+        "\nGreyGuard - Recent Audit Events:",
         active_agent_name,
     )
 
@@ -1297,7 +1297,7 @@ def display_audit_summary():
     )
 
     print(
-        "\nAgentGuard - Audit Summary:",
+        "\nGreyGuard - Audit Summary:",
         active_agent_name,
     )
 
@@ -1370,14 +1370,14 @@ def display_action_result(result):
 
 
 def run_cli():
-    """Start the AgentGuard command-line interface."""
+    """Start the GreyGuard command-line interface."""
 
     global active_agent_name
 
-    initialize_agentguard()
+    initialize_greyguard()
 
     print(
-        "AgentGuard multi-agent state loaded."
+        "GreyGuard multi-agent state loaded."
     )
     print(
         "Active agent:",
@@ -1410,10 +1410,10 @@ def run_cli():
             save_state()
 
             print(
-                "AgentGuard state saved."
+                "GreyGuard state saved."
             )
             print(
-                "AgentGuard closed."
+                "GreyGuard closed."
             )
             break
 
