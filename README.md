@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/greyguard-symbol.png" alt="GreyGuard official symbol" width="180">
+</p>
+
 # GreyGuard
 
 GreyGuard is a defensive AI-agent identity, permission, risk, and security control plane written in Python.
