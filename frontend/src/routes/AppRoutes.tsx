@@ -6,6 +6,7 @@ import {
 
 import { useAuth } from "../context/AuthContext"
 import { AppShell } from "../layouts/AppShell"
+import AgentsPage from "../pages/AgentsPage"
 import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
 import { SectionPage } from "../pages/SectionPage"
@@ -37,19 +38,7 @@ export function AppRoutes() {
 
         <Route
           path="/agents"
-          element={
-            <SectionPage
-              eyebrow="Identity control"
-              title="Agents and identities"
-              description="Inspect independent agent states, credentials and assigned action scopes."
-              features={[
-                "Registered agent estate",
-                "Credential lifecycle",
-                "Scope boundaries",
-                "Suspension controls",
-              ]}
-            />
-          }
+          element={<AgentsPage />}
         />
 
         <Route
@@ -160,7 +149,7 @@ export function AppRoutes() {
             <SectionPage
               eyebrow="Contained execution"
               title="Sandbox"
-              description="Inspect GreyGuard’s restricted filesystem and controlled tool boundary."
+              description="Inspect GreyGuard's restricted filesystem and controlled tool boundary."
               features={[
                 "Allowed tools",
                 "Path containment",
