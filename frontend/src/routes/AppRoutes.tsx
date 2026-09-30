@@ -11,6 +11,7 @@ import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
 import { SectionPage } from "../pages/SectionPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
+import ApprovalsPage from "../pages/ApprovalsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -47,23 +48,11 @@ export function AppRoutes() {
           path="/requests"
           element={<ToolRequestsPage />}
         />
+
         <Route
           path="/approvals"
-          element={
-            <SectionPage
-              eyebrow="Human authority"
-              title="Approval center"
-              description="Review sensitive actions before GreyGuard permits execution."
-              features={[
-                "Pending approvals",
-                "Decision context",
-                "Reviewer evidence",
-                "Denied operations",
-              ]}
-            />
-          }
+          element={<ApprovalsPage />}
         />
-
         <Route
           path="/policies"
           element={
