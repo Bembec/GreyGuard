@@ -12,6 +12,7 @@ import { LoginPage } from "../pages/LoginPage"
 import { SectionPage } from "../pages/SectionPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
 import ApprovalsPage from "../pages/ApprovalsPage"
+import PoliciesPage from "../pages/PoliciesPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -53,23 +54,11 @@ export function AppRoutes() {
           path="/approvals"
           element={<ApprovalsPage />}
         />
+
         <Route
           path="/policies"
-          element={
-            <SectionPage
-              eyebrow="Policy enforcement"
-              title="Permission policies"
-              description="Understand how actions become ALLOW, ASK, BLOCK or REFUSED."
-              features={[
-                "Action matrix",
-                "Risk weights",
-                "Scope mapping",
-                "Threshold controls",
-              ]}
-            />
-          }
+          element={<PoliciesPage />}
         />
-
         <Route
           path="/risk"
           element={
