@@ -10,6 +10,7 @@ import AgentsPage from "../pages/AgentsPage"
 import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
 import { SectionPage } from "../pages/SectionPage"
+import ToolRequestsPage from "../pages/ToolRequestsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -41,23 +42,11 @@ export function AppRoutes() {
           element={<AgentsPage />}
         />
 
+
         <Route
           path="/requests"
-          element={
-            <SectionPage
-              eyebrow="Execution control"
-              title="Tool requests"
-              description="Follow every request from policy evaluation through controlled execution evidence."
-              features={[
-                "Request queue",
-                "Decision state",
-                "Execution timeline",
-                "Replay protection",
-              ]}
-            />
-          }
+          element={<ToolRequestsPage />}
         />
-
         <Route
           path="/approvals"
           element={

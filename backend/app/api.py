@@ -26,6 +26,7 @@ from .database import (
     get_recent_authentication_events,
     get_recent_audit_events,
     get_tool_request_details,
+    get_tool_requests,
 )
 
 
@@ -648,6 +649,52 @@ def create_tool_request(
             status_code=400,
             detail=str(error),
         ) from error
+
+
+
+@app.get("/tool-requests")
+def list_tool_requests(
+    agent_name: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=100,
+    ),
+    approval_status: str | None = Query(
+        default=None,
+    ),
+    execution_status: str | None = Query(
+        default=None,
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+    ),
+    x_admin_pin: str | None = Header(
+        default=None,
+    ),
+):
+    """Return tool requests for administrators."""
+
+    require_admin(x_admin_pin)
+
+    requests = get_tool_requests(
+        agent_name=agent_name,
+        approval_status=approval_status,
+        execution_status=execution_status,
+        limit=limit,
+    )
+
+    return {
+        "requests": requests,
+        "count": len(requests),
+        "filters": {
+            "agent_name": agent_name,
+            "approval_status": approval_status,
+            "execution_status": execution_status,
+            "limit": limit,
+        },
+    }
 
 
 @app.get("/tool-requests/{request_id}")
