@@ -15,6 +15,7 @@ import ApprovalsPage from "../pages/ApprovalsPage"
 import PoliciesPage from "../pages/PoliciesPage"
 import RiskCenterPage from "../pages/RiskCenterPage"
 import AuditTrailPage from "../pages/AuditTrailPage"
+import AuthenticationPage from "../pages/AuthenticationPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -73,19 +74,7 @@ export function AppRoutes() {
 
         <Route
           path="/authentication"
-          element={
-            <SectionPage
-              eyebrow="Identity assurance"
-              title="Authentication"
-              description="Review credential verification, scope decisions, rotation and revocation."
-              features={[
-                "Authentication events",
-                "Scope denials",
-                "Credential rotation",
-                "Credential revocation",
-              ]}
-            />
-          }
+          element={<AuthenticationPage />}
         />
 
         <Route
