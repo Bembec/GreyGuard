@@ -941,3 +941,35 @@ def reset_agent(
             result["state"],
         ),
     }
+
+
+@app.get("/audit-events")
+def administrator_audit_events(
+    event_type: str | None = Query(
+        default=None,
+    ),
+    agent_name: str | None = Query(
+        default=None,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=500,
+    ),
+    x_admin_pin: str | None = Header(
+        default=None,
+    ),
+):
+    """Return unified audit evidence to an administrator."""
+
+    require_admin(x_admin_pin)
+
+    from .database import (
+        get_administrator_audit_events,
+    )
+
+    return get_administrator_audit_events(
+        event_type=event_type,
+        agent_name=agent_name,
+        limit=limit,
+    )

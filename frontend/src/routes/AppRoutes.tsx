@@ -14,6 +14,7 @@ import ToolRequestsPage from "../pages/ToolRequestsPage"
 import ApprovalsPage from "../pages/ApprovalsPage"
 import PoliciesPage from "../pages/PoliciesPage"
 import RiskCenterPage from "../pages/RiskCenterPage"
+import AuditTrailPage from "../pages/AuditTrailPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -67,19 +68,7 @@ export function AppRoutes() {
 
         <Route
           path="/audit"
-          element={
-            <SectionPage
-              eyebrow="Decision evidence"
-              title="Audit trail"
-              description="Investigate policy outcomes and persistent security evidence."
-              features={[
-                "Policy events",
-                "Approval records",
-                "Execution evidence",
-                "Correlation history",
-              ]}
-            />
-          }
+          element={<AuditTrailPage />}
         />
 
         <Route

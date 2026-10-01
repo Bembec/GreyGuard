@@ -1191,3 +1191,273 @@ if __name__ == "__main__":
         "GreyGuard V10 database initialized:"
     )
     print(database_path)
+
+
+def get_administrator_audit_events(
+    event_type=None,
+    agent_name=None,
+    limit=100,
+):
+    """Return a unified administrator evidence timeline."""
+
+    normalized_type = (
+        str(event_type).strip().upper()
+        if event_type
+        else None
+    )
+    normalized_agent = (
+        str(agent_name).strip().lower()
+        if agent_name
+        else None
+    )
+    safe_limit = max(1, min(int(limit), 500))
+
+    events = []
+
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+
+        policy_rows = connection.execute(
+            """
+            SELECT
+                id,
+                timestamp,
+                agent_name,
+                action,
+                decision,
+                approval,
+                risk_added,
+                risk_score,
+                risk_level,
+                agent_status,
+                blocked_attempts
+            FROM audit_events
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (safe_limit,),
+        ).fetchall()
+
+        authentication_rows = connection.execute(
+            """
+            SELECT
+                id,
+                timestamp,
+                claimed_agent_name,
+                authenticated_agent_name,
+                action,
+                outcome,
+                reason
+            FROM authentication_events
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (safe_limit,),
+        ).fetchall()
+
+        approval_rows = connection.execute(
+            """
+            SELECT
+                approvals.id,
+                approvals.request_id,
+                approvals.timestamp,
+                approvals.actor,
+                approvals.decision,
+                approvals.note,
+                requests.agent_name,
+                requests.action
+            FROM approval_events AS approvals
+            LEFT JOIN tool_requests AS requests
+                ON requests.request_id =
+                   approvals.request_id
+            ORDER BY approvals.id DESC
+            LIMIT ?
+            """,
+            (safe_limit,),
+        ).fetchall()
+
+        execution_rows = connection.execute(
+            """
+            SELECT
+                executions.id,
+                executions.request_id,
+                executions.timestamp,
+                executions.execution_status,
+                executions.result_json,
+                requests.agent_name,
+                requests.action
+            FROM execution_events AS executions
+            LEFT JOIN tool_requests AS requests
+                ON requests.request_id =
+                   executions.request_id
+            ORDER BY executions.id DESC
+            LIMIT ?
+            """,
+            (safe_limit,),
+        ).fetchall()
+
+    for row in policy_rows:
+        decision = row["decision"]
+        severity = (
+            "CRITICAL"
+            if row["agent_status"] == "SUSPENDED"
+            else "HIGH"
+            if decision in ("BLOCK", "REFUSED")
+            else "MEDIUM"
+            if decision == "ASK"
+            else "INFO"
+        )
+
+        events.append({
+            "event_id": f"policy-{row['id']}",
+            "event_type": "POLICY",
+            "timestamp": row["timestamp"],
+            "agent_name": row["agent_name"],
+            "action": row["action"],
+            "outcome": decision,
+            "severity": severity,
+            "request_id": None,
+            "actor": row["agent_name"],
+            "summary": (
+                f"Policy decision {decision} for "
+                f"{row['action']}."
+            ),
+            "details": {
+                "approval": row["approval"],
+                "risk_added": row["risk_added"],
+                "risk_score": row["risk_score"],
+                "risk_level": row["risk_level"],
+                "agent_status": row["agent_status"],
+                "blocked_attempts": (
+                    row["blocked_attempts"]
+                ),
+            },
+        })
+
+    for row in authentication_rows:
+        outcome = row["outcome"]
+        successful = outcome in (
+            "AUTHENTICATED",
+            "SUCCESS",
+            "AUTHORIZED",
+        )
+
+        events.append({
+            "event_id": f"authentication-{row['id']}",
+            "event_type": "AUTHENTICATION",
+            "timestamp": row["timestamp"],
+            "agent_name": (
+                row["authenticated_agent_name"]
+                or row["claimed_agent_name"]
+            ),
+            "action": row["action"],
+            "outcome": outcome,
+            "severity": (
+                "INFO" if successful else "HIGH"
+            ),
+            "request_id": None,
+            "actor": row["claimed_agent_name"],
+            "summary": (
+                row["reason"]
+                or f"Authentication outcome: {outcome}."
+            ),
+            "details": {
+                "claimed_agent_name": (
+                    row["claimed_agent_name"]
+                ),
+                "authenticated_agent_name": (
+                    row["authenticated_agent_name"]
+                ),
+                "reason": row["reason"],
+            },
+        })
+
+    for row in approval_rows:
+        decision = row["decision"]
+
+        events.append({
+            "event_id": f"approval-{row['id']}",
+            "event_type": "APPROVAL",
+            "timestamp": row["timestamp"],
+            "agent_name": row["agent_name"],
+            "action": row["action"],
+            "outcome": decision,
+            "severity": (
+                "MEDIUM"
+                if decision == "DENIED"
+                else "INFO"
+            ),
+            "request_id": row["request_id"],
+            "actor": row["actor"],
+            "summary": (
+                f"{row['actor']} recorded approval "
+                f"decision {decision}."
+            ),
+            "details": {
+                "note": row["note"],
+            },
+        })
+
+    for row in execution_rows:
+        status = row["execution_status"]
+        failed = status in (
+            "FAILED",
+            "DENIED",
+            "BLOCKED",
+        )
+
+        events.append({
+            "event_id": f"execution-{row['id']}",
+            "event_type": "EXECUTION",
+            "timestamp": row["timestamp"],
+            "agent_name": row["agent_name"],
+            "action": row["action"],
+            "outcome": status,
+            "severity": (
+                "HIGH" if failed else "INFO"
+            ),
+            "request_id": row["request_id"],
+            "actor": row["agent_name"],
+            "summary": (
+                f"Controlled execution finished "
+                f"with status {status}."
+            ),
+            "details": {
+                "result": decode_json_object(
+                    row["result_json"]
+                ),
+            },
+        })
+
+    if normalized_type:
+        events = [
+            event
+            for event in events
+            if event["event_type"] == normalized_type
+        ]
+
+    if normalized_agent:
+        events = [
+            event
+            for event in events
+            if normalized_agent in str(
+                event["agent_name"] or ""
+            ).lower()
+        ]
+
+    events.sort(
+        key=lambda event: event["timestamp"],
+        reverse=True,
+    )
+
+    events = events[:safe_limit]
+
+    return {
+        "events": events,
+        "count": len(events),
+        "filters": {
+            "event_type": normalized_type,
+            "agent_name": normalized_agent,
+            "limit": safe_limit,
+        },
+    }
