@@ -13,11 +13,13 @@ import os
 from typing import Literal
 
 from fastapi import (
+    Request,
     FastAPI,
     Header,
     HTTPException,
     Query,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import main
@@ -29,6 +31,8 @@ from .database import (
     get_tool_requests,
 )
 
+
+from .live_events import stream_administrator_events
 
 app = FastAPI(
     title="GreyGuard Control Plane API",
@@ -975,6 +979,56 @@ def administrator_audit_events(
     )
 
 
+@app.get("/live-events")
+def live_administrator_events(
+    request: Request,
+    event_type: str | None = Query(
+        default=None,
+    ),
+    agent_name: str | None = Query(
+        default=None,
+    ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=200,
+    ),
+    include_history: bool = Query(
+        default=True,
+    ),
+    poll_interval: float = Query(
+        default=1.0,
+        ge=0.5,
+        le=10.0,
+    ),
+    x_admin_pin: str | None = Header(
+        default=None,
+    ),
+):
+    """Stream live unified security evidence."""
+
+    require_admin(x_admin_pin)
+
+    event_stream = stream_administrator_events(
+        request=request,
+        event_type=event_type,
+        agent_name=agent_name,
+        limit=limit,
+        include_history=include_history,
+        poll_interval=poll_interval,
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.get("/sandbox/resources")
 def sandbox_resources(
     x_admin_pin: str | None = Header(
@@ -1006,4 +1060,3 @@ def sandbox_resources(
         "initialization": initialization,
         "resources": listing,
     }
-

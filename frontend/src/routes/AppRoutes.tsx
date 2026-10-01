@@ -9,6 +9,7 @@ import { AppShell } from "../layouts/AppShell"
 import AgentsPage from "../pages/AgentsPage"
 import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
+import LiveOperationsPage from "../pages/LiveOperationsPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
 import ApprovalsPage from "../pages/ApprovalsPage"
 import PoliciesPage from "../pages/PoliciesPage"
@@ -42,6 +43,11 @@ export function AppRoutes() {
         <Route
           path="/dashboard"
           element={<DashboardPage />}
+        />
+
+        <Route
+          path="/live"
+          element={<LiveOperationsPage />}
         />
 
         <Route

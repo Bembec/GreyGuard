@@ -1338,8 +1338,7 @@ def get_administrator_audit_events(
         outcome = row["outcome"]
         successful = outcome in (
             "AUTHENTICATED",
-            "SUCCESS",
-            "AUTHORIZED",
+            "SCOPE_ALLOWED",
         )
 
         events.append({

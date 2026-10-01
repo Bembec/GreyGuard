@@ -11,6 +11,11 @@ export const navigationItems: NavigationItem[] = [
     description: "Security overview and live posture",
   },
   {
+    label: "Live Operations",
+    path: "/live",
+    description: "Real-time security event monitoring",
+  },
+  {
     label: "Agents",
     path: "/agents",
     description: "Identity, scopes and agent states",

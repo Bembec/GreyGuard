@@ -14,6 +14,7 @@ import {
   Menu,
   Moon,
   Radar,
+  RadioTower,
   Search,
   Settings,
   ShieldCheck,
@@ -38,6 +39,7 @@ import "../styles/shell.css"
 
 const iconMap = {
   "/dashboard": Command,
+  "/live": RadioTower,
   "/agents": Bot,
   "/requests": Boxes,
   "/approvals": CheckSquare,
