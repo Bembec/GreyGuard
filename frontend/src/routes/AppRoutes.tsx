@@ -13,6 +13,7 @@ import { SectionPage } from "../pages/SectionPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
 import ApprovalsPage from "../pages/ApprovalsPage"
 import PoliciesPage from "../pages/PoliciesPage"
+import RiskCenterPage from "../pages/RiskCenterPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -61,19 +62,7 @@ export function AppRoutes() {
         />
         <Route
           path="/risk"
-          element={
-            <SectionPage
-              eyebrow="Risk intelligence"
-              title="Risk center"
-              description="Track accumulated risk, blocked attempts and automatic agent suspension."
-              features={[
-                "Risk ranking",
-                "Threshold monitoring",
-                "Suspension events",
-                "Administrative reset",
-              ]}
-            />
-          }
+          element={<RiskCenterPage />}
         />
 
         <Route
