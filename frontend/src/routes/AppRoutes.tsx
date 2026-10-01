@@ -9,7 +9,6 @@ import { AppShell } from "../layouts/AppShell"
 import AgentsPage from "../pages/AgentsPage"
 import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
-import { SectionPage } from "../pages/SectionPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
 import ApprovalsPage from "../pages/ApprovalsPage"
 import PoliciesPage from "../pages/PoliciesPage"
@@ -17,6 +16,8 @@ import RiskCenterPage from "../pages/RiskCenterPage"
 import AuditTrailPage from "../pages/AuditTrailPage"
 import AuthenticationPage from "../pages/AuthenticationPage"
 import SandboxPage from "../pages/SandboxPage"
+
+import SettingsPage from "../pages/SettingsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -85,19 +86,7 @@ export function AppRoutes() {
 
         <Route
           path="/settings"
-          element={
-            <SectionPage
-              eyebrow="Control configuration"
-              title="Settings"
-              description="Manage interface preferences and inspect control-plane configuration."
-              features={[
-                "Appearance",
-                "Reduced motion",
-                "API environment",
-                "Security information",
-              ]}
-            />
-          }
+          element={<SettingsPage />}
         />
 
         <Route
