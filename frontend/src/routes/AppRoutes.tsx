@@ -16,6 +16,7 @@ import PoliciesPage from "../pages/PoliciesPage"
 import RiskCenterPage from "../pages/RiskCenterPage"
 import AuditTrailPage from "../pages/AuditTrailPage"
 import AuthenticationPage from "../pages/AuthenticationPage"
+import SandboxPage from "../pages/SandboxPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -79,19 +80,7 @@ export function AppRoutes() {
 
         <Route
           path="/sandbox"
-          element={
-            <SectionPage
-              eyebrow="Contained execution"
-              title="Sandbox"
-              description="Inspect GreyGuard's restricted filesystem and controlled tool boundary."
-              features={[
-                "Allowed tools",
-                "Path containment",
-                "Dry-run mode",
-                "Sandbox resources",
-              ]}
-            />
-          }
+          element={<SandboxPage />}
         />
 
         <Route

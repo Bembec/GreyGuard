@@ -973,3 +973,37 @@ def administrator_audit_events(
         agent_name=agent_name,
         limit=limit,
     )
+
+
+@app.get("/sandbox/resources")
+def sandbox_resources(
+    x_admin_pin: str | None = Header(
+        default=None,
+    ),
+):
+    """Return safe sandbox metadata to an administrator."""
+
+    require_admin(x_admin_pin)
+
+    from .tool_gateway import (
+        initialize_sandbox,
+        list_files,
+    )
+
+    initialization = initialize_sandbox()
+    listing = list_files("")
+
+    return {
+        "initialized": True,
+        "sandbox_name": "GreyGuard controlled sandbox",
+        "controls": {
+            "sandbox_only": True,
+            "network_access": False,
+            "arbitrary_command_execution": False,
+            "absolute_paths_allowed": False,
+            "path_escape_allowed": False,
+        },
+        "initialization": initialization,
+        "resources": listing,
+    }
+
