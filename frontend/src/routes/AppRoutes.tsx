@@ -15,6 +15,7 @@ import ApprovalsPage from "../pages/ApprovalsPage"
 import PoliciesPage from "../pages/PoliciesPage"
 import RiskCenterPage from "../pages/RiskCenterPage"
 import AuditTrailPage from "../pages/AuditTrailPage"
+import IncidentCenterPage from "../pages/IncidentCenterPage"
 import AuthenticationPage from "../pages/AuthenticationPage"
 import SandboxPage from "../pages/SandboxPage"
 
@@ -73,6 +74,11 @@ export function AppRoutes() {
         <Route
           path="/risk"
           element={<RiskCenterPage />}
+        />
+
+        <Route
+          path="/incidents"
+          element={<IncidentCenterPage />}
         />
 
         <Route

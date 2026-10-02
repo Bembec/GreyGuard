@@ -41,6 +41,11 @@ export const navigationItems: NavigationItem[] = [
     description: "Risk scores and suspensions",
   },
   {
+    label: "Incident Center",
+    path: "/incidents",
+    description: "Alert ownership and response workflow",
+  },
+  {
     label: "Audit Trail",
     path: "/audit",
     description: "Security decision evidence",

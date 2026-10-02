@@ -7,6 +7,7 @@ from collections.abc import AsyncIterator
 
 from fastapi import Request
 
+from .alerts import sync_alerts_from_events
 from .database import get_administrator_audit_events
 
 
@@ -85,6 +86,7 @@ async def stream_administrator_events(
     )
 
     initial_events = initial_response["events"]
+    sync_alerts_from_events(initial_events)
 
     for event in initial_events:
         event_id = str(event["event_id"])
@@ -115,6 +117,7 @@ async def stream_administrator_events(
             )
 
             current_events = current_response["events"]
+            sync_alerts_from_events(current_events)
 
             new_events = []
 

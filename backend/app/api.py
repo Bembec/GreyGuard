@@ -35,12 +35,21 @@ from .database import (
 
 
 from .live_events import stream_administrator_events
+from .alerts import (
+    add_alert_note,
+    alert_summary,
+    get_alert,
+    get_alerts,
+    initialize_alert_database,
+    update_alert,
+)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Initialize GreyGuard for the API lifecycle."""
 
     main.initialize_greyguard()
+    initialize_alert_database()
 
     yield
 
@@ -144,6 +153,20 @@ class ToolRequestCreate(BaseModel):
             "changing sandbox files."
         ),
     )
+
+
+class AlertUpdateRequest(BaseModel):
+    """Administrator alert workflow update."""
+
+    status: Literal["OPEN", "ACKNOWLEDGED", "INVESTIGATING", "RESOLVED", "DISMISSED"]
+    assigned_to: str | None = Field(default=None, max_length=100)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class AlertNoteRequest(BaseModel):
+    """Administrator investigation note."""
+
+    note: str = Field(min_length=1, max_length=2000)
 
 
 class ToolApprovalDecision(BaseModel):
@@ -1032,6 +1055,70 @@ def live_administrator_events(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.get("/alerts/summary")
+def administrator_alert_summary(x_admin_pin: str | None = Header(default=None)):
+    """Return administrator alert metrics."""
+    require_admin(x_admin_pin)
+    return alert_summary()
+
+
+@app.get("/alerts")
+def administrator_alerts(
+    status: str | None = Query(default=None),
+    severity: str | None = Query(default=None),
+    agent_name: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return filtered security alerts."""
+    require_admin(x_admin_pin)
+    return get_alerts(status, severity, agent_name, limit)
+
+
+@app.get("/alerts/{alert_id}")
+def administrator_alert(alert_id: str, x_admin_pin: str | None = Header(default=None)):
+    """Return one alert and its evidence."""
+    require_admin(x_admin_pin)
+    result = get_alert(alert_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    return result
+
+
+@app.put("/alerts/{alert_id}")
+def administrator_update_alert(
+    alert_id: str,
+    update: AlertUpdateRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Update alert workflow state."""
+    require_admin(x_admin_pin)
+    try:
+        return update_alert(
+            alert_id, update.status, "administrator", update.assigned_to, update.note
+        )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Alert not found.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/alerts/{alert_id}/notes", status_code=201)
+def administrator_add_alert_note(
+    alert_id: str,
+    request: AlertNoteRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Append investigation evidence."""
+    require_admin(x_admin_pin)
+    try:
+        return add_alert_note(alert_id, "administrator", request.note)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Alert not found.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/sandbox/resources")
