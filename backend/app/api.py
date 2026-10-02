@@ -82,6 +82,15 @@ from .notifications import (
     mark_notification_read,
     notification_summary,
 )
+from .service_accounts import (
+    AVAILABLE_SCOPES,
+    authenticate_service_key,
+    create_service_account,
+    initialize_service_accounts,
+    list_service_accounts,
+    revoke_service_account,
+    rotate_service_account_key,
+)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -99,6 +108,7 @@ async def lifespan(_app: FastAPI):
     initialize_alert_database()
     initialize_secret_manager()
     initialize_notification_database()
+    initialize_service_accounts()
 
     yield
 
@@ -212,6 +222,17 @@ class SecretCreateRequest(BaseModel):
 
 class SecretRotateRequest(BaseModel):
     reference: str = Field(min_length=3, max_length=128)
+
+
+class ServiceAccountCreateRequest(BaseModel):
+    name: str = Field(min_length=3, max_length=100)
+    description: str = Field(default="", max_length=500)
+    scopes: list[str] = Field(min_length=1)
+    expires_in_days: int | None = Field(default=90, ge=1, le=365)
+
+
+class ServiceAccountRotateRequest(BaseModel):
+    expires_in_days: int | None = Field(default=90, ge=1, le=365)
 
 
 class ActionRequest(BaseModel):
@@ -764,6 +785,75 @@ def revoke_secret_reference(secret_id: str,x_admin_pin: str | None = Header(defa
     administrator=require_platform_admin(x_admin_pin)
     try: return revoke_secret(secret_id,policy_actor(administrator))
     except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.get("/service-accounts")
+def administrator_service_accounts(x_admin_pin: str | None = Header(default=None)):
+    """Return machine identities without plaintext API keys."""
+    require_platform_admin(x_admin_pin)
+    return {
+        "service_accounts": list_service_accounts(),
+        "available_scopes": sorted(AVAILABLE_SCOPES),
+        "plaintext_keys_stored": False,
+    }
+
+
+@app.post("/service-accounts", status_code=201)
+def administrator_create_service_account(
+    payload: ServiceAccountCreateRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return create_service_account(
+            payload.name, payload.description, payload.scopes,
+            payload.expires_in_days, policy_actor(administrator),
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/service-accounts/{account_id}/rotate")
+def administrator_rotate_service_account_key(
+    account_id: str,
+    payload: ServiceAccountRotateRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return rotate_service_account_key(
+            account_id, payload.expires_in_days, policy_actor(administrator)
+        )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/service-accounts/{account_id}/revoke")
+def administrator_revoke_service_account(
+    account_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return revoke_service_account(account_id, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/service-accounts/verify")
+def verify_service_account_key(
+    required_scope: str | None = Query(default=None),
+    x_service_key: str | None = Header(default=None),
+):
+    """Authenticate a machine identity and record key usage."""
+    try:
+        return authenticate_service_key(x_service_key or "", required_scope)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
 
 
 @app.get("/permissions")

@@ -1,0 +1,156 @@
+import {
+  Bot,
+  Check,
+  Copy,
+  KeyRound,
+  Plus,
+  RefreshCw,
+  ShieldOff,
+  X,
+} from "lucide-react"
+import { useEffect, useState } from "react"
+
+import { useAuth } from "../context/AuthContext"
+import "../styles/service-accounts.css"
+
+type ServiceKey = {
+  key_id: string
+  key_prefix: string
+  status: string
+  created_at: string
+  expires_at: string | null
+  last_used_at: string | null
+  use_count: number
+}
+type ServiceAccount = {
+  account_id: string
+  name: string
+  description: string
+  status: string
+  scopes: string[]
+  created_at: string
+  expires_at: string | null
+  last_used_at: string | null
+  use_count: number
+  keys: ServiceKey[]
+  issued_key?: { api_key: string; key_prefix: string }
+}
+type ListResponse = {
+  service_accounts: ServiceAccount[]
+  available_scopes: string[]
+  plaintext_keys_stored: boolean
+}
+
+const API = import.meta.env.VITE_API_BASE_URL ?? "/api"
+
+export function serviceKeyDisplay(prefix: string) {
+  return `${prefix}_••••••••••••`
+}
+
+export default function ServiceAccountsPage() {
+  const { sessionToken } = useAuth()
+  const [accounts, setAccounts] = useState<ServiceAccount[]>([])
+  const [availableScopes, setAvailableScopes] = useState<string[]>([])
+  const [showCreate, setShowCreate] = useState(false)
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [scopes, setScopes] = useState<string[]>(["audit:read"])
+  const [days, setDays] = useState(90)
+  const [revealedKey, setRevealedKey] = useState("")
+  const [copied, setCopied] = useState(false)
+  const [message, setMessage] = useState("")
+  const [busy, setBusy] = useState(false)
+  const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionToken ?? "" }
+
+  const load = async () => {
+    const response = await fetch(`${API}/service-accounts`, { headers })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body.detail ?? "Unable to load service accounts.")
+    const data = body as ListResponse
+    setAccounts(data.service_accounts)
+    setAvailableScopes(data.available_scopes)
+  }
+
+  useEffect(() => { void load().catch((error) => setMessage(error.message)) }, [sessionToken])
+
+  const create = async () => {
+    setBusy(true); setMessage("")
+    try {
+      const response = await fetch(`${API}/service-accounts`, {
+        method: "POST", headers,
+        body: JSON.stringify({ name, description, scopes, expires_in_days: days }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.detail ?? "Service account could not be created.")
+      setRevealedKey((body as ServiceAccount).issued_key?.api_key ?? "")
+      setShowCreate(false); setName(""); setDescription(""); setScopes(["audit:read"])
+      setMessage("Machine identity created. Copy its API key now—it will not be shown again.")
+      await load()
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Request failed.") }
+    finally { setBusy(false) }
+  }
+
+  const lifecycle = async (account: ServiceAccount, action: "rotate" | "revoke") => {
+    if (action === "revoke" && !window.confirm(`Revoke ${account.name} and every active API key?`)) return
+    setBusy(true); setMessage("")
+    try {
+      const response = await fetch(`${API}/service-accounts/${account.account_id}/${action}`, {
+        method: "POST", headers,
+        body: action === "rotate" ? JSON.stringify({ expires_in_days: days }) : undefined,
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.detail ?? `Unable to ${action} service account.`)
+      if (action === "rotate") {
+        setRevealedKey((body as ServiceAccount).issued_key?.api_key ?? "")
+        setMessage("API key rotated. Copy the replacement now—the previous key is revoked.")
+      } else setMessage("Service account and all associated API keys revoked.")
+      await load()
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Request failed.") }
+    finally { setBusy(false) }
+  }
+
+  const copyKey = async () => {
+    await navigator.clipboard.writeText(revealedKey)
+    setCopied(true); window.setTimeout(() => setCopied(false), 1800)
+  }
+
+  return <main className="service-page">
+    <section className="service-hero">
+      <div><p><Bot size={15} /> Machine identity governance</p><h1>API Keys &amp; Service Accounts</h1><span>Issue scoped, expiring credentials for automation without sharing administrator sessions.</span></div>
+      <button type="button" onClick={() => setShowCreate(true)}><Plus size={17} /> New service account</button>
+    </section>
+
+    <section className="service-assurance">
+      <KeyRound size={20} /><div><strong>Keys are revealed once</strong><span>GreyGuard stores a one-way hash and visible prefix only. Plaintext credentials cannot be recovered.</span></div>
+    </section>
+
+    {message && <p className="service-message">{message}</p>}
+    {revealedKey && <section className="service-reveal">
+      <div><strong>Copy this API key now</strong><span>It will disappear when this panel is closed or the page is refreshed.</span></div>
+      <code>{revealedKey}</code>
+      <button type="button" onClick={() => void copyKey()}>{copied ? <Check size={17} /> : <Copy size={17} />}{copied ? "Copied" : "Copy key"}</button>
+      <button type="button" className="close" onClick={() => setRevealedKey("")} aria-label="Close key"><X size={17} /></button>
+    </section>}
+
+    <section className="service-grid">
+      {accounts.length === 0 && <div className="service-empty"><Bot size={30} /><strong>No machine identities</strong><span>Create a scoped service account for CI, automation, or controlled integrations.</span></div>}
+      {accounts.map((account) => <article key={account.account_id}>
+        <header><div><Bot size={21} /><span className={account.status.toLowerCase()}>{account.status}</span></div><small>{account.account_id}</small></header>
+        <h2>{account.name}</h2><p>{account.description || "No description provided."}</p>
+        <div className="service-scopes">{account.scopes.map((scope) => <span key={scope}>{scope}</span>)}</div>
+        <dl><div><dt>Usage</dt><dd>{account.use_count}</dd></div><div><dt>Last used</dt><dd>{account.last_used_at ? new Date(account.last_used_at).toLocaleString() : "Never"}</dd></div><div><dt>Expires</dt><dd>{account.expires_at ? new Date(account.expires_at).toLocaleDateString() : "Never"}</dd></div></dl>
+        <section className="service-keys"><strong>Key history</strong>{account.keys.map((key) => <div key={key.key_id}><code>{serviceKeyDisplay(key.key_prefix)}</code><span className={key.status.toLowerCase()}>{key.status}</span></div>)}</section>
+        {account.status === "ACTIVE" && <footer><button disabled={busy} onClick={() => void lifecycle(account, "rotate")}><RefreshCw size={15} /> Rotate key</button><button disabled={busy} className="danger" onClick={() => void lifecycle(account, "revoke")}><ShieldOff size={15} /> Revoke</button></footer>}
+      </article>)}
+    </section>
+
+    {showCreate && <div className="service-modal" role="dialog" aria-modal="true"><button className="backdrop" onClick={() => setShowCreate(false)} aria-label="Close"/><section>
+      <header><div><h2>Create service account</h2><p>Use the minimum scopes required by the integration.</p></div><button onClick={() => setShowCreate(false)} aria-label="Close"><X /></button></header>
+      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Deployment Bot" /></label>
+      <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Used by the controlled CI deployment workflow" /></label>
+      <label>Key lifetime<select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option><option value={365}>1 year</option></select></label>
+      <fieldset><legend>Scopes</legend>{availableScopes.map((scope) => <label key={scope}><input type="checkbox" checked={scopes.includes(scope)} onChange={(event) => setScopes((current) => event.target.checked ? [...current, scope] : current.filter((item) => item !== scope))} />{scope}</label>)}</fieldset>
+      <footer><button className="secondary" onClick={() => setShowCreate(false)}>Cancel</button><button disabled={busy || !name.trim() || scopes.length === 0} onClick={() => void create()}><KeyRound size={16} /> Create and issue key</button></footer>
+    </section></div>}
+  </main>
+}

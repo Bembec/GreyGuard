@@ -203,6 +203,8 @@ def required_permission(method: str, path: str) -> str:
         return "approval:manage"
     if path.startswith("/agents"):
         return "identity:manage"
+    if path.startswith("/service-accounts"):
+        return "admin:manage"
     return "admin:manage"
 
 

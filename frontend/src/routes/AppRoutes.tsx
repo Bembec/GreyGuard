@@ -23,6 +23,7 @@ import SettingsPage from "../pages/SettingsPage"
 import TeamAccessPage from "../pages/TeamAccessPage"
 import SecretsPage from "../pages/SecretsPage"
 import NotificationsPage from "../pages/NotificationsPage"
+import ServiceAccountsPage from "../pages/ServiceAccountsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -107,6 +108,8 @@ export function AppRoutes() {
         />
 
         <Route path="/secrets" element={<SecretsPage />} />
+
+        <Route path="/service-accounts" element={<ServiceAccountsPage />} />
 
         <Route
           path="/settings"

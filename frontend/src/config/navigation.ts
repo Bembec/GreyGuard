@@ -79,6 +79,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Service Accounts",
+    path: "/service-accounts",
+    description: "Scoped machine identities and API keys",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Settings",
     path: "/settings",
     description: "Interface and control settings",

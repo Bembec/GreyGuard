@@ -39,4 +39,9 @@ describe("GreyGuard navigation", () => {
   it("includes the security Notification Center", () => {
     expect(navigationItems.some((item) => item.path === "/notifications")).toBe(true);
   });
+
+  it("includes restricted machine identity management", () => {
+    const item = navigationItems.find((entry) => entry.path === "/service-accounts");
+    expect(item?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });
