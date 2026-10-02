@@ -48,6 +48,7 @@ const iconMap = {
   "/policies": SlidersHorizontal,
   "/risk": Radar,
   "/incidents": ShieldAlert,
+  "/notifications": Bell,
   "/audit": FileSearch,
   "/authentication": Fingerprint,
   "/sandbox": ClipboardList,

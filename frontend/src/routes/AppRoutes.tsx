@@ -22,6 +22,7 @@ import SandboxPage from "../pages/SandboxPage"
 import SettingsPage from "../pages/SettingsPage"
 import TeamAccessPage from "../pages/TeamAccessPage"
 import SecretsPage from "../pages/SecretsPage"
+import NotificationsPage from "../pages/NotificationsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -82,6 +83,8 @@ export function AppRoutes() {
           path="/incidents"
           element={<IncidentCenterPage />}
         />
+
+        <Route path="/notifications" element={<NotificationsPage />} />
 
         <Route
           path="/audit"

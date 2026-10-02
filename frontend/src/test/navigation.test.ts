@@ -35,4 +35,8 @@ describe("GreyGuard navigation", () => {
       ),
     ).toBe(true);
   });
+
+  it("includes the security Notification Center", () => {
+    expect(navigationItems.some((item) => item.path === "/notifications")).toBe(true);
+  });
 });

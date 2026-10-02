@@ -197,7 +197,7 @@ def has_permission(administrator: dict, permission: str) -> bool:
 def required_permission(method: str, path: str) -> str:
     if method.upper() == "GET":
         return "read"
-    if path.startswith("/alerts"):
+    if path.startswith("/alerts") or path.startswith("/notifications"):
         return "incident:manage"
     if path.startswith("/tool-requests/") and path.endswith("/decision"):
         return "approval:manage"

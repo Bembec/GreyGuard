@@ -47,6 +47,11 @@ export const navigationItems: NavigationItem[] = [
     description: "Alert ownership and response workflow",
   },
   {
+    label: "Notifications",
+    path: "/notifications",
+    description: "Prioritized security signal inbox",
+  },
+  {
     label: "Audit Trail",
     path: "/audit",
     description: "Security decision evidence",

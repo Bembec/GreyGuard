@@ -75,6 +75,13 @@ from .secret_manager import (
     create_secret, initialize_secret_manager, list_secrets,
     redact, revoke_secret, rotate_secret,
 )
+from .notifications import (
+    initialize_notification_database,
+    list_notifications,
+    mark_all_notifications_read,
+    mark_notification_read,
+    notification_summary,
+)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -91,6 +98,7 @@ async def lifespan(_app: FastAPI):
     )
     initialize_alert_database()
     initialize_secret_manager()
+    initialize_notification_database()
 
     yield
 
@@ -1440,6 +1448,49 @@ def administrator_alert_summary(x_admin_pin: str | None = Header(default=None)):
     """Return administrator alert metrics."""
     require_admin(x_admin_pin)
     return alert_summary()
+
+
+@app.get("/notifications/summary")
+def administrator_notification_summary(x_admin_pin: str | None = Header(default=None)):
+    """Return unread administrator notification counts."""
+    require_admin(x_admin_pin)
+    return notification_summary()
+
+
+@app.get("/notifications")
+def administrator_notifications(
+    unread_only: bool = Query(default=False),
+    severity: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=500),
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return the persistent in-app security notification inbox."""
+    require_admin(x_admin_pin)
+    return list_notifications(unread_only, severity, limit)
+
+
+@app.put("/notifications/read-all")
+def administrator_read_all_notifications(x_admin_pin: str | None = Header(default=None)):
+    """Mark every unread notification as reviewed."""
+    administrator = require_admin(x_admin_pin)
+    return {
+        "updated": mark_all_notifications_read(administrator.get("email", "administrator"))
+    }
+
+
+@app.put("/notifications/{notification_id}/read")
+def administrator_read_notification(
+    notification_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Mark one notification as reviewed."""
+    administrator = require_admin(x_admin_pin)
+    try:
+        return mark_notification_read(
+            notification_id, administrator.get("email", "administrator")
+        )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Notification not found.") from error
 
 
 @app.get("/alerts")
