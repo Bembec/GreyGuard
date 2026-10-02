@@ -11,6 +11,9 @@ import {
 import { useEffect, useState } from "react"
 
 import { useAuth } from "../context/AuthContext"
+import { useToast } from "../context/ToastContext"
+import { ConfirmDialog } from "../components/ConfirmDialog"
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import "../styles/service-accounts.css"
 
 type ServiceKey = {
@@ -49,6 +52,7 @@ export function serviceKeyDisplay(prefix: string) {
 
 export default function ServiceAccountsPage() {
   const { sessionToken } = useAuth()
+  const { pushToast } = useToast()
   const [accounts, setAccounts] = useState<ServiceAccount[]>([])
   const [availableScopes, setAvailableScopes] = useState<string[]>([])
   const [showCreate, setShowCreate] = useState(false)
@@ -58,23 +62,23 @@ export default function ServiceAccountsPage() {
   const [days, setDays] = useState(90)
   const [revealedKey, setRevealedKey] = useState("")
   const [copied, setCopied] = useState(false)
-  const [message, setMessage] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState("")
+  const [confirmAccount, setConfirmAccount] = useState<ServiceAccount | null>(null)
   const [busy, setBusy] = useState(false)
   const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionToken ?? "" }
 
   const load = async () => {
-    const response = await fetch(`${API}/service-accounts`, { headers })
-    const body = await response.json()
-    if (!response.ok) throw new Error(body.detail ?? "Unable to load service accounts.")
-    const data = body as ListResponse
-    setAccounts(data.service_accounts)
-    setAvailableScopes(data.available_scopes)
+    setLoading(true); setLoadError("")
+    try { const response = await fetch(`${API}/service-accounts`, { headers }); const body = await response.json(); if (!response.ok) throw new Error(body.detail ?? "Unable to load service accounts."); const data = body as ListResponse; setAccounts(data.service_accounts); setAvailableScopes(data.available_scopes) }
+    catch (error) { const detail=error instanceof Error?error.message:"Unable to load service accounts.";setLoadError(detail);throw error }
+    finally { setLoading(false) }
   }
 
-  useEffect(() => { void load().catch((error) => setMessage(error.message)) }, [sessionToken])
+  useEffect(() => { void load().catch(() => undefined) }, [sessionToken])
 
   const create = async () => {
-    setBusy(true); setMessage("")
+    setBusy(true)
     try {
       const response = await fetch(`${API}/service-accounts`, {
         method: "POST", headers,
@@ -84,15 +88,14 @@ export default function ServiceAccountsPage() {
       if (!response.ok) throw new Error(body.detail ?? "Service account could not be created.")
       setRevealedKey((body as ServiceAccount).issued_key?.api_key ?? "")
       setShowCreate(false); setName(""); setDescription(""); setScopes(["audit:read"])
-      setMessage("Machine identity created. Copy its API key now—it will not be shown again.")
+      pushToast({tone:"success",title:"Service account created",message:"Copy the API key now. It will not be shown again."})
       await load()
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Request failed.") }
+    } catch (error) { pushToast({tone:"error",title:"Creation failed",message:error instanceof Error ? error.message : "Request failed."}) }
     finally { setBusy(false) }
   }
 
   const lifecycle = async (account: ServiceAccount, action: "rotate" | "revoke") => {
-    if (action === "revoke" && !window.confirm(`Revoke ${account.name} and every active API key?`)) return
-    setBusy(true); setMessage("")
+    setBusy(true)
     try {
       const response = await fetch(`${API}/service-accounts/${account.account_id}/${action}`, {
         method: "POST", headers,
@@ -102,16 +105,17 @@ export default function ServiceAccountsPage() {
       if (!response.ok) throw new Error(body.detail ?? `Unable to ${action} service account.`)
       if (action === "rotate") {
         setRevealedKey((body as ServiceAccount).issued_key?.api_key ?? "")
-        setMessage("API key rotated. Copy the replacement now—the previous key is revoked.")
-      } else setMessage("Service account and all associated API keys revoked.")
+        pushToast({tone:"warning",title:"API key rotated",message:"Copy the replacement now. The previous key is revoked."})
+      } else pushToast({tone:"success",title:"Service account revoked",message:"Every associated API key is now inactive."})
       await load()
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Request failed.") }
-    finally { setBusy(false) }
+    } catch (error) { pushToast({tone:"error",title:`Unable to ${action}`,message:error instanceof Error ? error.message : "Request failed."}) }
+    finally { setBusy(false);setConfirmAccount(null) }
   }
 
   const copyKey = async () => {
     await navigator.clipboard.writeText(revealedKey)
     setCopied(true); window.setTimeout(() => setCopied(false), 1800)
+    pushToast({tone:"success",title:"API key copied",message:"Store it in an approved secret manager."})
   }
 
   return <main className="service-page">
@@ -124,7 +128,6 @@ export default function ServiceAccountsPage() {
       <KeyRound size={20} /><div><strong>Keys are revealed once</strong><span>GreyGuard stores a one-way hash and visible prefix only. Plaintext credentials cannot be recovered.</span></div>
     </section>
 
-    {message && <p className="service-message">{message}</p>}
     {revealedKey && <section className="service-reveal">
       <div><strong>Copy this API key now</strong><span>It will disappear when this panel is closed or the page is refreshed.</span></div>
       <code>{revealedKey}</code>
@@ -133,14 +136,16 @@ export default function ServiceAccountsPage() {
     </section>}
 
     <section className="service-grid">
-      {accounts.length === 0 && <div className="service-empty"><Bot size={30} /><strong>No machine identities</strong><span>Create a scoped service account for CI, automation, or controlled integrations.</span></div>}
+      {loading && <LoadingState label="Loading service accounts" rows={3}/>} 
+      {!loading && loadError && <ErrorState message={loadError} onRetry={() => void load()}/>} 
+      {!loading && !loadError && accounts.length === 0 && <EmptyState icon={<Bot size={30}/>} title="No machine identities" description="Create a scoped service account for CI, automation, or controlled integrations."/>}
       {accounts.map((account) => <article key={account.account_id}>
         <header><div><Bot size={21} /><span className={account.status.toLowerCase()}>{account.status}</span></div><small>{account.account_id}</small></header>
         <h2>{account.name}</h2><p>{account.description || "No description provided."}</p>
         <div className="service-scopes">{account.scopes.map((scope) => <span key={scope}>{scope}</span>)}</div>
         <dl><div><dt>Usage</dt><dd>{account.use_count}</dd></div><div><dt>Last used</dt><dd>{account.last_used_at ? new Date(account.last_used_at).toLocaleString() : "Never"}</dd></div><div><dt>Expires</dt><dd>{account.expires_at ? new Date(account.expires_at).toLocaleDateString() : "Never"}</dd></div></dl>
         <section className="service-keys"><strong>Key history</strong>{account.keys.map((key) => <div key={key.key_id}><code>{serviceKeyDisplay(key.key_prefix)}</code><span className={key.status.toLowerCase()}>{key.status}</span></div>)}</section>
-        {account.status === "ACTIVE" && <footer><button disabled={busy} onClick={() => void lifecycle(account, "rotate")}><RefreshCw size={15} /> Rotate key</button><button disabled={busy} className="danger" onClick={() => void lifecycle(account, "revoke")}><ShieldOff size={15} /> Revoke</button></footer>}
+        {account.status === "ACTIVE" && <footer><button disabled={busy} onClick={() => void lifecycle(account, "rotate")}><RefreshCw size={15} /> Rotate key</button><button disabled={busy} className="danger" onClick={() => setConfirmAccount(account)}><ShieldOff size={15} /> Revoke</button></footer>}
       </article>)}
     </section>
 
@@ -152,5 +157,6 @@ export default function ServiceAccountsPage() {
       <fieldset><legend>Scopes</legend>{availableScopes.map((scope) => <label key={scope}><input type="checkbox" checked={scopes.includes(scope)} onChange={(event) => setScopes((current) => event.target.checked ? [...current, scope] : current.filter((item) => item !== scope))} />{scope}</label>)}</fieldset>
       <footer><button className="secondary" onClick={() => setShowCreate(false)}>Cancel</button><button disabled={busy || !name.trim() || scopes.length === 0} onClick={() => void create()}><KeyRound size={16} /> Create and issue key</button></footer>
     </section></div>}
+    <ConfirmDialog open={Boolean(confirmAccount)} title="Revoke service account?" description={`This will immediately revoke ${confirmAccount?.name ?? "this account"} and every active API key. Automation using those keys will stop.`} confirmLabel="Revoke account" busy={busy} onCancel={() => setConfirmAccount(null)} onConfirm={() => confirmAccount && void lifecycle(confirmAccount,"revoke")}/>
   </main>
 }
