@@ -49,6 +49,19 @@ from .database import (
 )
 
 
+from .policy_control import (
+    approve_policy,
+    create_policy_draft,
+    create_rollback_draft,
+    get_policy_history,
+    get_policy_version,
+    get_published_policy,
+    initialize_policy_control,
+    list_policy_versions,
+    reject_policy,
+    submit_policy,
+    update_policy_draft,
+)
 from .live_events import stream_administrator_events
 from .alerts import (
     add_alert_note,
@@ -64,6 +77,14 @@ async def lifespan(_app: FastAPI):
     """Initialize GreyGuard for the API lifecycle."""
 
     main.initialize_greyguard()
+    initialize_policy_control(
+        permissions=main.permissions,
+        risk_weights=main.risk_weights,
+        max_blocked_attempts=(
+            main.max_blocked_attempts
+        ),
+        max_risk_score=main.max_risk_score,
+    )
     initialize_alert_database()
 
     yield
@@ -159,6 +180,16 @@ class AdministratorUpdate(BaseModel):
 
 class AdministratorPasswordReset(BaseModel):
     new_password: str = Field(min_length=12, max_length=256)
+
+
+class PolicyDocumentRequest(BaseModel):
+    """A complete editable GreyGuard policy document."""
+
+    permissions: dict[str, Literal["ALLOW", "ASK", "BLOCK"]]
+    risk_weights: dict[str, int]
+    max_blocked_attempts: int = Field(ge=1, le=100)
+    max_risk_score: int = Field(ge=1, le=10_000)
+    change_summary: str = Field(min_length=1, max_length=1000)
 
 
 class ActionRequest(BaseModel):
@@ -496,11 +527,204 @@ def health():
     }
 
 
+def require_policy_editor(x_admin_pin):
+    """Allow Platform Admins and Security Analysts to edit drafts."""
+
+    administrator = require_admin(x_admin_pin)
+
+    if administrator["role"] not in {
+        "PLATFORM_ADMIN",
+        "SECURITY_ANALYST",
+    }:
+        raise HTTPException(
+            status_code=403,
+            detail="This role cannot modify policy drafts.",
+        )
+
+    return administrator
+
+
+def policy_actor(administrator):
+    """Return a stable administrator audit identity."""
+
+    return administrator.get("admin_id") or administrator["email"]
+
+
+@app.post("/policy-versions/drafts", status_code=201)
+def create_policy_version_draft(
+    payload: PolicyDocumentRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Create an isolated policy draft."""
+
+    administrator = require_policy_editor(x_admin_pin)
+
+    try:
+        return create_policy_draft(
+            permissions=payload.permissions,
+            risk_weights=payload.risk_weights,
+            max_blocked_attempts=payload.max_blocked_attempts,
+            max_risk_score=payload.max_risk_score,
+            change_summary=payload.change_summary,
+            created_by=policy_actor(administrator),
+        )
+    except (ValueError, RuntimeError) as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+
+
+@app.put("/policy-versions/{policy_id}/draft")
+def update_policy_version_draft(
+    policy_id: str,
+    payload: PolicyDocumentRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Update an isolated policy draft."""
+
+    administrator = require_policy_editor(x_admin_pin)
+
+    try:
+        return update_policy_draft(
+            policy_id=policy_id,
+            permissions=payload.permissions,
+            risk_weights=payload.risk_weights,
+            max_blocked_attempts=payload.max_blocked_attempts,
+            max_risk_score=payload.max_risk_score,
+            change_summary=payload.change_summary,
+            actor=policy_actor(administrator),
+        )
+    except KeyError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+
+
+def require_platform_admin(x_admin_pin):
+    administrator = require_admin(x_admin_pin)
+    if administrator["role"] != "PLATFORM_ADMIN":
+        raise HTTPException(status_code=403, detail="Platform Admin approval is required.")
+    return administrator
+
+
+@app.post("/policy-versions/{policy_id}/submit")
+def submit_policy_version(policy_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_policy_editor(x_admin_pin)
+    try:
+        return submit_policy(policy_id, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/policy-versions/{policy_id}/approve")
+def approve_policy_version(policy_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        policy = approve_policy(policy_id, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    main.permissions.clear()
+    main.permissions.update(policy["permissions"])
+    main.risk_weights.clear()
+    main.risk_weights.update(policy["risk_weights"])
+    main.max_blocked_attempts = policy["max_blocked_attempts"]
+    main.max_risk_score = policy["max_risk_score"]
+    return policy
+
+
+@app.post("/policy-versions/{policy_id}/reject")
+def reject_policy_version(policy_id: str, note: str = Query(default="Policy change rejected."), x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return reject_policy(policy_id, policy_actor(administrator), note)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/policy-versions/{policy_id}/rollback", status_code=201)
+def rollback_policy_version(policy_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return create_rollback_draft(policy_id, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/policy-versions")
+def policy_versions(
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return all policy versions, newest first."""
+
+    require_admin(x_admin_pin)
+
+    return {
+        "versions": list_policy_versions(),
+        "published": get_published_policy(),
+    }
+
+
+@app.get("/policy-versions/{policy_id}")
+def policy_version(
+    policy_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return one stored policy version."""
+
+    require_admin(x_admin_pin)
+
+    try:
+        return get_policy_version(policy_id)
+    except KeyError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+
+
+@app.get("/policy-versions/{policy_id}/history")
+def policy_version_history(
+    policy_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return the immutable history of one policy."""
+
+    require_admin(x_admin_pin)
+
+    try:
+        return {
+            "policy_id": policy_id,
+            "events": get_policy_history(policy_id),
+        }
+    except KeyError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+
+
 @app.get("/permissions")
 def permissions():
     """Return GreyGuard's action policy."""
 
+    published_policy = get_published_policy()
+
     return {
+        "policy_id": published_policy["policy_id"] if published_policy else None,
+        "version_number": published_policy["version_number"] if published_policy else None,
         "permissions": main.permissions,
         "risk_weights": main.risk_weights,
         "available_scopes": sorted(

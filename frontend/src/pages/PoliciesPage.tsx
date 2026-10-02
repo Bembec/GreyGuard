@@ -24,6 +24,7 @@ import {
 } from "@tanstack/react-query";
 
 import "../styles/policies.css";
+import PolicyGovernancePanel from "./PolicyGovernancePanel";
 
 
 type PolicyDecision =
@@ -33,6 +34,8 @@ type PolicyDecision =
   | string;
 
 type PolicyResponse = {
+  policy_id: string | null;
+  version_number: number | null;
   permissions: Record<string, PolicyDecision>;
   risk_weights: Record<string, number>;
   max_blocked_attempts: number;
@@ -501,7 +504,7 @@ export default function PoliciesPage() {
 
                 <div className="policy-version">
                   <span>ACTIVE</span>
-                  <strong>Core Policy V11</strong>
+                  <strong>Core Policy V{policy.version_number ?? "—"}</strong>
                 </div>
               </div>
 
@@ -694,6 +697,8 @@ export default function PoliciesPage() {
               </div>
             </aside>
           </section>
+
+          <PolicyGovernancePanel />
 
           <section className="policy-simulator">
             <div className="simulator-heading">
