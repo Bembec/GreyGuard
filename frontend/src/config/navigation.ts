@@ -90,6 +90,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Abuse Protection",
+    path: "/abuse-protection",
+    description: "Rate limits, lockouts and burst controls",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Settings",
     path: "/settings",
     description: "Interface and control settings",

@@ -48,4 +48,9 @@ describe("GreyGuard navigation", () => {
   it("includes compliance evidence exports", () => {
     expect(navigationItems.some((item) => item.path === "/compliance")).toBe(true);
   });
+
+  it("restricts abuse controls to platform administrators", () => {
+    const item = navigationItems.find((entry) => entry.path === "/abuse-protection");
+    expect(item?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });

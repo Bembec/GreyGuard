@@ -99,6 +99,16 @@ from .compliance_reports import (
     initialize_compliance_reports,
     list_compliance_reports,
 )
+from .abuse_protection import (
+    abuse_summary,
+    check_rate_limit,
+    clear_authentication_failures,
+    initialize_abuse_protection,
+    list_abuse_events,
+    list_policies as list_rate_limit_policies,
+    record_authentication_failure,
+    update_policy as update_rate_limit_policy,
+)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -118,6 +128,7 @@ async def lifespan(_app: FastAPI):
     initialize_notification_database()
     initialize_service_accounts()
     initialize_compliance_reports()
+    initialize_abuse_protection()
 
     yield
 
@@ -137,6 +148,27 @@ app = FastAPI(
 @app.middleware("http")
 async def enforce_administrator_rbac(request: Request, call_next):
     """Enforce the signed-in operator's role before protected API execution."""
+    path = request.url.path
+    client_host = request.client.host if request.client else "unknown-client"
+    if path == "/auth/login":
+        rate_category = "ADMIN_AUTH"
+        rate_identifier = client_host
+    elif path == "/service-accounts/verify":
+        rate_category = "SERVICE_ACCOUNT"
+        rate_identifier = request.headers.get("x-service-key", client_host)
+    elif path.startswith("/actions") or path.startswith("/tool-requests"):
+        rate_category = "AGENT_ACTION"
+        rate_identifier = request.headers.get("x-agent-name", client_host)
+    else:
+        rate_category = "GENERAL"
+        rate_identifier = client_host
+    rate_decision = check_rate_limit(rate_identifier, rate_category)
+    if not rate_decision["allowed"]:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Request rate limit exceeded. Try again later."},
+            headers={"Retry-After": str(rate_decision["retry_after"])},
+        )
     credential = request.headers.get("x-admin-pin", "")
     if credential.startswith("gga_"):
         try:
@@ -151,7 +183,14 @@ async def enforce_administrator_rbac(request: Request, call_next):
                     status_code=403,
                     content={"detail": f"Role {administrator['role']} lacks permission: {permission}"},
                 )
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["X-RateLimit-Remaining"] = str(rate_decision["remaining"])
+    if path == "/auth/login":
+        if response.status_code == 200:
+            clear_authentication_failures(client_host, "ADMIN_AUTH")
+        elif response.status_code == 401:
+            record_authentication_failure(client_host, "ADMIN_AUTH")
+    return response
 
 
 class AgentRegistration(BaseModel):
@@ -250,6 +289,14 @@ class ComplianceReportRequest(BaseModel):
     date_to: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     severities: list[Literal["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(default_factory=list)
     event_types: list[Literal["POLICY", "AUTHENTICATION", "APPROVAL", "EXECUTION"]] = Field(default_factory=list)
+
+
+class RateLimitPolicyRequest(BaseModel):
+    enabled: bool
+    request_limit: int = Field(ge=1, le=10_000)
+    window_seconds: int = Field(ge=1, le=86_400)
+    block_seconds: int = Field(ge=1, le=86_400)
+    max_failed_attempts: int = Field(ge=1, le=100)
 
 
 class ActionRequest(BaseModel):
@@ -935,6 +982,36 @@ def export_compliance_report(
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{report_id}.{format}"'},
     )
+
+
+@app.get("/abuse-protection")
+def abuse_protection_overview(x_admin_pin: str | None = Header(default=None)):
+    """Return throttling policy, block metrics, and recent defensive evidence."""
+    require_platform_admin(x_admin_pin)
+    return {
+        "summary": abuse_summary(),
+        "policies": list_rate_limit_policies(),
+        "events": list_abuse_events(limit=100),
+    }
+
+
+@app.put("/abuse-protection/policies/{category}")
+def administrator_update_rate_limit_policy(
+    category: str,
+    payload: RateLimitPolicyRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return update_rate_limit_policy(
+            category,
+            payload.model_dump(),
+            policy_actor(administrator),
+        )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/permissions")
