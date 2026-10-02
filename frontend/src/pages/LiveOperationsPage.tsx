@@ -100,7 +100,7 @@ function formatTimestamp(value: string) {
   ).format(date);
 }
 
-function severityClass(severity: string) {
+export function severityClass(severity: string) {
   return `live-severity live-severity--${severity.toLowerCase()}`;
 }
 
@@ -119,7 +119,7 @@ function eventIcon(eventType: string) {
   }
 }
 
-function connectionLabel(
+export function connectionLabel(
   status: ConnectionStatus,
 ) {
   switch (status) {
@@ -138,7 +138,7 @@ function connectionLabel(
   }
 }
 
-function parseSseMessage(
+export function parseSseMessage(
   block: string,
 ): {
   id: string | null;

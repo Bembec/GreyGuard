@@ -8,6 +8,8 @@ V10 adds persistent controlled-tool requests, sandbox execution,
 human approval decisions, dry runs, replay protection, and evidence.
 """
 
+from contextlib import asynccontextmanager
+
 import hmac
 import os
 from typing import Literal
@@ -34,7 +36,17 @@ from .database import (
 
 from .live_events import stream_administrator_events
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Initialize GreyGuard for the API lifecycle."""
+
+    main.initialize_greyguard()
+
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="GreyGuard Control Plane API",
     description=(
         "A multi-agent identity, scope, policy, "
@@ -149,13 +161,6 @@ class ToolApprovalDecision(BaseModel):
             "Approved after reviewing the target."
         ],
     )
-
-
-@app.on_event("startup")
-def startup_event():
-    """Initialize GreyGuard when FastAPI starts."""
-
-    main.initialize_greyguard()
 
 
 def require_admin(
