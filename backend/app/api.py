@@ -22,9 +22,20 @@ from fastapi import (
     Query,
 )
 from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from . import main
+from .admin_auth import (
+    authenticate as authenticate_administrator,
+    create_administrator,
+    has_permission,
+    initialize_admin_auth,
+    list_administrators,
+    required_permission,
+    revoke_session,
+    validate_session,
+)
 from .database import (
     get_audit_summary,
     get_recent_authentication_events,
@@ -66,6 +77,26 @@ app = FastAPI(
 )
 
 
+@app.middleware("http")
+async def enforce_administrator_rbac(request: Request, call_next):
+    """Enforce the signed-in operator's role before protected API execution."""
+    credential = request.headers.get("x-admin-pin", "")
+    if credential.startswith("gga_"):
+        try:
+            administrator = validate_session(credential)
+        except ValueError as error:
+            return JSONResponse(status_code=401, content={"detail": str(error)})
+        request.state.administrator = administrator
+        if request.url.path not in {"/auth/me", "/auth/logout"}:
+            permission = required_permission(request.method, request.url.path)
+            if not has_permission(administrator, permission):
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": f"Role {administrator['role']} lacks permission: {permission}"},
+                )
+    return await call_next(request)
+
+
 class AgentRegistration(BaseModel):
     """Information required to register an agent."""
 
@@ -102,6 +133,18 @@ class ScopeUpdate(BaseModel):
             ]
         ],
     )
+
+
+class AdministratorLogin(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class AdministratorCreate(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    display_name: str = Field(min_length=1, max_length=100)
+    role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"]
+    password: str = Field(min_length=12, max_length=256)
 
 
 class ActionRequest(BaseModel):
@@ -186,44 +229,22 @@ class ToolApprovalDecision(BaseModel):
     )
 
 
-def require_admin(
-    x_admin_pin: str | None,
-):
-    """Authenticate an administrator."""
-
-    configured_pin = os.getenv(
-        "GREYGUARD_ADMIN_PIN"
-    )
-
-    if not configured_pin:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Administrator PIN is not "
-                "configured."
-            ),
-        )
-
+def require_admin(x_admin_pin: str | None):
+    """Authenticate a named administrator session or the temporary legacy PIN."""
     if not x_admin_pin:
         raise HTTPException(
             status_code=401,
-            detail=(
-                "Administrator authentication "
-                "is required."
-            ),
+            detail="Administrator authentication is required.",
         )
-
-    if not hmac.compare_digest(
-        x_admin_pin,
-        configured_pin,
-    ):
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "Administrator authentication "
-                "failed."
-            ),
-        )
+    if x_admin_pin.startswith("gga_"):
+        try:
+            return validate_session(x_admin_pin)
+        except ValueError as error:
+            raise HTTPException(status_code=401, detail=str(error)) from error
+    configured_pin = os.getenv("GREYGUARD_ADMIN_PIN")
+    if configured_pin and x_admin_pin and hmac.compare_digest(x_admin_pin, configured_pin):
+        return {"admin_id": "legacy", "email": "legacy", "display_name": "Legacy Administrator", "role": "PLATFORM_ADMIN", "permissions": ["admin:manage", "approval:manage", "identity:manage", "incident:manage", "read"]}
+    raise HTTPException(status_code=401, detail="Administrator authentication failed.")
 
 
 def serialize_agent(
@@ -346,6 +367,46 @@ def authenticate_agent_owner(
         )
 
     return identity
+
+
+@app.post("/auth/login")
+def administrator_login(credentials: AdministratorLogin):
+    try:
+        return authenticate_administrator(credentials.email, credentials.password)
+    except ValueError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.get("/auth/me")
+def current_administrator(x_admin_pin: str | None = Header(default=None)):
+    return require_admin(x_admin_pin)
+
+
+@app.post("/auth/logout")
+def administrator_logout(x_admin_pin: str | None = Header(default=None)):
+    administrator = require_admin(x_admin_pin)
+    if x_admin_pin and x_admin_pin.startswith("gga_"):
+        revoke_session(x_admin_pin)
+    return {"logged_out": True, "administrator": administrator["email"]}
+
+
+@app.get("/administrators")
+def administrators(x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    if not has_permission(actor, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    return {"administrators": list_administrators(), "count": len(list_administrators())}
+
+
+@app.post("/administrators", status_code=201)
+def register_administrator(registration: AdministratorCreate, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    if not has_permission(actor, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    try:
+        return create_administrator(registration.email, registration.display_name, registration.role, registration.password)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @app.get("/")

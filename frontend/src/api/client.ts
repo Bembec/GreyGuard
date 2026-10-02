@@ -69,3 +69,39 @@ export function verifyAdministrator(
     },
   })
 }
+
+
+export interface AdministratorIdentity {
+  admin_id: string
+  email: string
+  display_name: string
+  role: "PLATFORM_ADMIN" | "SECURITY_ANALYST" | "AUDITOR"
+  permissions: string[]
+}
+
+export interface AdministratorLoginResponse {
+  access_token: string
+  token_type: string
+  expires_at: string
+  administrator: AdministratorIdentity
+}
+
+export function administratorLogin(email: string, password: string) {
+  return apiRequest<AdministratorLoginResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  })
+}
+
+export function getCurrentAdministrator(token: string) {
+  return apiRequest<AdministratorIdentity>("/auth/me", {
+    headers: { "x-admin-pin": token },
+  })
+}
+
+export function logoutAdministrator(token: string) {
+  return apiRequest<{ logged_out: boolean }>("/auth/logout", {
+    method: "POST",
+    headers: { "x-admin-pin": token },
+  })
+}
