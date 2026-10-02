@@ -20,6 +20,7 @@ import AuthenticationPage from "../pages/AuthenticationPage"
 import SandboxPage from "../pages/SandboxPage"
 
 import SettingsPage from "../pages/SettingsPage"
+import TeamAccessPage from "../pages/TeamAccessPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -94,6 +95,11 @@ export function AppRoutes() {
         <Route
           path="/sandbox"
           element={<SandboxPage />}
+        />
+
+        <Route
+          path="/team"
+          element={<TeamAccessPage />}
         />
 
         <Route

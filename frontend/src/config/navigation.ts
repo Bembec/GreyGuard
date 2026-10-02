@@ -2,6 +2,7 @@ export interface NavigationItem {
   label: string
   path: string
   description: string
+  requiredRole?: string
 }
 
 export const navigationItems: NavigationItem[] = [
@@ -59,6 +60,12 @@ export const navigationItems: NavigationItem[] = [
     label: "Sandbox",
     path: "/sandbox",
     description: "Contained tool environment",
+  },
+  {
+    label: "Team & Access",
+    path: "/team",
+    description: "Administrator identities and roles",
+    requiredRole: "PLATFORM_ADMIN",
   },
   {
     label: "Settings",

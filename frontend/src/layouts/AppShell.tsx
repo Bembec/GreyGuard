@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sun,
+  UsersRound,
   X,
 } from "lucide-react"
 import {
@@ -50,6 +51,7 @@ const iconMap = {
   "/audit": FileSearch,
   "/authentication": Fingerprint,
   "/sandbox": ClipboardList,
+  "/team": UsersRound,
   "/settings": Settings,
 }
 
@@ -63,7 +65,7 @@ function getPageInformation(pathname: string) {
 
 export function AppShell() {
   const location = useLocation()
-  const { logout } = useAuth()
+  const { logout, administrator } = useAuth()
 
   const [collapsed, setCollapsed] =
     useState(false)
@@ -152,7 +154,7 @@ export function AppShell() {
             Security operations
           </p>
 
-          {navigationItems.map((item) => {
+          {navigationItems.filter((item) => !item.requiredRole || item.requiredRole === administrator?.role).map((item) => {
             const Icon =
               iconMap[
                 item.path as keyof typeof iconMap

@@ -204,3 +204,88 @@ def required_permission(method: str, path: str) -> str:
     if path.startswith("/agents"):
         return "identity:manage"
     return "admin:manage"
+
+
+def get_administrator(admin_id: str) -> dict:
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            "SELECT * FROM administrators WHERE admin_id = ?", (admin_id,)
+        ).fetchone()
+    if not row:
+        raise KeyError("Administrator not found.")
+    return _public_admin(row)
+
+
+def _active_platform_admin_count(connection: sqlite3.Connection) -> int:
+    return connection.execute(
+        "SELECT COUNT(*) FROM administrators WHERE role = 'PLATFORM_ADMIN' AND status = 'ACTIVE'"
+    ).fetchone()[0]
+
+
+def update_administrator(admin_id, display_name=None, role=None, status=None) -> dict:
+    """Update an operator while preserving at least one active platform administrator."""
+    normalized_role = str(role).strip().upper() if role is not None else None
+    normalized_status = str(status).strip().upper() if status is not None else None
+    if normalized_role is not None and normalized_role not in ROLES:
+        raise ValueError("Unknown administrator role.")
+    if normalized_status is not None and normalized_status not in {"ACTIVE", "DISABLED"}:
+        raise ValueError("Administrator status must be ACTIVE or DISABLED.")
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        current = connection.execute(
+            "SELECT * FROM administrators WHERE admin_id = ?", (admin_id,)
+        ).fetchone()
+        if not current:
+            raise KeyError("Administrator not found.")
+        resulting_role = normalized_role or current["role"]
+        resulting_status = normalized_status or current["status"]
+        removes_platform_admin = (
+            current["role"] == "PLATFORM_ADMIN"
+            and current["status"] == "ACTIVE"
+            and (resulting_role != "PLATFORM_ADMIN" or resulting_status != "ACTIVE")
+        )
+        if removes_platform_admin and _active_platform_admin_count(connection) <= 1:
+            raise ValueError("The final active Platform Administrator cannot be removed or disabled.")
+        normalized_name = current["display_name"]
+        if display_name is not None:
+            normalized_name = str(display_name).strip()
+            if not normalized_name:
+                raise ValueError("Display name cannot be empty.")
+        connection.execute("""
+            UPDATE administrators SET display_name = ?, role = ?, status = ?
+            WHERE admin_id = ?
+        """, (normalized_name, resulting_role, resulting_status, admin_id))
+        if resulting_status == "DISABLED":
+            connection.execute(
+                "UPDATE administrator_sessions SET revoked_at = ? WHERE admin_id = ? AND revoked_at IS NULL",
+                (utc_now(), admin_id),
+            )
+    return get_administrator(admin_id)
+
+
+def reset_administrator_password(admin_id: str, new_password: str) -> dict:
+    if len(str(new_password)) < 12:
+        raise ValueError("Administrator password must contain at least 12 characters.")
+    salt = secrets.token_bytes(16)
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.execute("""
+            UPDATE administrators SET password_salt = ?, password_hash = ? WHERE admin_id = ?
+        """, (salt.hex(), _password_digest(str(new_password), salt), admin_id))
+        if cursor.rowcount == 0:
+            raise KeyError("Administrator not found.")
+        connection.execute(
+            "UPDATE administrator_sessions SET revoked_at = ? WHERE admin_id = ? AND revoked_at IS NULL",
+            (utc_now(), admin_id),
+        )
+    return get_administrator(admin_id)
+
+
+def revoke_administrator_sessions(admin_id: str) -> int:
+    get_administrator(admin_id)
+    with sqlite3.connect(database_path) as connection:
+        cursor = connection.execute(
+            "UPDATE administrator_sessions SET revoked_at = ? WHERE admin_id = ? AND revoked_at IS NULL",
+            (utc_now(), admin_id),
+        )
+    return cursor.rowcount

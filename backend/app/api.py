@@ -29,6 +29,10 @@ from . import main
 from .admin_auth import (
     authenticate as authenticate_administrator,
     create_administrator,
+    get_administrator,
+    reset_administrator_password,
+    revoke_administrator_sessions,
+    update_administrator,
     has_permission,
     initialize_admin_auth,
     list_administrators,
@@ -145,6 +149,16 @@ class AdministratorCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=100)
     role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"]
     password: str = Field(min_length=12, max_length=256)
+
+
+class AdministratorUpdate(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=100)
+    role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"] | None = None
+    status: Literal["ACTIVE", "DISABLED"] | None = None
+
+
+class AdministratorPasswordReset(BaseModel):
+    new_password: str = Field(min_length=12, max_length=256)
 
 
 class ActionRequest(BaseModel):
@@ -407,6 +421,43 @@ def register_administrator(registration: AdministratorCreate, x_admin_pin: str |
         return create_administrator(registration.email, registration.display_name, registration.role, registration.password)
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.put("/administrators/{admin_id}")
+def edit_administrator(admin_id: str, update: AdministratorUpdate, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    if not has_permission(actor, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    try:
+        return update_administrator(admin_id, update.display_name, update.role, update.status)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/administrators/{admin_id}/password")
+def reset_admin_password(admin_id: str, reset: AdministratorPasswordReset, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    if not has_permission(actor, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    try:
+        return reset_administrator_password(admin_id, reset.new_password)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/administrators/{admin_id}/sessions/revoke")
+def revoke_admin_sessions(admin_id: str, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    if not has_permission(actor, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    try:
+        return {"admin_id": admin_id, "revoked_sessions": revoke_administrator_sessions(admin_id)}
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.get("/")
