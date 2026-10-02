@@ -71,6 +71,10 @@ from .alerts import (
     initialize_alert_database,
     update_alert,
 )
+from .secret_manager import (
+    create_secret, initialize_secret_manager, list_secrets,
+    redact, revoke_secret, rotate_secret,
+)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -86,6 +90,7 @@ async def lifespan(_app: FastAPI):
         max_risk_score=main.max_risk_score,
     )
     initialize_alert_database()
+    initialize_secret_manager()
 
     yield
 
@@ -190,6 +195,15 @@ class PolicyDocumentRequest(BaseModel):
     max_blocked_attempts: int = Field(ge=1, le=100)
     max_risk_score: int = Field(ge=1, le=10_000)
     change_summary: str = Field(min_length=1, max_length=1000)
+
+
+class SecretCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    reference: str = Field(min_length=3, max_length=128)
+
+
+class SecretRotateRequest(BaseModel):
+    reference: str = Field(min_length=3, max_length=128)
 
 
 class ActionRequest(BaseModel):
@@ -714,6 +728,34 @@ def policy_version_history(
             status_code=404,
             detail=str(error),
         ) from error
+
+
+@app.get("/secrets")
+def secret_references(x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    return {"secrets": list_secrets(), "values_exposed": False}
+
+
+@app.post("/secrets", status_code=201)
+def create_secret_reference(payload: SecretCreateRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try: return create_secret(payload.name,payload.reference,policy_actor(administrator))
+    except ValueError as error: raise HTTPException(status_code=400,detail=redact(error)) from error
+
+
+@app.post("/secrets/{secret_id}/rotate")
+def rotate_secret_reference(secret_id: str,payload: SecretRotateRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try: return rotate_secret(secret_id,payload.reference,policy_actor(administrator))
+    except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
+    except ValueError as error: raise HTTPException(status_code=400,detail=redact(error)) from error
+
+
+@app.post("/secrets/{secret_id}/revoke")
+def revoke_secret_reference(secret_id: str,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try: return revoke_secret(secret_id,policy_actor(administrator))
+    except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.get("/permissions")

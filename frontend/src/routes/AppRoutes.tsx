@@ -21,6 +21,7 @@ import SandboxPage from "../pages/SandboxPage"
 
 import SettingsPage from "../pages/SettingsPage"
 import TeamAccessPage from "../pages/TeamAccessPage"
+import SecretsPage from "../pages/SecretsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -101,6 +102,8 @@ export function AppRoutes() {
           path="/team"
           element={<TeamAccessPage />}
         />
+
+        <Route path="/secrets" element={<SecretsPage />} />
 
         <Route
           path="/settings"

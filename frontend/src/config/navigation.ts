@@ -68,6 +68,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Secret Management",
+    path: "/secrets",
+    description: "References, rotation and emergency revocation",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Settings",
     path: "/settings",
     description: "Interface and control settings",
