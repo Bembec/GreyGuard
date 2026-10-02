@@ -583,3 +583,11 @@ GreyGuard is a defensive educational project. It evaluates and records simulated
 ## Author
 
 Michael Chukwujekwu Alughere
+
+
+## Python Agent SDK
+
+GreyGuard includes credential-safe Python clients for explicitly registered
+agents and administrators. See
+[`docs/agent-integration.md`](docs/agent-integration.md) for the integration
+workflow and safe example.
