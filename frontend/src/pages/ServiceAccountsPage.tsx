@@ -136,8 +136,8 @@ export default function ServiceAccountsPage() {
     </section>}
 
     <section className="service-grid">
-      {loading && <LoadingState label="Loading service accounts" rows={3}/>} 
-      {!loading && loadError && <ErrorState message={loadError} onRetry={() => void load()}/>} 
+      {loading && <LoadingState label="Loading service accounts" rows={3}/>}
+      {!loading && loadError && <ErrorState message={loadError} onRetry={() => void load()}/>}
       {!loading && !loadError && accounts.length === 0 && <EmptyState icon={<Bot size={30}/>} title="No machine identities" description="Create a scoped service account for CI, automation, or controlled integrations."/>}
       {accounts.map((account) => <article key={account.account_id}>
         <header><div><Bot size={21} /><span className={account.status.toLowerCase()}>{account.status}</span></div><small>{account.account_id}</small></header>
