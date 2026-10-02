@@ -57,6 +57,11 @@ export const navigationItems: NavigationItem[] = [
     description: "Security decision evidence",
   },
   {
+    label: "Compliance Reports",
+    path: "/compliance",
+    description: "Evidence snapshots and exports",
+  },
+  {
     label: "Authentication",
     path: "/authentication",
     description: "Credential and scope events",

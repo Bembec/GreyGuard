@@ -44,4 +44,8 @@ describe("GreyGuard navigation", () => {
     const item = navigationItems.find((entry) => entry.path === "/service-accounts");
     expect(item?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+
+  it("includes compliance evidence exports", () => {
+    expect(navigationItems.some((item) => item.path === "/compliance")).toBe(true);
+  });
 });

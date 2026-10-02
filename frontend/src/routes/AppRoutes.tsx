@@ -24,6 +24,7 @@ import TeamAccessPage from "../pages/TeamAccessPage"
 import SecretsPage from "../pages/SecretsPage"
 import NotificationsPage from "../pages/NotificationsPage"
 import ServiceAccountsPage from "../pages/ServiceAccountsPage"
+import ComplianceReportsPage from "../pages/ComplianceReportsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -91,6 +92,8 @@ export function AppRoutes() {
           path="/audit"
           element={<AuditTrailPage />}
         />
+
+        <Route path="/compliance" element={<ComplianceReportsPage />} />
 
         <Route
           path="/authentication"

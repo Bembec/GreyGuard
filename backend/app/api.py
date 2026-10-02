@@ -21,7 +21,7 @@ from fastapi import (
     HTTPException,
     Query,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -91,6 +91,14 @@ from .service_accounts import (
     revoke_service_account,
     rotate_service_account_key,
 )
+from .compliance_reports import (
+    create_compliance_report,
+    export_csv,
+    export_json,
+    get_compliance_report,
+    initialize_compliance_reports,
+    list_compliance_reports,
+)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -109,6 +117,7 @@ async def lifespan(_app: FastAPI):
     initialize_secret_manager()
     initialize_notification_database()
     initialize_service_accounts()
+    initialize_compliance_reports()
 
     yield
 
@@ -233,6 +242,14 @@ class ServiceAccountCreateRequest(BaseModel):
 
 class ServiceAccountRotateRequest(BaseModel):
     expires_in_days: int | None = Field(default=90, ge=1, le=365)
+
+
+class ComplianceReportRequest(BaseModel):
+    title: str = Field(min_length=3, max_length=150)
+    date_from: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    date_to: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    severities: list[Literal["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(default_factory=list)
+    event_types: list[Literal["POLICY", "AUTHENTICATION", "APPROVAL", "EXECUTION"]] = Field(default_factory=list)
 
 
 class ActionRequest(BaseModel):
@@ -854,6 +871,70 @@ def verify_service_account_key(
         raise HTTPException(status_code=403, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.get("/compliance-reports")
+def compliance_report_history(x_admin_pin: str | None = Header(default=None)):
+    """Return immutable compliance-report history."""
+    require_admin(x_admin_pin)
+    return {"reports": list_compliance_reports()}
+
+
+@app.post("/compliance-reports", status_code=201)
+def generate_compliance_report(
+    payload: ComplianceReportRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Capture a point-in-time security evidence snapshot."""
+    administrator = require_admin(x_admin_pin)
+    try:
+        return create_compliance_report(
+            payload.title,
+            {
+                "date_from": payload.date_from,
+                "date_to": payload.date_to,
+                "severities": payload.severities,
+                "event_types": payload.event_types,
+            },
+            policy_actor(administrator),
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/compliance-reports/{report_id}")
+def compliance_report_details(
+    report_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    require_admin(x_admin_pin)
+    try:
+        return get_compliance_report(report_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/compliance-reports/{report_id}/export")
+def export_compliance_report(
+    report_id: str,
+    format: Literal["json", "csv"] = Query(default="json"),
+    x_admin_pin: str | None = Header(default=None),
+):
+    require_admin(x_admin_pin)
+    try:
+        if format == "csv":
+            content = export_csv(report_id)
+            media_type = "text/csv; charset=utf-8"
+        else:
+            content = export_json(report_id)
+            media_type = "application/json"
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{report_id}.{format}"'},
+    )
 
 
 @app.get("/permissions")
