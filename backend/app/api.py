@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import os
+import sqlite3
 from typing import Literal
 
 from fastapi import (
@@ -138,6 +139,20 @@ from .observability import (
     start_request,
     update_config as update_observability_config,
 )
+from .enterprise_identity import (
+    activate_break_glass,
+    add_role_mapping,
+    create_workload_identity,
+    decide_elevation,
+    identity_summary,
+    initialize_enterprise_identity,
+    list_elevations,
+    list_providers,
+    list_role_mappings,
+    list_workload_identities,
+    request_elevation,
+    save_provider,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -163,6 +178,7 @@ async def lifespan(_app: FastAPI):
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
+    initialize_enterprise_identity()
 
     yield
 
@@ -348,6 +364,45 @@ class AdapterConfigurationRequest(BaseModel):
     owner: str = Field(default="", max_length=100)
     purpose: str = Field(default="", max_length=500)
     allowed_actions: list[str] = Field(min_length=1)
+
+
+class IdentityProviderRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    issuer: str = Field(min_length=8, max_length=500)
+    client_id: str = Field(min_length=1, max_length=250)
+    allowed_domains: list[str] = Field(default_factory=list)
+    enabled: bool = True
+
+
+class IdentityRoleMappingRequest(BaseModel):
+    provider_id: str
+    claim_name: str = Field(min_length=1, max_length=100)
+    claim_value: str = Field(min_length=1, max_length=250)
+    role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"]
+    priority: int = Field(default=100, ge=1, le=1000)
+
+
+class WorkloadIdentityRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    subject: str = Field(min_length=2, max_length=250)
+    certificate_pem: str = Field(min_length=32, max_length=20_000)
+    scopes: list[str] = Field(min_length=1)
+    expires_in_days: int = Field(default=90, ge=1, le=365)
+
+
+class ElevationRequest(BaseModel):
+    role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"]
+    reason: str = Field(min_length=8, max_length=1000)
+    minutes: int = Field(default=30, ge=5, le=120)
+
+
+class ElevationDecisionRequest(BaseModel):
+    approved: bool
+
+
+class BreakGlassRequest(BaseModel):
+    reason: str = Field(min_length=12, max_length=1000)
+    minutes: int = Field(default=30, ge=5, le=60)
 
 
 class ObservabilityConfigurationRequest(BaseModel):
@@ -2165,3 +2220,82 @@ def sandbox_resources(
         "initialization": initialization,
         "resources": listing,
     }
+
+
+def _platform_admin(token):
+    actor = require_admin(token)
+    if not has_permission(actor, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    return actor
+
+
+@app.get("/enterprise-identity")
+def enterprise_identity_overview(x_admin_pin: str | None = Header(default=None)):
+    _platform_admin(x_admin_pin)
+    return {"summary": identity_summary(), "providers": list_providers(),
+            "mappings": list_role_mappings(), "workloads": list_workload_identities(),
+            "elevations": list_elevations()}
+
+
+@app.post("/enterprise-identity/providers", status_code=201)
+def configure_identity_provider(payload: IdentityProviderRequest, x_admin_pin: str | None = Header(default=None)):
+    actor = _platform_admin(x_admin_pin)
+    try:
+        return save_provider(actor["admin_id"], payload.name, payload.issuer, payload.client_id,
+                             payload.allowed_domains, payload.enabled)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/enterprise-identity/mappings", status_code=201)
+def configure_identity_mapping(payload: IdentityRoleMappingRequest, x_admin_pin: str | None = Header(default=None)):
+    actor = _platform_admin(x_admin_pin)
+    try:
+        return add_role_mapping(actor["admin_id"], payload.provider_id, payload.claim_name,
+                                payload.claim_value, payload.role, payload.priority)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/enterprise-identity/workloads", status_code=201)
+def register_workload_identity(payload: WorkloadIdentityRequest, x_admin_pin: str | None = Header(default=None)):
+    actor = _platform_admin(x_admin_pin)
+    try:
+        return create_workload_identity(actor["admin_id"], payload.name, payload.subject,
+                                        payload.certificate_pem, payload.scopes, payload.expires_in_days)
+    except (ValueError, sqlite3.IntegrityError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/enterprise-identity/elevations", status_code=201)
+def create_elevation_request(payload: ElevationRequest, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        return request_elevation(actor["admin_id"], payload.role, payload.reason, payload.minutes)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/enterprise-identity/elevations/{elevation_id}/decision")
+def review_elevation_request(elevation_id: str, payload: ElevationDecisionRequest,
+                             x_admin_pin: str | None = Header(default=None)):
+    actor = _platform_admin(x_admin_pin)
+    try:
+        return decide_elevation(actor["admin_id"], elevation_id, payload.approved)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/enterprise-identity/break-glass", status_code=201)
+def emergency_identity_activation(payload: BreakGlassRequest, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        return activate_break_glass(actor["admin_id"], payload.reason, payload.minutes)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error

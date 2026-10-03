@@ -107,6 +107,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Enterprise Identity",
+    path: "/enterprise-identity",
+    description: "Federation, workload trust and privileged access",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Abuse Protection",
     path: "/abuse-protection",
     description: "Rate limits, lockouts and burst controls",
