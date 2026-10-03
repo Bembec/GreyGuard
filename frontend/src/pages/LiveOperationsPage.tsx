@@ -204,9 +204,12 @@ export default function LiveOperationsPage() {
     useState(250);
   const [recoveredCount, setRecoveredCount] =
     useState(0);
+  const [selectedEventIds, setSelectedEventIds] =
+    useState<Set<string>>(() => new Set());
 
   const seenEventIds = useRef(new Set<string>());
   const lastEventId = useRef<string | null>(null);
+  const lastSignalAt = useRef(Date.now());
 
   useEffect(() => {
     if (paused) {
@@ -332,6 +335,7 @@ export default function LiveOperationsPage() {
               ) as StreamEnvelope;
 
               if (envelope.status === "connected") {
+                lastSignalAt.current = Date.now();
                 setConnectionStatus("CONNECTED");
                 setRecoveredCount(envelope.recovered_events ?? 0);
               }
@@ -340,6 +344,7 @@ export default function LiveOperationsPage() {
             }
 
             if (message.event === "heartbeat") {
+              lastSignalAt.current = Date.now();
               setConnectionStatus("CONNECTED");
               continue;
             }
@@ -367,6 +372,7 @@ export default function LiveOperationsPage() {
 
             seenEventIds.current.add(eventId);
             lastEventId.current = eventId;
+            lastSignalAt.current = Date.now();
 
             setEvents((current) =>
               [
@@ -427,6 +433,18 @@ export default function LiveOperationsPage() {
     connectionAttempt,
     bufferLimit,
   ]);
+
+  useEffect(() => {
+    if (connectionStatus !== "CONNECTED" || paused) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() - lastSignalAt.current > 30_000) {
+        setConnectionError("The stream heartbeat timed out. Reconnecting automatically.");
+        setConnectionStatus("RECONNECTING");
+        setConnectionAttempt((current) => current + 1);
+      }
+    }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [connectionStatus, paused]);
 
   const filteredEvents = useMemo(() => {
     const normalizedSearch =
@@ -506,6 +524,24 @@ export default function LiveOperationsPage() {
     setLastEventAt(null);
     lastEventId.current = null;
     setRecoveredCount(0);
+    setSelectedEventIds(new Set());
+  }
+
+  function toggleEventSelection(eventId: string) {
+    setSelectedEventIds((current) => {
+      const next = new Set(current);
+      if (next.has(eventId)) next.delete(eventId); else next.add(eventId);
+      return next;
+    });
+  }
+
+  function exportSelectedEvents() {
+    const selected = events.filter((event) => selectedEventIds.has(event.event_id));
+    const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), count: selected.length, events: selected }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = "greyguard-live-events.json"; link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -624,6 +660,9 @@ export default function LiveOperationsPage() {
           </div>
 
           <div className="live-control-panel__actions">
+            <button type="button" className="live-button live-button--ghost" onClick={exportSelectedEvents} disabled={selectedEventIds.size === 0}>
+              Export selected ({selectedEventIds.size})
+            </button>
             <button
               type="button"
               className="live-button live-button--ghost"
@@ -815,6 +854,9 @@ export default function LiveOperationsPage() {
                       : "",
                   ].join(" ")}
                 >
+                  <label className="live-event__select" onClick={(clickEvent) => clickEvent.stopPropagation()}>
+                    <input type="checkbox" checked={selectedEventIds.has(event.event_id)} onChange={() => toggleEventSelection(event.event_id)} aria-label={`Select event ${event.event_id}`}/>
+                  </label>
                   <div className="live-event__rail">
                     <span>
                       <EventIcon size={17} />

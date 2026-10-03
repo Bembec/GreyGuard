@@ -75,4 +75,8 @@ describe("Live Operations helpers", () => {
   it("uses bounded event buffer choices", () => {
     expect(liveBufferOptions).toEqual([100, 250, 500]);
   });
+
+  it("caps the largest in-memory feed at 500 events", () => {
+    expect(Math.max(...liveBufferOptions)).toBe(500);
+  });
 });

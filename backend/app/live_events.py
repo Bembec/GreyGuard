@@ -10,6 +10,20 @@ from fastapi import Request
 from .alerts import sync_alerts_from_events
 from .database import get_administrator_audit_events
 
+SENSITIVE_FIELDS = {"password", "secret", "token", "credential", "api_key", "authorization"}
+
+def redact_stream_value(value):
+    if isinstance(value, dict):
+        return {key: "[REDACTED]" if any(marker in key.lower() for marker in SENSITIVE_FIELDS) else redact_stream_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_stream_value(item) for item in value]
+    return value
+
+def prepare_stream_events(events: list[dict], agent_name: str | None) -> list[dict]:
+    """Apply a second agent boundary and redact every outgoing event."""
+    normalized = agent_name.strip().lower() if agent_name else None
+    return [redact_stream_value(event) for event in events if normalized is None or normalized in str(event.get("agent_name") or "").lower()]
+
 
 def recovery_events(events: list[dict], last_event_id: str | None) -> list[dict]:
     """Return only records newer than the client's last received event."""
@@ -81,7 +95,7 @@ async def stream_administrator_events(
         limit=limit,
     )
 
-    initial_events = initial_response["events"]
+    initial_events = prepare_stream_events(initial_response["events"], agent_name)
     recovered_events = recovery_events(initial_events, last_event_id)
     sync_alerts_from_events(initial_events)
 
@@ -126,7 +140,7 @@ async def stream_administrator_events(
                 limit=limit,
             )
 
-            current_events = current_response["events"]
+            current_events = prepare_stream_events(current_response["events"], agent_name)
             sync_alerts_from_events(current_events)
 
             new_events = []
