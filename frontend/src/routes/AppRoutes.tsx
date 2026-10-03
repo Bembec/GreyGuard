@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../context/AuthContext"
 import { AppShell } from "../layouts/AppShell"
 import AgentsPage from "../pages/AgentsPage"
+import AgentDetailPage from "../pages/AgentDetailPage"
 import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
 import LiveOperationsPage from "../pages/LiveOperationsPage"
@@ -61,6 +62,7 @@ export function AppRoutes() {
           path="/agents"
           element={<AgentsPage />}
         />
+        <Route path="/agents/:agentName" element={<AgentDetailPage />} />
 
 
         <Route

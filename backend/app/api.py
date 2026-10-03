@@ -114,6 +114,7 @@ from .abuse_protection import (
     update_policy as update_rate_limit_policy,
 )
 from .global_search import search_control_plane
+from .agent_investigation import build_agent_investigation
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -1082,6 +1083,20 @@ def list_agents(
             main.agent_states.items()
         )
     ]
+
+
+@app.get("/agent-investigations/{agent_name}")
+def agent_investigation(
+    agent_name: str,
+    limit: int = Query(default=100, ge=1, le=200),
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return a redacted, administrator-scoped agent investigation view."""
+    require_admin(x_admin_pin)
+    try:
+        return build_agent_investigation(agent_name, limit)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Agent not found.") from error
 
 
 @app.post(

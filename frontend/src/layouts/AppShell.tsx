@@ -65,6 +65,9 @@ const iconMap = {
 }
 
 function getPageInformation(pathname: string) {
+  if (pathname.startsWith("/agents/")) {
+    return { label: "Agent Investigation", path: "/agents", description: "Correlated agent security evidence" }
+  }
   return (
     navigationItems.find(
       (item) => item.path === pathname,

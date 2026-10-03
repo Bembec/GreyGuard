@@ -35,7 +35,7 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30) ->
             results.append({
                 "kind": "AGENT", "id": name, "title": name,
                 "summary": f"{state.get('agent_status', 'UNKNOWN')} · risk {state.get('risk_score', 0)}",
-                "path": f"/agents?agent={name}",
+                "path": f"/agents/{name}",
             })
 
     requests = get_tool_requests(limit=200)

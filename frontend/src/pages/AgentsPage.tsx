@@ -23,6 +23,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import "../styles/agents.css";
@@ -218,6 +219,7 @@ function formatDate(value?: string | null) {
 
 export default function AgentsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [searchText, setSearchText] =
     useState("");
@@ -689,12 +691,10 @@ export default function AgentsPage() {
                             className="inspect-button"
                             onClick={(event) => {
                               event.stopPropagation();
-                              setSelectedName(
-                                agent.agent_name,
-                              );
+                              navigate(`/agents/${encodeURIComponent(agent.agent_name)}`);
                             }}
                           >
-                            Inspect
+                            Investigate
                           </button>
                         </td>
                       </tr>
