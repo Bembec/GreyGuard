@@ -11,6 +11,7 @@ timeouts, typed failures, and idempotent retries for tool submissions.
 - [Security practices](security.md)
 - [API reference](api-reference.md)
 - [Troubleshooting](troubleshooting.md)
+- [Framework adapters](framework-adapters.md)
 
 ## Supported clients
 

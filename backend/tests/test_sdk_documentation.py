@@ -15,6 +15,7 @@ def test_sdk_guide_links_are_complete():
         "security.md",
         "api-reference.md",
         "troubleshooting.md",
+        "framework-adapters.md",
     ):
         assert (DOCS / filename).is_file()
         assert f"]({filename})" in index

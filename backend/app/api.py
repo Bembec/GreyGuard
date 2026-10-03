@@ -116,6 +116,7 @@ from .abuse_protection import (
 )
 from .adapter_control import (
     configure_adapter,
+    extract_action,
     initialize_adapter_control,
     list_adapters,
     test_adapter,
@@ -995,7 +996,7 @@ def create_adapter_request(
     x_agent_key: str | None = Header(default=None),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    candidate_action = payload.get("action", payload.get("permission", ""))
+    candidate_action = extract_action(adapter_id, payload)
     authentication = authenticate_request(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,

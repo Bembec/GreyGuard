@@ -14,7 +14,8 @@ def adapters(tmp_path, monkeypatch):
 def test_adapters_are_disabled_by_default(adapters):
     records = adapters.list_adapters()
     assert {item["adapter_id"] for item in records} == {
-        "generic_webhook", "agentguard_legacy"
+        "generic_webhook", "agentguard_legacy", "mcp_gateway", "langchain",
+        "langgraph", "crewai", "autogen",
     }
     assert all(item["enabled"] is False for item in records)
     assert all(item["manifest"]["network_egress"] is False for item in records)
@@ -60,3 +61,39 @@ def test_test_environment_has_no_side_effects(adapters):
     assert result["simulated"] is True
     assert result["network_used"] is False
     assert result["request_persisted"] is False
+
+
+@pytest.mark.parametrize(("adapter_id", "payload"), [
+    ("mcp_gateway", {"name": "read_file", "arguments": {"target": "report.txt"}}),
+    ("langchain", {"tool": "read_file", "input": {"query": "report"}}),
+    ("langgraph", {"action": "read_file", "state": {"step": 1}}),
+    ("crewai", {"tool": "read_file", "arguments": {"delegated": False}}),
+    ("autogen", {"function_call": {"name": "read_file", "arguments": "{\"safe\": true}"}}),
+])
+def test_framework_translation(adapters, adapter_id, payload):
+    adapters.configure_adapter(
+        adapter_id, True, "Security Team", "Approved framework test adapter",
+        ["read_file"], "admin",
+    )
+    translated = adapters.translate_request(adapter_id, payload)
+    assert translated["action"] == "read_file"
+    assert isinstance(translated["payload"], dict)
+
+
+def test_every_adapter_isolated_test_is_side_effect_free(adapters):
+    for adapter in adapters.list_adapters():
+        result = adapters.test_adapter(adapter["adapter_id"])
+        assert result["simulated"] is True
+        assert result["network_used"] is False
+        assert result["request_persisted"] is False
+
+
+def test_autogen_rejects_malformed_argument_json(adapters):
+    adapters.configure_adapter(
+        "autogen", True, "Security Team", "Approved AutoGen integration",
+        ["read_file"], "admin",
+    )
+    with pytest.raises(ValueError, match="valid JSON"):
+        adapters.translate_request("autogen", {
+            "function_call": {"name": "read_file", "arguments": "not-json"}
+        })

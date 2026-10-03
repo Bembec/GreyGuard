@@ -10,6 +10,31 @@ from .database import database_path
 
 
 ADAPTER_DEFINITIONS = {
+    "mcp_gateway": {
+        "name": "MCP Tool Gateway",
+        "protocol": "Model Context Protocol",
+        "description": "Translate MCP tool calls into controlled GreyGuard requests.",
+    },
+    "langchain": {
+        "name": "LangChain",
+        "protocol": "LangChain Tool Call",
+        "description": "Normalize LangChain tool invocations without importing runtime code.",
+    },
+    "langgraph": {
+        "name": "LangGraph",
+        "protocol": "LangGraph Node Action",
+        "description": "Constrain graph-node actions through GreyGuard policy.",
+    },
+    "crewai": {
+        "name": "CrewAI",
+        "protocol": "CrewAI Tool Call",
+        "description": "Control crew tool requests with agent identity and scope enforcement.",
+    },
+    "autogen": {
+        "name": "AutoGen",
+        "protocol": "AutoGen Function Call",
+        "description": "Translate structured AutoGen function calls into controlled requests.",
+    },
     "generic_webhook": {
         "name": "Generic Webhook Agent",
         "protocol": "JSON",
@@ -131,16 +156,66 @@ def _redact(value: Any):
     return value
 
 
+def extract_action(adapter_id, payload):
+    """Extract only the action needed for authentication without reading config."""
+    if not isinstance(payload, dict):
+        return ""
+    if adapter_id == "mcp_gateway":
+        return payload.get("name", "")
+    if adapter_id in {"langchain", "crewai"}:
+        return payload.get("tool", "")
+    if adapter_id == "langgraph":
+        return payload.get("action", "")
+    if adapter_id == "autogen":
+        call = payload.get("function_call", {})
+        return call.get("name", "") if isinstance(call, dict) else ""
+    return payload.get("action", payload.get("permission", ""))
+
+
 def translate_request(adapter_id, payload, require_enabled=True):
     adapter = get_adapter(adapter_id)
     if require_enabled and not adapter["enabled"]:
         raise PermissionError("Adapter kill switch is active.")
     if not isinstance(payload, dict):
         raise ValueError("Adapter payload must be a JSON object.")
-    action = payload.get("action", payload.get("permission"))
-    target = payload.get("target", payload.get("resource", ""))
-    arguments = payload.get("payload", payload.get("context", {}))
-    dry_run = payload.get("dry_run", payload.get("dryRun", False))
+    if adapter_id == "mcp_gateway":
+        action = payload.get("name")
+        arguments = payload.get("arguments", {})
+        target = arguments.get("target", "") if isinstance(arguments, dict) else ""
+        dry_run = payload.get("dry_run", False)
+    elif adapter_id == "langchain":
+        action = payload.get("tool")
+        arguments = payload.get("input", {})
+        target = payload.get("target", "")
+        dry_run = payload.get("dry_run", False)
+    elif adapter_id == "langgraph":
+        action = payload.get("action")
+        arguments = payload.get("state", {})
+        target = payload.get("target", "")
+        dry_run = payload.get("dry_run", False)
+    elif adapter_id == "crewai":
+        action = payload.get("tool")
+        arguments = payload.get("arguments", {})
+        target = payload.get("target", "")
+        dry_run = payload.get("dry_run", False)
+    elif adapter_id == "autogen":
+        function_call = payload.get("function_call", {})
+        if not isinstance(function_call, dict):
+            raise ValueError("AutoGen function_call must be an object.")
+        action = function_call.get("name")
+        arguments = function_call.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as error:
+                raise ValueError("AutoGen arguments must contain valid JSON.") from error
+        target = payload.get("target", "")
+        dry_run = payload.get("dry_run", False)
+    else:
+        action = payload.get("action", payload.get("permission"))
+        target = payload.get("target", payload.get("resource", ""))
+        arguments = payload.get("payload", payload.get("context", {}))
+        dry_run = payload.get("dry_run", payload.get("dryRun", False))
     if not isinstance(action, str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,99}", action):
         raise ValueError("Adapter action is invalid.")
     if action not in adapter["allowed_actions"]:
@@ -161,9 +236,20 @@ def translate_request(adapter_id, payload, require_enabled=True):
 
 
 def test_adapter(adapter_id):
+    action = get_adapter(adapter_id)["allowed_actions"][0]
+    samples = {
+        "mcp_gateway": {"name": action, "arguments": {}, "dry_run": True},
+        "langchain": {"tool": action, "input": {}, "dry_run": True},
+        "langgraph": {"action": action, "state": {}, "dry_run": True},
+        "crewai": {"tool": action, "arguments": {}, "dry_run": True},
+        "autogen": {
+            "function_call": {"name": action, "arguments": "{}"},
+            "dry_run": True,
+        },
+    }
     translated = translate_request(
         adapter_id,
-        {"action": get_adapter(adapter_id)["allowed_actions"][0], "dry_run": True},
+        samples.get(adapter_id, {"action": action, "dry_run": True}),
         require_enabled=False,
     )
     return {
