@@ -109,6 +109,7 @@ from .abuse_protection import (
     record_authentication_failure,
     update_policy as update_rate_limit_policy,
 )
+from .global_search import search_control_plane
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -1724,6 +1725,17 @@ def administrator_read_all_notifications(x_admin_pin: str | None = Header(defaul
     return {
         "updated": mark_all_notifications_read(administrator.get("email", "administrator"))
     }
+
+
+@app.get("/search")
+def global_search(
+    q: str = Query(min_length=2, max_length=120),
+    limit: int = Query(default=30, ge=1, le=50),
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Search permission-filtered control-plane records."""
+    administrator = require_admin(x_admin_pin)
+    return search_control_plane(q, administrator.get("permissions", []), limit)
 
 
 @app.put("/notifications/{notification_id}/read")

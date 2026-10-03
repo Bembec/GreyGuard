@@ -36,8 +36,10 @@ import {
   NavLink,
   Outlet,
   useLocation,
+  useNavigate,
 } from "react-router-dom"
 
+import { GlobalSearchDialog } from "../components/GlobalSearchDialog"
 import { navigationItems } from "../config/navigation"
 import { useAuth } from "../context/AuthContext"
 import "../styles/shell.css"
@@ -72,11 +74,14 @@ function getPageInformation(pathname: string) {
 
 export function AppShell() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { logout, administrator } = useAuth()
 
   const [collapsed, setCollapsed] =
     useState(false)
   const [mobileOpen, setMobileOpen] =
+    useState(false)
+  const [searchOpen, setSearchOpen] =
     useState(false)
   const [theme, setTheme] = useState<
     "dark" | "light"
@@ -94,6 +99,17 @@ export function AppShell() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
+
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    document.addEventListener("keydown", keydown)
+    return () => document.removeEventListener("keydown", keydown)
+  }, [])
 
   return (
     <div
@@ -260,6 +276,7 @@ export function AppShell() {
             <button
               type="button"
               className="topbar__search"
+              onClick={() => setSearchOpen(true)}
             >
               <Search size={17} />
               <span>Search control plane</span>
@@ -289,6 +306,7 @@ export function AppShell() {
               type="button"
               className="topbar__icon-button"
               aria-label="Notifications"
+              onClick={() => navigate("/notifications")}
             >
               <Bell size={18} />
               <span className="topbar__notification" />
@@ -332,6 +350,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </section>
+      <GlobalSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }
