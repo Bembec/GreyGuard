@@ -122,6 +122,17 @@ from .adapter_control import (
     test_adapter,
     translate_request,
 )
+from .observability import (
+    bind_request,
+    current_correlation_id,
+    finish_request,
+    get_config as get_observability_config,
+    initialize_observability,
+    otlp_export,
+    prometheus_metrics,
+    start_request,
+    update_config as update_observability_config,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -146,6 +157,7 @@ async def lifespan(_app: FastAPI):
     initialize_compliance_reports()
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
+    initialize_observability()
 
     yield
 
@@ -160,6 +172,25 @@ app = FastAPI(
     ),
     version="10.0",
 )
+
+
+@app.middleware("http")
+async def observe_request(request: Request, call_next):
+    context = start_request(
+        request.method, request.url.path,
+        request.headers.get("x-correlation-id"),
+        request.headers.get("traceparent"),
+    )
+    try:
+        response = await call_next(request)
+    except Exception:
+        finish_request(context, 500)
+        raise
+    finish_request(context, response.status_code)
+    response.headers["X-Correlation-ID"] = context["correlation_id"]
+    sampled = "01" if context["sampled"] else "00"
+    response.headers["traceparent"] = f'00-{context["trace_id"]}-{context["span_id"]}-{sampled}'
+    return response
 
 
 @app.middleware("http")
@@ -301,6 +332,14 @@ class AdapterConfigurationRequest(BaseModel):
     owner: str = Field(default="", max_length=100)
     purpose: str = Field(default="", max_length=500)
     allowed_actions: list[str] = Field(min_length=1)
+
+
+class ObservabilityConfigurationRequest(BaseModel):
+    tracing_enabled: bool
+    metrics_enabled: bool
+    structured_logs_enabled: bool
+    sample_rate: float = Field(ge=0, le=1)
+    retention_limit: int = Field(ge=100, le=100_000)
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -1017,12 +1056,48 @@ def create_adapter_request(
         agent_name = authentication["identity"]["agent_name"]
         digest = hashlib.sha256(f"{agent_name}:{adapter_id}:{idempotency_key}".encode()).hexdigest()
         stable_request_id = f"idem_{digest[:32]}"
-    return main.submit_tool_request(
+    result = main.submit_tool_request(
         agent_name=authentication["identity"]["agent_name"],
         action=translated["action"], target=translated["target"],
         payload=translated["payload"], dry_run=translated["dry_run"],
         request_id=stable_request_id,
     )
+    bind_request(result.get("request_id"), current_correlation_id.get())
+    return result
+
+
+@app.get("/observability/config")
+def observability_configuration(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    return get_observability_config()
+
+
+@app.put("/observability/config")
+def configure_observability(
+    payload: ObservabilityConfigurationRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    return update_observability_config(
+        payload.tracing_enabled, payload.metrics_enabled,
+        payload.structured_logs_enabled, payload.sample_rate,
+        payload.retention_limit, policy_actor(administrator),
+    )
+
+
+@app.get("/observability/metrics")
+def observability_metrics(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    return Response(content=prometheus_metrics(), media_type="text/plain; version=0.0.4")
+
+
+@app.get("/observability/traces")
+def observability_traces(
+    limit: int = Query(default=200, ge=1, le=1000),
+    x_admin_pin: str | None = Header(default=None),
+):
+    require_platform_admin(x_admin_pin)
+    return otlp_export(limit)
 
 
 @app.get("/compliance-reports")
@@ -1437,7 +1512,7 @@ def create_tool_request(
         stable_request_id = f"idem_{digest[:32]}"
 
     try:
-        return main.submit_tool_request(
+        result = main.submit_tool_request(
             agent_name=authenticated_name,
             action=authentication["action"],
             target=request.target,
@@ -1445,6 +1520,8 @@ def create_tool_request(
             dry_run=request.dry_run,
             request_id=stable_request_id,
         )
+        bind_request(result.get("request_id"), current_correlation_id.get())
+        return result
 
     except KeyError as error:
         raise HTTPException(

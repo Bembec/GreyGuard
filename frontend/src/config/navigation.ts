@@ -96,6 +96,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Observability",
+    path: "/observability",
+    description: "Tracing, metrics, correlation and export controls",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Abuse Protection",
     path: "/abuse-protection",
     description: "Rate limits, lockouts and burst controls",
