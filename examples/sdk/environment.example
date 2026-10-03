@@ -1,0 +1,3 @@
+GREYGUARD_URL=http://127.0.0.1:8000
+GREYGUARD_AGENT_NAME=replace-with-agent-name
+GREYGUARD_AGENT_KEY=load-from-your-secret-manager
