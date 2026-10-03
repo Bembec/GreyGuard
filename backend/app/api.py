@@ -10,6 +10,7 @@ human approval decisions, dry runs, replay protection, and evidence.
 
 from contextlib import asynccontextmanager
 
+import hashlib
 import hmac
 import os
 from typing import Literal
@@ -1305,6 +1306,10 @@ def create_tool_request(
     x_agent_key: str | None = Header(
         default=None,
     ),
+    idempotency_key: str | None = Header(
+        default=None,
+        alias="Idempotency-Key",
+    ),
 ):
     """Submit a controlled tool request."""
 
@@ -1320,6 +1325,24 @@ def create_tool_request(
         ]
     )
 
+    stable_request_id = None
+    if idempotency_key is not None:
+        if not 8 <= len(idempotency_key) <= 128:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Idempotency-Key must be between "
+                    "8 and 128 characters."
+                ),
+            )
+
+        digest = hashlib.sha256(
+            f"{authenticated_name}:{idempotency_key}".encode(
+                "utf-8"
+            )
+        ).hexdigest()
+        stable_request_id = f"idem_{digest[:32]}"
+
     try:
         return main.submit_tool_request(
             agent_name=authenticated_name,
@@ -1327,6 +1350,7 @@ def create_tool_request(
             target=request.target,
             payload=request.payload,
             dry_run=request.dry_run,
+            request_id=stable_request_id,
         )
 
     except KeyError as error:

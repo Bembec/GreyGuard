@@ -1240,6 +1240,7 @@ def submit_tool_request(
     target="",
     payload=None,
     dry_run=False,
+    request_id=None,
 ):
     """Create and process a tool request."""
 
@@ -1249,6 +1250,11 @@ def submit_tool_request(
     normalized_action = normalize_action(
         action
     )
+
+    if request_id is not None:
+        existing_request = get_tool_request_details(str(request_id))
+        if existing_request is not None:
+            return existing_request
 
     if payload is None:
         payload = {}
@@ -1297,7 +1303,7 @@ def submit_tool_request(
     else:
         execution_status = "BLOCKED"
 
-    request_id = str(uuid.uuid4())
+    request_id = str(request_id or uuid.uuid4())
 
     save_tool_request(
         request_id=request_id,
