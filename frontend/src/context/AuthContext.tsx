@@ -10,6 +10,7 @@ import {
 
 import {
   administratorLogin,
+  refreshAdministrator,
   getCurrentAdministrator,
   logoutAdministrator,
   verifyAdministrator,
@@ -17,6 +18,7 @@ import {
 import type { Agent } from "../types/api"
 
 const SESSION_KEY = "greyguard_admin_pin"
+const REFRESH_KEY = "greyguard_admin_refresh"
 
 export interface Administrator {
   admin_id: string
@@ -27,6 +29,8 @@ export interface Administrator {
     | "SECURITY_ANALYST"
     | "AUDITOR"
   permissions: string[]
+  mfa_enabled?: boolean
+  password_expires_at?: string | null
 }
 
 interface AuthContextValue {
@@ -37,6 +41,7 @@ interface AuthContextValue {
   login: (
     email: string,
     password: string,
+    mfaCode?: string,
   ) => Promise<void>
   logout: () => Promise<void>
 }
@@ -59,6 +64,7 @@ export function AuthProvider({
 
   const clearSession = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY)
+    sessionStorage.removeItem(REFRESH_KEY)
     setSessionToken(null)
     setAdministrator(null)
     setAgents([])
@@ -81,10 +87,10 @@ export function AuthProvider({
           setAgents(agentList)
         }
       })
-      .catch(() => {
-        if (active) {
-          clearSession()
-        }
+      .catch(async () => {
+        const refreshToken=sessionStorage.getItem(REFRESH_KEY)
+        if(!active||!refreshToken){if(active)clearSession();return}
+        try{const refreshed=await refreshAdministrator(refreshToken);sessionStorage.setItem(SESSION_KEY,refreshed.access_token);sessionStorage.setItem(REFRESH_KEY,refreshed.refresh_token);setSessionToken(refreshed.access_token);setAdministrator(refreshed.administrator)}catch{if(active)clearSession()}
       })
 
     return () => {
@@ -93,7 +99,7 @@ export function AuthProvider({
   }, [administrator, clearSession, sessionToken])
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, mfaCode?: string) => {
       if (!email.trim() || !password) {
         throw new Error(
           "Email and password are required.",
@@ -103,6 +109,7 @@ export function AuthProvider({
       const result = await administratorLogin(
         email.trim(),
         password,
+        mfaCode,
       )
       const agentList = await verifyAdministrator(
         result.access_token,
@@ -112,6 +119,7 @@ export function AuthProvider({
         SESSION_KEY,
         result.access_token,
       )
+      sessionStorage.setItem(REFRESH_KEY,result.refresh_token)
       setSessionToken(result.access_token)
       setAdministrator(result.administrator)
       setAgents(agentList)

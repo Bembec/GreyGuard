@@ -67,6 +67,11 @@ export const navigationItems: NavigationItem[] = [
     description: "Credential and scope events",
   },
   {
+    label: "Account Security",
+    path: "/account-security",
+    description: "MFA, credential expiry and active devices",
+  },
+  {
     label: "Sandbox",
     path: "/sandbox",
     description: "Contained tool environment",

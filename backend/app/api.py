@@ -29,6 +29,8 @@ from pydantic import BaseModel, Field
 from . import main
 from .admin_auth import (
     authenticate as authenticate_administrator,
+    begin_mfa_enrollment,
+    confirm_mfa,
     create_administrator,
     get_administrator,
     reset_administrator_password,
@@ -37,8 +39,11 @@ from .admin_auth import (
     has_permission,
     initialize_admin_auth,
     list_administrators,
+    list_sessions,
+    refresh_access_token,
     required_permission,
     revoke_session,
+    revoke_session_by_id,
     validate_session,
 )
 from .database import (
@@ -282,6 +287,17 @@ class ScopeUpdate(BaseModel):
 class AdministratorLogin(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=256)
+    mfa_code: str | None = Field(default=None, pattern=r"^\d{6}$")
+    device_name: str = Field(default="Browser", max_length=100)
+
+
+class AdministratorRefresh(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=256)
+    device_name: str = Field(default="Browser", max_length=100)
+
+
+class MfaConfirmation(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
 
 
 class AdministratorCreate(BaseModel):
@@ -589,9 +605,25 @@ def authenticate_agent_owner(
 
 
 @app.post("/auth/login")
-def administrator_login(credentials: AdministratorLogin):
+def administrator_login(credentials: AdministratorLogin, request: Request):
     try:
-        return authenticate_administrator(credentials.email, credentials.password)
+        return authenticate_administrator(
+            credentials.email, credentials.password, credentials.mfa_code,
+            credentials.device_name, request.client.host if request.client else "",
+        )
+    except PermissionError as error:
+        raise HTTPException(status_code=428, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.post("/auth/refresh")
+def administrator_refresh(credentials: AdministratorRefresh, request: Request):
+    try:
+        return refresh_access_token(
+            credentials.refresh_token, credentials.device_name,
+            request.client.host if request.client else "",
+        )
     except ValueError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
 
@@ -607,6 +639,37 @@ def administrator_logout(x_admin_pin: str | None = Header(default=None)):
     if x_admin_pin and x_admin_pin.startswith("gga_"):
         revoke_session(x_admin_pin)
     return {"logged_out": True, "administrator": administrator["email"]}
+
+
+@app.post("/auth/mfa/enroll")
+def administrator_mfa_enroll(x_admin_pin: str | None = Header(default=None)):
+    administrator = require_admin(x_admin_pin)
+    return begin_mfa_enrollment(administrator["admin_id"])
+
+
+@app.post("/auth/mfa/confirm")
+def administrator_mfa_confirm(payload: MfaConfirmation, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_admin(x_admin_pin)
+    try:
+        return confirm_mfa(administrator["admin_id"], payload.code)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/auth/sessions")
+def administrator_sessions(x_admin_pin: str | None = Header(default=None)):
+    administrator = require_admin(x_admin_pin)
+    return {"sessions": list_sessions(administrator["admin_id"])}
+
+
+@app.delete("/auth/sessions/{session_id}")
+def administrator_revoke_session(session_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_admin(x_admin_pin)
+    try:
+        revoke_session_by_id(administrator["admin_id"], session_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"revoked": True, "session_id": session_id}
 
 
 @app.get("/administrators")

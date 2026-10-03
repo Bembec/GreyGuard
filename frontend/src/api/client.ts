@@ -77,19 +77,29 @@ export interface AdministratorIdentity {
   display_name: string
   role: "PLATFORM_ADMIN" | "SECURITY_ANALYST" | "AUDITOR"
   permissions: string[]
+  mfa_enabled?: boolean
+  password_expires_at?: string | null
 }
 
 export interface AdministratorLoginResponse {
   access_token: string
+  refresh_token: string
   token_type: string
   expires_at: string
   administrator: AdministratorIdentity
 }
 
-export function administratorLogin(email: string, password: string) {
+export function administratorLogin(email: string, password: string, mfaCode?: string) {
   return apiRequest<AdministratorLoginResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, mfa_code: mfaCode || null, device_name: navigator.userAgent.slice(0,100) }),
+  })
+}
+
+export function refreshAdministrator(refreshToken: string) {
+  return apiRequest<AdministratorLoginResponse>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refresh_token: refreshToken, device_name: navigator.userAgent.slice(0,100) }),
   })
 }
 

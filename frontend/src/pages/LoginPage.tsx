@@ -9,13 +9,16 @@ export function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
+  const [mfaCode,setMfaCode]=useState("")
+  const [mfaRequired,setMfaRequired]=useState(false)
   const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setIsSubmitting(true)
-    try { await login(email, password) }
+    try { await login(email, password, mfaCode||undefined) }
     catch (value) {
+      if(value instanceof ApiError&&value.status===428){setMfaRequired(true);setError("Enter the six-digit code from your authenticator app.");return}
       setError(value instanceof ApiError || value instanceof Error
         ? value.message : "GreyGuard could not verify the administrator.")
     } finally { setIsSubmitting(false) }
@@ -46,6 +49,7 @@ export function LoginPage() {
           <div className="login-input"><Fingerprint size={18}/><input id="admin-email" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} autoComplete="username" placeholder="admin@greyguard.local" disabled={isSubmitting}/></div>
           <label htmlFor="admin-password">Password</label>
           <div className="login-input"><LockKeyhole size={18}/><input id="admin-password" type={showPassword?"text":"password"} value={password} onChange={(e)=>setPassword(e.target.value)} autoComplete="current-password" placeholder="Enter secure password" disabled={isSubmitting}/><button type="button" onClick={()=>setShowPassword(v=>!v)} aria-label={showPassword?"Hide password":"Show password"}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}</button></div>
+          {mfaRequired&&<><label htmlFor="admin-mfa">Authenticator code</label><div className="login-input"><Fingerprint size={18}/><input id="admin-mfa" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={e=>setMfaCode(e.target.value.replace(/\D/g,""))} autoComplete="one-time-code" placeholder="000000"/></div></>}
           {error && <p className="login-error" role="alert">{error}</p>}
           <button className="login-submit" type="submit" disabled={isSubmitting}>{isSubmitting?"Verifying identity…":"Enter command center"}</button>
         </form>
