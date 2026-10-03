@@ -43,6 +43,7 @@ def build_agent_investigation(agent_name: str, evidence_limit: int = 100) -> dic
             "approval_status": item["approval_status"],
             "execution_status": item["execution_status"],
             "risk_added": item["risk_added"], "risk_score": item["risk_score"],
+            "path": f"/requests/{item['request_id']}",
         }
         for item in get_tool_requests(agent_name=normalized, limit=200)
     ]

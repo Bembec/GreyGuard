@@ -9,7 +9,7 @@ type Investigation = {
   agent: { agent_name: string; agent_status: string; risk_score: number; risk_level: string; blocked_attempts: number; identity: null | { scopes: string[]; credential_status: string; created_at?: string | null; rotated_at?: string | null; revoked_at?: string | null } }
   risk_history: Array<{ event_id: string; timestamp: string; action: string; outcome: string; severity: string; risk_added: number; risk_score: number; risk_level: string }>
   authentication_history: Array<{ event_id: string; timestamp: string; action: string | null; outcome: string; severity: string; summary: string }>
-  requests: Array<{ request_id: string; timestamp: string; action: string; target: string; policy_decision: string; approval_status: string; execution_status: string; risk_added: number; risk_score: number }>
+  requests: Array<{ request_id: string; timestamp: string; action: string; target: string; policy_decision: string; approval_status: string; execution_status: string; risk_added: number; risk_score: number; path: string }>
   summary: { risk_events: number; authentication_events: number; requests: number; denied_requests: number }
 }
 
@@ -64,7 +64,7 @@ export default function AgentDetailPage() {
 
     <section className="agent-investigation__grid">
       <article className="investigation-card"><header><Fingerprint/><div><h2>Authentication history</h2><p>Credential and scope-verification evidence.</p></div></header>{authentication.length === 0 ? <EmptyState title="No authentication evidence" description="No authentication attempts are recorded."/> : <div className="evidence-feed">{authentication.map((event) => <div key={event.event_id}><span className={`evidence-dot evidence-dot--${event.severity.toLowerCase()}`}/><div><strong>{event.outcome}</strong><p>{event.summary}</p><small><Clock3 size={12}/>{formatAgentEvidenceDate(event.timestamp)}</small></div></div>)}</div>}</article>
-      <article className="investigation-card"><header><FileSearch/><div><h2>Tool requests and decisions</h2><p>Sanitized request lifecycle evidence.</p></div></header>{requests.length === 0 ? <EmptyState title="No tool requests" description="This identity has not submitted a controlled-tool request."/> : <div className="request-evidence">{requests.map((request) => <button type="button" key={request.request_id} onClick={() => navigate(`/requests?request=${request.request_id}`)}><div><strong>{request.action}</strong><small>{request.target || "No target"}</small></div><span>{request.policy_decision}</span><small>{request.execution_status}</small></button>)}</div>}</article>
+      <article className="investigation-card"><header><FileSearch/><div><h2>Tool requests and decisions</h2><p>Sanitized request lifecycle evidence.</p></div></header>{requests.length === 0 ? <EmptyState title="No tool requests" description="This identity has not submitted a controlled-tool request."/> : <div className="request-evidence">{requests.map((request) => <button type="button" key={request.request_id} onClick={() => navigate(request.path)}><div><strong>{request.action}</strong><small>{request.target || "No target"}</small></div><span>{request.policy_decision}</span><small>{request.execution_status}</small></button>)}</div>}</article>
     </section>
   </main>
 }

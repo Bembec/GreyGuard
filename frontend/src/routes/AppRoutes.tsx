@@ -12,6 +12,7 @@ import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
 import LiveOperationsPage from "../pages/LiveOperationsPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
+import RequestDetailPage from "../pages/RequestDetailPage"
 import ApprovalsPage from "../pages/ApprovalsPage"
 import PoliciesPage from "../pages/PoliciesPage"
 import RiskCenterPage from "../pages/RiskCenterPage"
@@ -69,6 +70,7 @@ export function AppRoutes() {
           path="/requests"
           element={<ToolRequestsPage />}
         />
+        <Route path="/requests/:requestId" element={<RequestDetailPage />} />
 
         <Route
           path="/approvals"

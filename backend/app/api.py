@@ -115,6 +115,7 @@ from .abuse_protection import (
 )
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
+from .request_investigation import build_request_investigation
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -1776,6 +1777,19 @@ def administrator_read_all_notifications(x_admin_pin: str | None = Header(defaul
     return {
         "updated": mark_all_notifications_read(administrator.get("email", "administrator"))
     }
+
+
+@app.get("/request-investigations/{request_id}")
+def request_investigation(
+    request_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return a redacted request lifecycle investigation bundle."""
+    require_admin(x_admin_pin)
+    result = build_request_investigation(request_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Tool request not found.")
+    return result
 
 
 @app.get("/search")

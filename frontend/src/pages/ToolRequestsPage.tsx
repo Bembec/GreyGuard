@@ -23,6 +23,7 @@ import {
 import {
   useQuery,
 } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
 import { ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/requests.css";
@@ -174,6 +175,7 @@ function executionDescription(
 }
 
 export default function ToolRequestsPage() {
+  const navigate = useNavigate();
   const [searchText, setSearchText] =
     useState("");
   const [decisionFilter, setDecisionFilter] =
@@ -641,12 +643,10 @@ export default function ToolRequestsPage() {
                               onClick={(event) => {
                                 event.stopPropagation();
 
-                                setSelectedRequestId(
-                                  request.request_id,
-                                );
+                                navigate(`/requests/${encodeURIComponent(request.request_id)}`);
                               }}
                             >
-                              Inspect
+                              Investigate
                             </button>
                           </td>
                         </tr>

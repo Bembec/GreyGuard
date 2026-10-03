@@ -68,6 +68,9 @@ function getPageInformation(pathname: string) {
   if (pathname.startsWith("/agents/")) {
     return { label: "Agent Investigation", path: "/agents", description: "Correlated agent security evidence" }
   }
+  if (pathname.startsWith("/requests/")) {
+    return { label: "Request Investigation", path: "/requests", description: "Approval and execution evidence" }
+  }
   return (
     navigationItems.find(
       (item) => item.path === pathname,

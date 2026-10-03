@@ -43,12 +43,11 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30) ->
         if not _matches(normalized, item.get("request_id"), item.get("agent_name"), item.get("action"), item.get("target"), item.get("approval_status"), item.get("execution_status")):
             continue
         kind = "APPROVAL" if item.get("approval_status") in {"PENDING", "APPROVED", "DENIED"} else "REQUEST"
-        path = "/approvals" if kind == "APPROVAL" else "/requests"
         results.append({
             "kind": kind, "id": item.get("request_id"),
             "title": f"{item.get('action', 'Tool request')} · {item.get('agent_name', 'unknown agent')}",
             "summary": f"{item.get('approval_status', 'UNKNOWN')} · {item.get('execution_status', 'NOT_STARTED')}",
-            "path": f"{path}?request={item.get('request_id')}",
+            "path": f"/requests/{item.get('request_id')}",
         })
 
     for alert in get_alerts(limit=200)["alerts"]:
