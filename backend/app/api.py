@@ -76,11 +76,15 @@ from .secret_manager import (
     redact, revoke_secret, rotate_secret,
 )
 from .notifications import (
+    cleanup_expired_notifications,
+    get_retention_policy,
     initialize_notification_database,
     list_notifications,
     mark_all_notifications_read,
     mark_notification_read,
     notification_summary,
+    retention_history,
+    update_retention_policy,
 )
 from .service_accounts import (
     AVAILABLE_SCOPES,
@@ -363,6 +367,10 @@ class AlertNoteRequest(BaseModel):
     """Administrator investigation note."""
 
     note: str = Field(min_length=1, max_length=2000)
+
+
+class NotificationRetentionUpdate(BaseModel):
+    retention_days: int = Field(ge=7, le=3650)
 
 
 class ToolApprovalDecision(BaseModel):
@@ -1716,6 +1724,34 @@ def administrator_notifications(
     """Return the persistent in-app security notification inbox."""
     require_admin(x_admin_pin)
     return list_notifications(unread_only, severity, limit)
+
+
+@app.get("/notifications/retention")
+def administrator_notification_retention(x_admin_pin: str | None = Header(default=None)):
+    """Return retention configuration and recent retention evidence."""
+    require_admin(x_admin_pin)
+    return {"policy": get_retention_policy(), "history": retention_history()}
+
+
+@app.put("/notifications/retention")
+def administrator_update_notification_retention(
+    update: NotificationRetentionUpdate,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Update notification retention as a platform administrator."""
+    administrator = require_admin(x_admin_pin)
+    if not has_permission(administrator, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform Administrator permission is required.")
+    return update_retention_policy(update.retention_days, administrator.get("email", "administrator"))
+
+
+@app.post("/notifications/retention/cleanup")
+def administrator_cleanup_notifications(x_admin_pin: str | None = Header(default=None)):
+    """Delete expired notification rows and preserve retention evidence."""
+    administrator = require_admin(x_admin_pin)
+    if not has_permission(administrator, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Platform Administrator permission is required.")
+    return cleanup_expired_notifications(administrator.get("email", "administrator"))
 
 
 @app.put("/notifications/read-all")

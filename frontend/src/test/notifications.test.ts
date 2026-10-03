@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { formatNotificationDate } from "../pages/NotificationsPage"
+import { formatNotificationDate, notificationRetentionOptions } from "../pages/NotificationsPage"
 
 describe("Notification Center", () => {
   it("formats a valid security timestamp", () => {
@@ -8,5 +8,9 @@ describe("Notification Center", () => {
 
   it("preserves an invalid timestamp for evidence visibility", () => {
     expect(formatNotificationDate("unknown")).toBe("unknown")
+  })
+
+  it("offers bounded retention periods", () => {
+    expect(notificationRetentionOptions).toEqual([30, 60, 90, 180, 365, 730])
   })
 })
