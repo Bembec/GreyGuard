@@ -1,6 +1,5 @@
 import {
   Activity,
-  AlertTriangle,
   Check,
   ChevronRight,
   Clipboard,
@@ -25,6 +24,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 
+import { ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/requests.css";
 
 
@@ -495,42 +495,11 @@ export default function ToolRequestsPage() {
           </div>
 
           {requestsQuery.isLoading && (
-            <div className="requests-state">
-              <RefreshCw
-                className="spin"
-                size={26}
-              />
-              <strong>
-                Loading request evidence
-              </strong>
-              <span>
-                Reading the controlled execution
-                pipeline.
-              </span>
-            </div>
+            <LoadingState label="Loading request evidence" rows={5} />
           )}
 
           {requestsQuery.isError && (
-            <div className="requests-state error">
-              <AlertTriangle size={27} />
-              <strong>
-                Requests could not be loaded
-              </strong>
-              <span>
-                {(
-                  requestsQuery.error as Error
-                ).message}
-              </span>
-
-              <button
-                type="button"
-                onClick={() =>
-                  requestsQuery.refetch()
-                }
-              >
-                Try again
-              </button>
-            </div>
+            <ErrorState message={(requestsQuery.error as Error).message} onRetry={() => void requestsQuery.refetch()} />
           )}
 
           {!requestsQuery.isLoading

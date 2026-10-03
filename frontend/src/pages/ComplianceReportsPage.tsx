@@ -12,7 +12,9 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import { useAuth } from "../context/AuthContext"
+import { useToast } from "../context/ToastContext"
 import "../styles/compliance-reports.css"
 
 type ReportSummary = {
@@ -45,6 +47,7 @@ export function formatEvidenceHash(hash: string) {
 
 export default function ComplianceReportsPage() {
   const { sessionToken } = useAuth()
+  const { pushToast } = useToast()
   const [reports, setReports] = useState<ComplianceReport[]>([])
   const [selected, setSelected] = useState<ComplianceReport | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -53,20 +56,26 @@ export default function ComplianceReportsPage() {
   const [dateTo, setDateTo] = useState("")
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>([])
   const [selectedTypes, setSelectedTypes] = useState<string[]>([])
-  const [message, setMessage] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState("")
   const [busy, setBusy] = useState(false)
   const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionToken ?? "" }
 
   const load = async () => {
-    const response = await fetch(`${API}/compliance-reports`, { headers })
-    const body = await response.json()
-    if (!response.ok) throw new Error(body.detail ?? "Unable to load compliance reports.")
-    setReports(body.reports)
+    setLoading(true); setLoadError("")
+    try {
+      const response = await fetch(`${API}/compliance-reports`, { headers })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.detail ?? "Unable to load compliance reports.")
+      setReports(body.reports)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load compliance reports.")
+    } finally { setLoading(false) }
   }
-  useEffect(() => { void load().catch((error) => setMessage(error.message)) }, [sessionToken])
+  useEffect(() => { void load() }, [sessionToken])
 
   const generate = async () => {
-    setBusy(true); setMessage("")
+    setBusy(true)
     try {
       const response = await fetch(`${API}/compliance-reports`, {
         method: "POST", headers,
@@ -74,22 +83,22 @@ export default function ComplianceReportsPage() {
       })
       const body = await response.json()
       if (!response.ok) throw new Error(body.detail ?? "Report generation failed.")
-      setMessage("Immutable compliance evidence captured successfully.")
+      pushToast({ tone: "success", title: "Compliance report generated", message: "Immutable evidence was captured successfully." })
       setShowCreate(false); await load()
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Request failed.") }
+    } catch (error) { pushToast({ tone: "error", title: "Report generation failed", message: error instanceof Error ? error.message : "Request failed." }) }
     finally { setBusy(false) }
   }
 
   const inspect = async (report: ComplianceReport) => {
     const response = await fetch(`${API}/compliance-reports/${report.report_id}`, { headers })
     const body = await response.json()
-    if (!response.ok) { setMessage(body.detail ?? "Report could not be opened."); return }
+    if (!response.ok) { pushToast({ tone: "error", title: "Report could not be opened", message: body.detail }); return }
     setSelected(body)
   }
 
   const download = async (report: ComplianceReport, format: "json" | "csv") => {
     const response = await fetch(`${API}/compliance-reports/${report.report_id}/export?format=${format}`, { headers })
-    if (!response.ok) { const body = await response.json(); setMessage(body.detail ?? "Export failed."); return }
+    if (!response.ok) { const body = await response.json(); pushToast({ tone: "error", title: "Export failed", message: body.detail }); return }
     const blob = await response.blob()
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -102,15 +111,15 @@ export default function ComplianceReportsPage() {
   return <main className="compliance-page">
     <section className="compliance-hero"><div><p><ShieldCheck size={15} /> Assurance and governance</p><h1>Compliance Reports</h1><span>Capture immutable, verifiable evidence snapshots and export them for review.</span></div><button onClick={() => setShowCreate(true)}><FileCheck2 size={17} /> Generate report</button></section>
     <section className="compliance-assurance"><Fingerprint /><div><strong>Evidence integrity built in</strong><span>Every report is sealed with a SHA-256 fingerprint and verified whenever it is opened.</span></div></section>
-    {message && <p className="compliance-message">{message}</p>}
-
     <section className="compliance-history"><header><div><FileCheck2 /><span><strong>Report history</strong><small>{reports.length} immutable snapshots</small></span></div><button onClick={() => void load()}><RefreshCw size={16} /> Refresh</button></header>
-      {reports.length === 0 && <div className="compliance-empty"><FileCheck2 size={31} /><strong>No compliance reports yet</strong><span>Generate the first point-in-time evidence snapshot.</span></div>}
-      <div className="compliance-list">{reports.map((report) => <article key={report.report_id}>
+      {loading && <LoadingState label="Loading compliance reports" rows={4}/>}
+      {!loading && loadError && <ErrorState message={loadError} onRetry={() => void load()}/>}
+      {!loading && !loadError && reports.length === 0 && <EmptyState icon={<FileCheck2 size={31}/>} title="No compliance reports yet" description="Generate the first point-in-time evidence snapshot."/>}
+      {!loading && !loadError && <div className="compliance-list">{reports.map((report) => <article key={report.report_id}>
         <button className="compliance-main" onClick={() => void inspect(report)}><span className="report-icon"><FileCheck2 /></span><span className="report-copy"><strong>{report.title}</strong><small>{new Date(report.created_at).toLocaleString()} · {report.created_by}</small><code>{formatEvidenceHash(report.evidence_hash)}</code></span></button>
         <div className="report-counts"><span><strong>{report.summary.audit_events}</strong> events</span><span><strong>{report.summary.security_alerts}</strong> alerts</span><span><strong>{report.summary.privileged_actions}</strong> privileged</span></div>
         <div className="report-downloads"><button onClick={() => void download(report, "json")}><FileJson size={16} /> JSON</button><button onClick={() => void download(report, "csv")}><FileSpreadsheet size={16} /> CSV</button></div>
-      </article>)}</div>
+      </article>)}</div>}
     </section>
 
     {showCreate && <div className="compliance-modal"><button className="backdrop" onClick={() => setShowCreate(false)} aria-label="Close"/><section><header><div><h2>Generate evidence report</h2><p>Blank filters include all available evidence.</p></div><button onClick={() => setShowCreate(false)}><X /></button></header>

@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   ArrowRight,
   Ban,
   CheckCircle2,
@@ -23,6 +22,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 
+import { ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/policies.css";
 import PolicyGovernancePanel from "./PolicyGovernancePanel";
 
@@ -406,39 +406,11 @@ export default function PoliciesPage() {
       </section>
 
       {policiesQuery.isLoading && (
-        <section className="policy-state-panel">
-          <RefreshCw
-            className="spin"
-            size={27}
-          />
-          <strong>Loading active policy</strong>
-          <span>
-            Reading GreyGuard enforcement rules.
-          </span>
-        </section>
+        <LoadingState label="Loading active policy" rows={4} />
       )}
 
       {policiesQuery.isError && (
-        <section className="policy-state-panel error">
-          <AlertTriangle size={28} />
-          <strong>
-            Active policy could not be loaded
-          </strong>
-          <span>
-            {(
-              policiesQuery.error as Error
-            ).message}
-          </span>
-
-          <button
-            type="button"
-            onClick={() =>
-              policiesQuery.refetch()
-            }
-          >
-            Try again
-          </button>
-        </section>
+        <ErrorState message={(policiesQuery.error as Error).message} onRetry={() => void policiesQuery.refetch()} />
       )}
 
       {policy && (

@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -18,6 +17,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/authentication.css";
 
 
@@ -293,8 +293,7 @@ export default function AuthenticationPage() {
   ) {
     return (
       <main className="authentication-page auth-centered">
-        <RefreshCw className="auth-spin" />
-        <p>Verifying identity evidence…</p>
+        <LoadingState label="Verifying identity evidence" rows={5} />
       </main>
     );
   }
@@ -309,22 +308,7 @@ export default function AuthenticationPage() {
 
     return (
       <main className="authentication-page auth-centered">
-        <AlertTriangle />
-        <h1>Authentication evidence unavailable</h1>
-        <p>
-          {error instanceof Error
-            ? error.message
-            : "GreyGuard could not load identity evidence."}
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            void authenticationQuery.refetch();
-            void agentsQuery.refetch();
-          }}
-        >
-          Try again
-        </button>
+        <ErrorState message={error instanceof Error ? error.message : "GreyGuard could not load identity evidence."} onRetry={() => { void authenticationQuery.refetch(); void agentsQuery.refetch(); }} />
       </main>
     );
   }

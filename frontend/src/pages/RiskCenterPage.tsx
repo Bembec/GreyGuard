@@ -1,10 +1,8 @@
 import {
   AlertOctagon,
-  AlertTriangle,
   Gauge,
   RefreshCw,
   RotateCcw,
-  ShieldCheck,
   ShieldOff,
   TrendingUp,
   Users,
@@ -19,6 +17,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { ErrorState, LoadingState } from "../components/AsyncState";
+import { useToast } from "../context/ToastContext";
 import "../styles/risk-center.css";
 
 
@@ -140,6 +140,7 @@ function riskColor(level: string) {
 
 export default function RiskCenterPage() {
   const queryClient = useQueryClient();
+  const { pushToast } = useToast();
 
   const [selectedAgent, setSelectedAgent] =
     useState<Agent | null>(null);
@@ -147,8 +148,6 @@ export default function RiskCenterPage() {
     useState("");
   const [currentRisk, setCurrentRisk] =
     useState(0);
-  const [message, setMessage] =
-    useState("");
 
   const agentsQuery = useQuery({
     queryKey: ["agents", "risk-center"],
@@ -164,14 +163,14 @@ export default function RiskCenterPage() {
   const resetMutation = useMutation({
     mutationFn: resetAgent,
     onSuccess: (result) => {
-      setMessage(result.message);
+      pushToast({ tone: "success", title: "Agent security state reset", message: result.message });
       setSelectedAgent(null);
       void queryClient.invalidateQueries({
         queryKey: ["agents"],
       });
     },
     onError: (error: Error) => {
-      setMessage(error.message);
+      pushToast({ tone: "error", title: "Could not reset agent", message: error.message });
     },
   });
 
@@ -263,10 +262,7 @@ export default function RiskCenterPage() {
     return (
       <main className="risk-center-page">
         <div className="risk-orbit" />
-        <section className="risk-loading">
-          <RefreshCw className="risk-spin" />
-          <p>Loading live risk intelligence…</p>
-        </section>
+        <LoadingState label="Loading live risk intelligence" rows={5} />
       </main>
     );
   }
@@ -281,24 +277,7 @@ export default function RiskCenterPage() {
 
     return (
       <main className="risk-center-page">
-        <section className="risk-error">
-          <AlertTriangle />
-          <h1>Risk intelligence unavailable</h1>
-          <p>
-            {error instanceof Error
-              ? error.message
-              : "GreyGuard could not load risk data."}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              void agentsQuery.refetch();
-              void policiesQuery.refetch();
-            }}
-          >
-            Try again
-          </button>
-        </section>
+        <ErrorState message={error instanceof Error ? error.message : "GreyGuard could not load risk data."} onRetry={() => { void agentsQuery.refetch(); void policiesQuery.refetch(); }} />
       </main>
     );
   }
@@ -327,20 +306,6 @@ export default function RiskCenterPage() {
           Live control-plane telemetry
         </div>
       </header>
-
-      {message && (
-        <div className="risk-message">
-          <ShieldCheck />
-          <span>{message}</span>
-          <button
-            type="button"
-            aria-label="Dismiss message"
-            onClick={() => setMessage("")}
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       <section className="risk-summary-grid">
         <article className="risk-summary-card">

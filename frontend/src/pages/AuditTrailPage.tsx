@@ -17,6 +17,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/audit-trail.css";
 
 
@@ -205,8 +206,7 @@ export default function AuditTrailPage() {
   if (auditQuery.isLoading) {
     return (
       <main className="audit-page audit-centered">
-        <RefreshCw className="audit-spin" />
-        <p>Reconstructing the evidence stream…</p>
+        <LoadingState label="Reconstructing the evidence stream" rows={5} />
       </main>
     );
   }
@@ -214,19 +214,7 @@ export default function AuditTrailPage() {
   if (auditQuery.isError) {
     return (
       <main className="audit-page audit-centered">
-        <AlertTriangle />
-        <h1>Audit evidence unavailable</h1>
-        <p>
-          {auditQuery.error instanceof Error
-            ? auditQuery.error.message
-            : "GreyGuard could not load evidence."}
-        </p>
-        <button
-          type="button"
-          onClick={() => void auditQuery.refetch()}
-        >
-          Try again
-        </button>
+        <ErrorState message={auditQuery.error instanceof Error ? auditQuery.error.message : "GreyGuard could not load evidence."} onRetry={() => void auditQuery.refetch()} />
       </main>
     );
   }

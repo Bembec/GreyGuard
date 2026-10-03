@@ -24,6 +24,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/approvals.css";
 
 
@@ -523,42 +524,11 @@ export default function ApprovalsPage() {
           </div>
 
           {requestsQuery.isLoading && (
-            <div className="approval-state">
-              <RefreshCw
-                className="spin"
-                size={26}
-              />
-              <strong>
-                Loading approval queue
-              </strong>
-              <span>
-                Checking requests that require
-                human authority.
-              </span>
-            </div>
+            <LoadingState label="Loading approval queue" rows={4} />
           )}
 
           {requestsQuery.isError && (
-            <div className="approval-state error">
-              <AlertTriangle size={27} />
-              <strong>
-                Approval queue unavailable
-              </strong>
-              <span>
-                {(
-                  requestsQuery.error as Error
-                ).message}
-              </span>
-
-              <button
-                type="button"
-                onClick={() =>
-                  requestsQuery.refetch()
-                }
-              >
-                Try again
-              </button>
-            </div>
+            <ErrorState message={(requestsQuery.error as Error).message} onRetry={() => void requestsQuery.refetch()} />
           )}
 
           {!requestsQuery.isLoading

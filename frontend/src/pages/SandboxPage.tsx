@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   Ban,
   Box,
   CheckCircle2,
@@ -21,6 +20,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/sandbox.css";
 
 
@@ -260,8 +260,7 @@ export default function SandboxPage() {
   if (loading) {
     return (
       <main className="sandbox-page sandbox-centered">
-        <RefreshCw className="sandbox-spin" />
-        <p>Inspecting the containment boundary…</p>
+        <LoadingState label="Inspecting the containment boundary" rows={5} />
       </main>
     );
   }
@@ -269,23 +268,7 @@ export default function SandboxPage() {
   if (error) {
     return (
       <main className="sandbox-page sandbox-centered">
-        <AlertTriangle />
-        <h1>Sandbox evidence unavailable</h1>
-        <p>
-          {error instanceof Error
-            ? error.message
-            : "GreyGuard could not load sandbox data."}
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            void toolsQuery.refetch();
-            void sandboxQuery.refetch();
-            void requestsQuery.refetch();
-          }}
-        >
-          Try again
-        </button>
+        <ErrorState message={error instanceof Error ? error.message : "GreyGuard could not load sandbox data."} onRetry={() => { void toolsQuery.refetch(); void sandboxQuery.refetch(); void requestsQuery.refetch(); }} />
       </main>
     );
   }
