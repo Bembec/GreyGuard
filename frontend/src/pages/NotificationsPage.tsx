@@ -13,6 +13,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 
 import { useAuth } from "../context/AuthContext"
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { useToast } from "../context/ToastContext"
 import "../styles/notifications.css"
 
 export type SecurityNotification = {
@@ -65,6 +67,7 @@ export default function NotificationsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { administrator } = useAuth()
+  const { pushToast } = useToast()
   const canManage = administrator?.permissions.includes("incident:manage") ?? false
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [severity, setSeverity] = useState("ALL")
@@ -93,10 +96,15 @@ export default function NotificationsPage() {
   const markRead = useMutation({
     mutationFn: (id: string) => request(`/notifications/${id}/read`, { method: "PUT" }),
     onSuccess: refresh,
+    onError: (error: Error) => pushToast({ tone: "error", title: "Could not review notification", message: error.message }),
   })
   const markAll = useMutation({
     mutationFn: () => request("/notifications/read-all", { method: "PUT" }),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      await refresh()
+      pushToast({ tone: "success", title: "Notifications reviewed", message: "All unread security notifications were marked as reviewed." })
+    },
+    onError: (error: Error) => pushToast({ tone: "error", title: "Could not review notifications", message: error.message }),
   })
 
   const entries = useMemo(() => notifications.data?.notifications ?? [], [notifications.data])
@@ -137,9 +145,9 @@ export default function NotificationsPage() {
         </select>
       </header>
 
-      {notifications.isLoading && <div className="notifications-state">Loading security notifications…</div>}
-      {notifications.isError && <div className="notifications-state error">{notifications.error.message}</div>}
-      {!notifications.isLoading && !notifications.isError && entries.length === 0 && <div className="notifications-empty"><Inbox size={30} /><strong>Inbox clear</strong><span>No notifications match these filters.</span></div>}
+      {notifications.isLoading && <LoadingState label="Loading security notifications" rows={4}/>} 
+      {notifications.isError && <ErrorState message={notifications.error.message} onRetry={() => void notifications.refetch()}/>} 
+      {!notifications.isLoading && !notifications.isError && entries.length === 0 && <EmptyState icon={<Inbox size={30}/>} title="Inbox clear" description="No notifications match these filters."/>}
 
       <div className="notifications-list">
         {entries.map((item) => <button type="button" key={item.notification_id} className={`notification-row ${item.is_read ? "read" : "unread"}`} onClick={() => void openIncident(item)}>

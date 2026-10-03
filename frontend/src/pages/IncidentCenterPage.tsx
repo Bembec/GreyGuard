@@ -15,6 +15,8 @@ import {
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { useToast } from "../context/ToastContext"
 import "../styles/incidents.css"
 
 export type AlertStatus =
@@ -117,6 +119,7 @@ function formatDate(value: string | null) {
 
 export default function IncidentCenterPage() {
   const queryClient = useQueryClient()
+  const { pushToast } = useToast()
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("ALL")
   const [severity, setSeverity] = useState("ALL")
@@ -124,7 +127,6 @@ export default function IncidentCenterPage() {
   const [nextStatus, setNextStatus] = useState<AlertStatus>("INVESTIGATING")
   const [assignee, setAssignee] = useState("")
   const [note, setNote] = useState("")
-  const [message, setMessage] = useState("")
 
   const summary = useQuery({
     queryKey: ["alert-summary"],
@@ -161,9 +163,10 @@ export default function IncidentCenterPage() {
     onSuccess: async (updated) => {
       setSelected(updated)
       setNote("")
-      setMessage("Incident updated and recorded in the evidence trail.")
+      pushToast({ tone: "success", title: "Incident updated", message: "The change was recorded in the evidence trail." })
       await refresh()
     },
+    onError: (error: Error) => pushToast({ tone: "error", title: "Could not update incident", message: error.message }),
   })
 
   const visibleAlerts = useMemo(() => {
@@ -186,7 +189,6 @@ export default function IncidentCenterPage() {
     setNextStatus(alert.status)
     setAssignee(alert.assigned_to ?? "")
     setNote("")
-    setMessage("")
   }
 
   return (
@@ -232,9 +234,9 @@ export default function IncidentCenterPage() {
           </select></label>
         </header>
 
-        {alerts.isLoading && <div className="incident-state">Loading incident evidence…</div>}
-        {alerts.isError && <div className="incident-state incident-state--error">{alerts.error.message}</div>}
-        {!alerts.isLoading && !alerts.isError && visibleAlerts.length === 0 && <div className="incident-state">No alerts match the current filters.</div>}
+        {alerts.isLoading && <LoadingState label="Loading incident evidence" rows={4}/>} 
+        {alerts.isError && <ErrorState message={alerts.error.message} onRetry={() => void alerts.refetch()}/>} 
+        {!alerts.isLoading && !alerts.isError && visibleAlerts.length === 0 && <EmptyState title="No matching incidents" description="No alerts match the current filters."/>}
 
         <div className="incident-list">
           {visibleAlerts.map((alert) => <button type="button" className="incident-row" key={alert.alert_id} onClick={() => openDetails(alert)}>
@@ -260,8 +262,6 @@ export default function IncidentCenterPage() {
               <label>Assigned investigator<div className="incident-input"><UserRound size={16} /><input value={assignee} onChange={(event) => setAssignee(event.target.value)} placeholder="e.g. security-team" /></div></label>
               <label>Investigation note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Record the reason, findings or response decision." rows={4} /></label>
               <button type="button" disabled={update.isPending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save incident update"}</button>
-              {update.isError && <p className="incident-feedback incident-feedback--error">{update.error.message}</p>}
-              {message && <p className="incident-feedback">{message}</p>}
             </article>
             <article className="incident-notes"><h3>Investigation history</h3>{selected.notes.length === 0 ? <p>No notes recorded yet.</p> : selected.notes.map((entry) => <div key={entry.id}><span>{entry.actor} · {formatDate(entry.timestamp)}</span><p>{entry.note}</p></div>)}</article>
           </div>

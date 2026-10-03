@@ -24,6 +24,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import "../styles/agents.css";
 
 
@@ -66,6 +67,8 @@ type ScopeResponse = {
 type ApiError = {
   detail?: string;
 };
+
+type AgentConfirmation = "rotate" | "revoke" | "reset" | null;
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -230,6 +233,8 @@ export default function AgentsPage() {
     useState(false);
   const [notice, setNotice] =
     useState<string | null>(null);
+  const [confirmation, setConfirmation] =
+    useState<AgentConfirmation>(null);
 
   const agentsQuery = useQuery({
     queryKey: ["agents"],
@@ -895,20 +900,7 @@ export default function AgentsPage() {
                       disabled={
                         rotateMutation.isPending
                       }
-                      onClick={() => {
-                        const confirmed =
-                          window.confirm(
-                            "Rotate this credential? "
-                            + "The existing credential "
-                            + "will stop working.",
-                          );
-
-                        if (confirmed) {
-                          rotateMutation.mutate(
-                            selectedAgent.agent_name,
-                          );
-                        }
-                      }}
+                      onClick={() => setConfirmation("rotate")}
                     >
                       <KeyRound size={16} />
                       Rotate credential
@@ -923,20 +915,7 @@ export default function AgentsPage() {
                           .credential_status
                           === "REVOKED"
                       }
-                      onClick={() => {
-                        const confirmed =
-                          window.confirm(
-                            "Revoke this credential? "
-                            + "The agent will no longer "
-                            + "authenticate.",
-                          );
-
-                        if (confirmed) {
-                          revokeMutation.mutate(
-                            selectedAgent.agent_name,
-                          );
-                        }
-                      }}
+                      onClick={() => setConfirmation("revoke")}
                     >
                       <UserRoundX size={16} />
                       Revoke
@@ -959,20 +938,7 @@ export default function AgentsPage() {
                   type="button"
                   className="detail-reset-button"
                   disabled={resetMutation.isPending}
-                  onClick={() => {
-                    const confirmed =
-                      window.confirm(
-                        "Reset this agent’s security "
-                        + "state? This administrative "
-                        + "action will be audited.",
-                      );
-
-                    if (confirmed) {
-                      resetMutation.mutate(
-                        selectedAgent.agent_name,
-                      );
-                    }
-                  }}
+                  onClick={() => setConfirmation("reset")}
                 >
                   <RotateCcw size={16} />
                   Reset security state
@@ -1038,6 +1004,24 @@ export default function AgentsPage() {
           </section>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmation !== null}
+        title={confirmation === "rotate" ? "Rotate agent credential?" : confirmation === "revoke" ? "Revoke agent credential?" : "Reset agent security state?"}
+        description={confirmation === "rotate" ? "The existing credential will stop working immediately." : confirmation === "revoke" ? "The agent will no longer be able to authenticate." : "Accumulated risk, blocked attempts, and suspension state will be cleared. This action is audited."}
+        confirmLabel={confirmation === "rotate" ? "Rotate credential" : confirmation === "revoke" ? "Revoke credential" : "Reset security state"}
+        tone={confirmation === "rotate" ? "warning" : "danger"}
+        busy={rotateMutation.isPending || revokeMutation.isPending || resetMutation.isPending}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={() => {
+          if (!selectedAgent || !confirmation) return;
+          const agentName = selectedAgent.agent_name;
+          const complete = { onSettled: () => setConfirmation(null) };
+          if (confirmation === "rotate") rotateMutation.mutate(agentName, complete);
+          else if (confirmation === "revoke") revokeMutation.mutate(agentName, complete);
+          else resetMutation.mutate(agentName, complete);
+        }}
+      />
     </main>
   );
 }
