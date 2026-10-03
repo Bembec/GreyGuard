@@ -63,6 +63,7 @@ type StreamEnvelope = {
   status?: string;
   application?: string;
   stream?: string;
+  recovered_events?: number;
 };
 
 const API_BASE_URL =
@@ -83,6 +84,8 @@ const severityOrder: Record<string, number> = {
   HIGH: 3,
   CRITICAL: 4,
 };
+
+export const liveBufferOptions = [100, 250, 500];
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -197,8 +200,13 @@ export default function LiveOperationsPage() {
     useState(0);
   const [lastEventAt, setLastEventAt] =
     useState<string | null>(null);
+  const [bufferLimit, setBufferLimit] =
+    useState(250);
+  const [recoveredCount, setRecoveredCount] =
+    useState(0);
 
   const seenEventIds = useRef(new Set<string>());
+  const lastEventId = useRef<string | null>(null);
 
   useEffect(() => {
     if (paused) {
@@ -248,6 +256,9 @@ export default function LiveOperationsPage() {
           "agent_name",
           agentFilter.trim(),
         );
+      }
+      if (lastEventId.current) {
+        parameters.set("last_event_id", lastEventId.current);
       }
 
       try {
@@ -322,6 +333,7 @@ export default function LiveOperationsPage() {
 
               if (envelope.status === "connected") {
                 setConnectionStatus("CONNECTED");
+                setRecoveredCount(envelope.recovered_events ?? 0);
               }
 
               continue;
@@ -354,12 +366,13 @@ export default function LiveOperationsPage() {
             }
 
             seenEventIds.current.add(eventId);
+            lastEventId.current = eventId;
 
             setEvents((current) =>
               [
                 securityEvent,
                 ...current,
-              ].slice(0, 250),
+              ].slice(0, bufferLimit),
             );
 
             setLastEventAt(
@@ -412,6 +425,7 @@ export default function LiveOperationsPage() {
     eventType,
     agentFilter,
     connectionAttempt,
+    bufferLimit,
   ]);
 
   const filteredEvents = useMemo(() => {
@@ -479,7 +493,6 @@ export default function LiveOperationsPage() {
   }, [events]);
 
   function reconnect() {
-    seenEventIds.current.clear();
     setConnectionStatus("RECONNECTING");
     setConnectionAttempt(
       (current) => current + 1,
@@ -491,6 +504,8 @@ export default function LiveOperationsPage() {
     seenEventIds.current.clear();
     setExpandedEvent(null);
     setLastEventAt(null);
+    lastEventId.current = null;
+    setRecoveredCount(0);
   }
 
   return (
@@ -539,6 +554,7 @@ export default function LiveOperationsPage() {
                     : "Waiting for security evidence"
                 )}
             </small>
+            {recoveredCount > 0 && <small>{recoveredCount} event{recoveredCount === 1 ? "" : "s"} recovered after reconnect</small>}
           </div>
 
           {connectionStatus === "CONNECTED" ? (
@@ -728,6 +744,12 @@ export default function LiveOperationsPage() {
                 placeholder="Action, outcome or ID"
               />
             </div>
+          </label>
+          <label>
+            <span>Event buffer</span>
+            <select value={bufferLimit} onChange={(event) => setBufferLimit(Number(event.target.value))}>
+              {liveBufferOptions.map((size) => <option value={size} key={size}>{size} events</option>)}
+            </select>
           </label>
         </div>
       </section>

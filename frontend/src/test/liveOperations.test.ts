@@ -8,6 +8,7 @@ import {
   connectionLabel,
   parseSseMessage,
   severityClass,
+  liveBufferOptions,
 } from "../pages/LiveOperationsPage";
 
 
@@ -69,5 +70,9 @@ describe("Live Operations helpers", () => {
     expect(severityClass("CRITICAL")).toBe(
       "live-severity live-severity--critical",
     );
+  });
+
+  it("uses bounded event buffer choices", () => {
+    expect(liveBufferOptions).toEqual([100, 250, 500]);
   });
 });

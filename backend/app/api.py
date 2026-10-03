@@ -1688,6 +1688,7 @@ def live_administrator_events(
         ge=0.5,
         le=10.0,
     ),
+    last_event_id: str | None = Query(default=None, max_length=200),
     x_admin_pin: str | None = Header(
         default=None,
     ),
@@ -1703,6 +1704,7 @@ def live_administrator_events(
         limit=limit,
         include_history=include_history,
         poll_interval=poll_interval,
+        last_event_id=last_event_id,
     )
 
     return StreamingResponse(

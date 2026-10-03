@@ -11,6 +11,16 @@ from .alerts import sync_alerts_from_events
 from .database import get_administrator_audit_events
 
 
+def recovery_events(events: list[dict], last_event_id: str | None) -> list[dict]:
+    """Return only records newer than the client's last received event."""
+    if not last_event_id:
+        return events
+    for index, event in enumerate(events):
+        if str(event.get("event_id")) == last_event_id:
+            return events[:index]
+    return events
+
+
 def encode_sse(
     event_name: str,
     data: dict,
@@ -44,6 +54,7 @@ async def stream_administrator_events(
     limit: int = 100,
     include_history: bool = True,
     poll_interval: float = 1.0,
+    last_event_id: str | None = None,
 ) -> AsyncIterator[str]:
     """Stream unified GreyGuard evidence to an administrator."""
 
@@ -64,21 +75,6 @@ async def stream_administrator_events(
             oldest_event_id = seen_event_order.popleft()
             seen_event_ids.discard(oldest_event_id)
 
-    yield encode_sse(
-        event_name="stream-ready",
-        data={
-            "status": "connected",
-            "application": "GreyGuard",
-            "stream": "administrator-security-events",
-            "include_history": include_history,
-            "filters": {
-                "event_type": event_type,
-                "agent_name": agent_name,
-                "limit": limit,
-            },
-        },
-    )
-
     initial_response = get_administrator_audit_events(
         event_type=event_type,
         agent_name=agent_name,
@@ -86,14 +82,28 @@ async def stream_administrator_events(
     )
 
     initial_events = initial_response["events"]
+    recovered_events = recovery_events(initial_events, last_event_id)
     sync_alerts_from_events(initial_events)
+
+    yield encode_sse(
+        event_name="stream-ready",
+        data={
+            "status": "connected",
+            "application": "GreyGuard",
+            "stream": "administrator-security-events",
+            "include_history": include_history,
+            "recovery_requested": bool(last_event_id),
+            "recovered_events": len(recovered_events) if last_event_id else 0,
+            "filters": {"event_type": event_type, "agent_name": agent_name, "limit": limit},
+        },
+    )
 
     for event in initial_events:
         event_id = str(event["event_id"])
         remember_event(event_id)
 
     if include_history:
-        for event in reversed(initial_events):
+        for event in reversed(recovered_events):
             yield encode_sse(
                 event_name="greyguard-event",
                 event_id=str(event["event_id"]),
