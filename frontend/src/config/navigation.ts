@@ -90,6 +90,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Agent Adapters",
+    path: "/adapters",
+    description: "Framework manifests, tests and emergency kill switches",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Abuse Protection",
     path: "/abuse-protection",
     description: "Rate limits, lockouts and burst controls",

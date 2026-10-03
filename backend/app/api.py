@@ -114,6 +114,13 @@ from .abuse_protection import (
     record_authentication_failure,
     update_policy as update_rate_limit_policy,
 )
+from .adapter_control import (
+    configure_adapter,
+    initialize_adapter_control,
+    list_adapters,
+    test_adapter,
+    translate_request,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -137,6 +144,7 @@ async def lifespan(_app: FastAPI):
     initialize_service_accounts()
     initialize_compliance_reports()
     initialize_abuse_protection()
+    initialize_adapter_control(main.permissions.keys())
 
     yield
 
@@ -164,7 +172,7 @@ async def enforce_administrator_rbac(request: Request, call_next):
     elif path == "/service-accounts/verify":
         rate_category = "SERVICE_ACCOUNT"
         rate_identifier = request.headers.get("x-service-key", client_host)
-    elif path.startswith("/actions") or path.startswith("/tool-requests"):
+    elif path.startswith("/actions") or path.startswith("/tool-requests") or path.startswith("/adapter-requests"):
         rate_category = "AGENT_ACTION"
         rate_identifier = request.headers.get("x-agent-name", client_host)
     else:
@@ -285,6 +293,13 @@ class ServiceAccountCreateRequest(BaseModel):
     description: str = Field(default="", max_length=500)
     scopes: list[str] = Field(min_length=1)
     expires_in_days: int | None = Field(default=90, ge=1, le=365)
+
+
+class AdapterConfigurationRequest(BaseModel):
+    enabled: bool
+    owner: str = Field(default="", max_length=100)
+    purpose: str = Field(default="", max_length=500)
+    allowed_actions: list[str] = Field(min_length=1)
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -930,6 +945,83 @@ def verify_service_account_key(
         raise HTTPException(status_code=403, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.get("/adapters")
+def administrator_adapters(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    return {
+        "adapters": list_adapters(),
+        "disabled_by_default": True,
+        "network_egress": False,
+    }
+
+
+@app.put("/adapters/{adapter_id}")
+def administrator_configure_adapter(
+    adapter_id: str,
+    payload: AdapterConfigurationRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return configure_adapter(
+            adapter_id, payload.enabled, payload.owner, payload.purpose,
+            payload.allowed_actions, policy_actor(administrator),
+        )
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/adapters/{adapter_id}/test")
+def administrator_test_adapter(
+    adapter_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    require_platform_admin(x_admin_pin)
+    try:
+        return test_adapter(adapter_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/adapter-requests/{adapter_id}", status_code=201)
+def create_adapter_request(
+    adapter_id: str,
+    payload: dict,
+    x_agent_name: str | None = Header(default=None),
+    x_agent_key: str | None = Header(default=None),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    candidate_action = payload.get("action", payload.get("permission", ""))
+    authentication = authenticate_request(
+        x_agent_name=x_agent_name,
+        x_agent_key=x_agent_key,
+        action=candidate_action,
+    )
+    try:
+        translated = translate_request(adapter_id, payload)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    if idempotency_key is not None and not 8 <= len(idempotency_key) <= 128:
+        raise HTTPException(status_code=400, detail="Idempotency-Key must be between 8 and 128 characters.")
+    stable_request_id = None
+    if idempotency_key:
+        agent_name = authentication["identity"]["agent_name"]
+        digest = hashlib.sha256(f"{agent_name}:{adapter_id}:{idempotency_key}".encode()).hexdigest()
+        stable_request_id = f"idem_{digest[:32]}"
+    return main.submit_tool_request(
+        agent_name=authentication["identity"]["agent_name"],
+        action=translated["action"], target=translated["target"],
+        payload=translated["payload"], dry_run=translated["dry_run"],
+        request_id=stable_request_id,
+    )
 
 
 @app.get("/compliance-reports")

@@ -28,6 +28,7 @@ import NotificationsPage from "../pages/NotificationsPage"
 import ServiceAccountsPage from "../pages/ServiceAccountsPage"
 import ComplianceReportsPage from "../pages/ComplianceReportsPage"
 import AbuseProtectionPage from "../pages/AbuseProtectionPage"
+import AgentAdaptersPage from "../pages/AgentAdaptersPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -120,6 +121,8 @@ export function AppRoutes() {
         <Route path="/service-accounts" element={<ServiceAccountsPage />} />
 
         <Route path="/abuse-protection" element={<AbuseProtectionPage />} />
+
+        <Route path="/adapters" element={<AgentAdaptersPage />} />
 
         <Route
           path="/settings"

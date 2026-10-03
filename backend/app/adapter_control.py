@@ -1,0 +1,175 @@
+"""Disabled-by-default agent adapter registry and safe request translation."""
+
+import json
+import re
+import sqlite3
+from datetime import datetime, timezone
+from typing import Any
+
+from .database import database_path
+
+
+ADAPTER_DEFINITIONS = {
+    "generic_webhook": {
+        "name": "Generic Webhook Agent",
+        "protocol": "JSON",
+        "description": "Normalize authenticated inbound agent actions.",
+    },
+    "agentguard_legacy": {
+        "name": "AgentGuard Legacy",
+        "protocol": "AgentGuard V1",
+        "description": "Translate legacy permission-check requests.",
+    },
+}
+SENSITIVE_MARKERS = ("password", "secret", "token", "credential", "api_key")
+AVAILABLE_ACTIONS = set()
+
+
+def utc_now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def initialize_adapter_control(available_actions):
+    global AVAILABLE_ACTIONS
+    actions = sorted({str(action) for action in available_actions})
+    if actions:
+        AVAILABLE_ACTIONS = set(actions)
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("""CREATE TABLE IF NOT EXISTS adapter_configs (
+            adapter_id TEXT PRIMARY KEY, name TEXT NOT NULL, protocol TEXT NOT NULL,
+            description TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0,
+            owner TEXT, purpose TEXT, allowed_actions_json TEXT NOT NULL,
+            updated_at TEXT NOT NULL, updated_by TEXT NOT NULL)""")
+        connection.execute("""CREATE TABLE IF NOT EXISTS adapter_events (
+            event_id INTEGER PRIMARY KEY AUTOINCREMENT, adapter_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL, actor TEXT NOT NULL, event_type TEXT NOT NULL,
+            detail TEXT NOT NULL)""")
+        for adapter_id, definition in ADAPTER_DEFINITIONS.items():
+            connection.execute("""INSERT OR IGNORE INTO adapter_configs
+                (adapter_id,name,protocol,description,enabled,owner,purpose,
+                 allowed_actions_json,updated_at,updated_by)
+                VALUES(?,?,?,?,0,NULL,NULL,?,?,?)""", (
+                adapter_id, definition["name"], definition["protocol"],
+                definition["description"], json.dumps(actions), utc_now(), "system",
+            ))
+
+
+def _public(row):
+    value = dict(row)
+    value["enabled"] = bool(value["enabled"])
+    value["allowed_actions"] = json.loads(value.pop("allowed_actions_json"))
+    value["manifest"] = {
+        "adapter_id": value["adapter_id"],
+        "protocol": value["protocol"],
+        "inbound_only": True,
+        "network_egress": False,
+        "arbitrary_code": False,
+        "credential_storage": False,
+        "requires_registered_agent": True,
+        "allowed_actions": value["allowed_actions"],
+    }
+    return value
+
+
+def list_adapters():
+    initialize_adapter_control([])
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            "SELECT * FROM adapter_configs ORDER BY name"
+        ).fetchall()
+        return [_public(row) for row in rows]
+
+
+def get_adapter(adapter_id):
+    initialize_adapter_control([])
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            "SELECT * FROM adapter_configs WHERE adapter_id=?", (adapter_id,)
+        ).fetchone()
+    if row is None:
+        raise KeyError("Adapter not found.")
+    return _public(row)
+
+
+def configure_adapter(adapter_id, enabled, owner, purpose, allowed_actions, actor):
+    current = get_adapter(adapter_id)
+    normalized_owner = str(owner or "").strip()
+    normalized_purpose = str(purpose or "").strip()
+    normalized_actions = sorted({str(action).strip() for action in allowed_actions if str(action).strip()})
+    available = AVAILABLE_ACTIONS or set(current["allowed_actions"])
+    if not normalized_actions or not set(normalized_actions) <= available:
+        raise ValueError("Adapter actions must be a non-empty subset of available actions.")
+    if enabled and (len(normalized_owner) < 3 or len(normalized_purpose) < 10):
+        raise ValueError("Enabled adapters require a named owner and purpose statement.")
+    timestamp = utc_now()
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("""UPDATE adapter_configs SET enabled=?,owner=?,purpose=?,
+            allowed_actions_json=?,updated_at=?,updated_by=? WHERE adapter_id=?""", (
+            int(bool(enabled)), normalized_owner or None, normalized_purpose or None,
+            json.dumps(normalized_actions), timestamp, actor, adapter_id,
+        ))
+        connection.execute("""INSERT INTO adapter_events
+            (adapter_id,timestamp,actor,event_type,detail) VALUES(?,?,?,?,?)""", (
+            adapter_id, timestamp, actor,
+            "ADAPTER_ENABLED" if enabled else "ADAPTER_DISABLED",
+            "Configuration updated; no credentials stored.",
+        ))
+    return get_adapter(adapter_id)
+
+
+def _redact(value: Any):
+    if isinstance(value, dict):
+        return {
+            key: "[REDACTED]" if any(marker in str(key).lower() for marker in SENSITIVE_MARKERS)
+            else _redact(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    return value
+
+
+def translate_request(adapter_id, payload, require_enabled=True):
+    adapter = get_adapter(adapter_id)
+    if require_enabled and not adapter["enabled"]:
+        raise PermissionError("Adapter kill switch is active.")
+    if not isinstance(payload, dict):
+        raise ValueError("Adapter payload must be a JSON object.")
+    action = payload.get("action", payload.get("permission"))
+    target = payload.get("target", payload.get("resource", ""))
+    arguments = payload.get("payload", payload.get("context", {}))
+    dry_run = payload.get("dry_run", payload.get("dryRun", False))
+    if not isinstance(action, str) or not re.fullmatch(r"[a-z][a-z0-9_]{1,99}", action):
+        raise ValueError("Adapter action is invalid.")
+    if action not in adapter["allowed_actions"]:
+        raise PermissionError("Action is outside the adapter capability manifest.")
+    if not isinstance(target, str) or len(target) > 500:
+        raise ValueError("Adapter target is invalid.")
+    if not isinstance(arguments, dict) or not isinstance(dry_run, bool):
+        raise ValueError("Adapter payload or dry-run value is invalid.")
+    if len(json.dumps(payload)) > 32_768:
+        raise ValueError("Adapter payload exceeds 32 KiB.")
+    return {
+        "action": action,
+        "target": target,
+        "payload": _redact(arguments),
+        "dry_run": dry_run,
+        "adapter_id": adapter_id,
+    }
+
+
+def test_adapter(adapter_id):
+    translated = translate_request(
+        adapter_id,
+        {"action": get_adapter(adapter_id)["allowed_actions"][0], "dry_run": True},
+        require_enabled=False,
+    )
+    return {
+        "status": "PASSED",
+        "simulated": True,
+        "network_used": False,
+        "request_persisted": False,
+        "translation": translated,
+    }
