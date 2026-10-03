@@ -145,8 +145,8 @@ export default function NotificationsPage() {
         </select>
       </header>
 
-      {notifications.isLoading && <LoadingState label="Loading security notifications" rows={4}/>} 
-      {notifications.isError && <ErrorState message={notifications.error.message} onRetry={() => void notifications.refetch()}/>} 
+      {notifications.isLoading && <LoadingState label="Loading security notifications" rows={4}/>}
+      {notifications.isError && <ErrorState message={notifications.error.message} onRetry={() => void notifications.refetch()}/>}
       {!notifications.isLoading && !notifications.isError && entries.length === 0 && <EmptyState icon={<Inbox size={30}/>} title="Inbox clear" description="No notifications match these filters."/>}
 
       <div className="notifications-list">

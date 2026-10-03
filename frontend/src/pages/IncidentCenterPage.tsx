@@ -234,8 +234,8 @@ export default function IncidentCenterPage() {
           </select></label>
         </header>
 
-        {alerts.isLoading && <LoadingState label="Loading incident evidence" rows={4}/>} 
-        {alerts.isError && <ErrorState message={alerts.error.message} onRetry={() => void alerts.refetch()}/>} 
+        {alerts.isLoading && <LoadingState label="Loading incident evidence" rows={4}/>}
+        {alerts.isError && <ErrorState message={alerts.error.message} onRetry={() => void alerts.refetch()}/>}
         {!alerts.isLoading && !alerts.isError && visibleAlerts.length === 0 && <EmptyState title="No matching incidents" description="No alerts match the current filters."/>}
 
         <div className="incident-list">
