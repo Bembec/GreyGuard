@@ -411,6 +411,8 @@ def approve_policy(policy_id, actor):
             raise KeyError("Policy version not found.")
         if row["status"] != "PENDING_APPROVAL":
             raise ValueError("Only pending policies can be approved.")
+        if row["created_by"] == actor:
+            raise ValueError("Four-eyes approval requires a different administrator.")
         connection.execute("UPDATE policy_versions SET status = 'ARCHIVED' WHERE status = 'PUBLISHED'")
         connection.execute("UPDATE policy_versions SET status = 'PUBLISHED', approved_by = ?, approved_at = ?, published_at = ? WHERE policy_id = ?", (actor, timestamp, timestamp, policy_id))
         add_policy_event(connection, policy_id, actor, "APPROVED_AND_PUBLISHED", "Approved policy became the active enforcement version.")
@@ -438,6 +440,103 @@ def create_rollback_draft(policy_id, actor):
         source["max_blocked_attempts"], source["max_risk_score"],
         f"Rollback to version {source['version_number']}", actor,
     )
+
+
+def explain_decision(decision):
+    """Return an operator-facing explanation for a policy decision."""
+    return {
+        "ALLOW": "The scoped request may proceed without human approval.",
+        "ASK": "The request requires authorized human approval before execution.",
+        "BLOCK": "The request is denied by policy and contributes to risk.",
+        "REFUSED": "The request is refused because the agent is suspended or globally disabled.",
+    }.get(decision, "Unknown actions fail closed and are blocked.")
+
+
+def simulate_policy(policy_id, action, has_scope=True, suspended=False, current_risk=0):
+    """Evaluate a policy without changing enforcement or agent state."""
+    policy = get_policy_version(policy_id)
+    configured = policy["permissions"].get(action, "BLOCK")
+    risk_added = policy["risk_weights"].get(action, 40)
+    decision = "REFUSED" if suspended else (configured if has_scope else "BLOCK")
+    projected_risk = min(current_risk + (risk_added if decision in {"ASK", "BLOCK"} else 0), 10_000)
+    return {
+        "policy_id": policy_id, "action": action, "decision": decision,
+        "configured_decision": configured, "risk_added": risk_added,
+        "projected_risk": projected_risk,
+        "would_suspend": projected_risk >= policy["max_risk_score"],
+        "explanation": explain_decision(decision), "simulated": True,
+        "side_effects": False,
+    }
+
+
+def detect_policy_conflicts(policy_id):
+    """Identify unsafe policy combinations before approval."""
+    policy = get_policy_version(policy_id)
+    findings = []
+    for action, decision in policy["permissions"].items():
+        risk = policy["risk_weights"][action]
+        if decision == "ALLOW" and risk >= 40:
+            findings.append({"action": action, "severity": "HIGH", "code": "HIGH_RISK_ALLOWED", "detail": "High-risk action is allowed without approval."})
+        if decision == "BLOCK" and risk == 0:
+            findings.append({"action": action, "severity": "MEDIUM", "code": "BLOCK_WITHOUT_RISK", "detail": "Blocked action does not increase risk."})
+    return {"policy_id": policy_id, "conflicts": findings, "conflict_count": len(findings)}
+
+
+def add_policy_test_case(policy_id, name, action, expected_decision, has_scope=True, suspended=False):
+    """Store a repeatable policy expectation."""
+    if expected_decision not in {"ALLOW", "ASK", "BLOCK", "REFUSED"}:
+        raise ValueError("Expected decision is invalid.")
+    get_policy_version(policy_id)
+    test_id = str(uuid4())
+    with connect() as connection:
+        connection.execute(
+            """INSERT INTO policy_test_cases
+            (test_id,policy_id,name,action,expected_decision,has_scope,suspended,created_at)
+            VALUES(?,?,?,?,?,?,?,?)""",
+            (test_id, policy_id, name.strip(), action, expected_decision, int(has_scope), int(suspended), utc_now()),
+        )
+    return {"test_id": test_id, "policy_id": policy_id, "name": name.strip(), "action": action, "expected_decision": expected_decision}
+
+
+def run_policy_tests(policy_id):
+    """Run stored test cases against a draft or historical policy."""
+    get_policy_version(policy_id)
+    with connect() as connection:
+        rows = connection.execute("SELECT * FROM policy_test_cases WHERE policy_id=? ORDER BY created_at", (policy_id,)).fetchall()
+    results = []
+    for row in rows:
+        actual = simulate_policy(policy_id, row["action"], bool(row["has_scope"]), bool(row["suspended"]))["decision"]
+        results.append({"test_id": row["test_id"], "name": row["name"], "expected": row["expected_decision"], "actual": actual, "passed": actual == row["expected_decision"]})
+    return {"policy_id": policy_id, "passed": all(item["passed"] for item in results), "total": len(results), "results": results}
+
+
+def get_emergency_controls():
+    """Return fail-closed global and scoped emergency controls."""
+    with connect() as connection:
+        row = connection.execute("SELECT * FROM policy_emergency_controls WHERE control_id=1").fetchone()
+    return {
+        "global_deny": bool(row["global_deny"]),
+        "disabled_agents": json.loads(row["disabled_agents_json"]),
+        "disabled_tools": json.loads(row["disabled_tools_json"]),
+        "disabled_integrations": json.loads(row["disabled_integrations_json"]),
+        "updated_by": row["updated_by"], "updated_at": row["updated_at"],
+    }
+
+
+def update_emergency_controls(global_deny, disabled_agents, disabled_tools, disabled_integrations, actor):
+    """Atomically update audited emergency policy switches."""
+    timestamp = utc_now()
+    with connect() as connection:
+        connection.execute(
+            """UPDATE policy_emergency_controls SET global_deny=?,disabled_agents_json=?,
+            disabled_tools_json=?,disabled_integrations_json=?,updated_by=?,updated_at=? WHERE control_id=1""",
+            (int(global_deny), json.dumps(sorted(set(disabled_agents))), json.dumps(sorted(set(disabled_tools))), json.dumps(sorted(set(disabled_integrations))), actor, timestamp),
+        )
+        connection.execute(
+            "INSERT INTO policy_emergency_events(timestamp,actor,global_deny,detail) VALUES(?,?,?,?)",
+            (timestamp, actor, int(global_deny), "Emergency policy controls updated."),
+        )
+    return get_emergency_controls()
 
 
 def initialize_policy_control(
@@ -508,6 +607,30 @@ def initialize_policy_control(
                 event_id
             )
             """
+        )
+
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS policy_test_cases (
+            test_id TEXT PRIMARY KEY, policy_id TEXT NOT NULL, name TEXT NOT NULL,
+            action TEXT NOT NULL, expected_decision TEXT NOT NULL, has_scope INTEGER NOT NULL,
+            suspended INTEGER NOT NULL, created_at TEXT NOT NULL,
+            FOREIGN KEY(policy_id) REFERENCES policy_versions(policy_id))"""
+        )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS policy_emergency_controls (
+            control_id INTEGER PRIMARY KEY CHECK(control_id=1), global_deny INTEGER NOT NULL,
+            disabled_agents_json TEXT NOT NULL, disabled_tools_json TEXT NOT NULL,
+            disabled_integrations_json TEXT NOT NULL, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL)"""
+        )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS policy_emergency_events (
+            event_id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL,
+            actor TEXT NOT NULL, global_deny INTEGER NOT NULL, detail TEXT NOT NULL)"""
+        )
+        connection.execute(
+            """INSERT OR IGNORE INTO policy_emergency_controls
+            (control_id,global_deny,disabled_agents_json,disabled_tools_json,disabled_integrations_json,updated_by,updated_at)
+            VALUES(1,0,'[]','[]','[]','SYSTEM',?)""", (utc_now(),)
         )
 
         existing_policy = connection.execute(

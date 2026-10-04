@@ -59,16 +59,22 @@ from .database import (
 
 
 from .policy_control import (
+    add_policy_test_case,
     approve_policy,
     create_policy_draft,
     create_rollback_draft,
+    detect_policy_conflicts,
+    get_emergency_controls,
     get_policy_history,
     get_policy_version,
     get_published_policy,
     initialize_policy_control,
     list_policy_versions,
     reject_policy,
+    run_policy_tests,
+    simulate_policy,
     submit_policy,
+    update_emergency_controls,
     update_policy_draft,
 )
 from .live_events import stream_administrator_events
@@ -357,6 +363,28 @@ class PolicyDocumentRequest(BaseModel):
     max_blocked_attempts: int = Field(ge=1, le=100)
     max_risk_score: int = Field(ge=1, le=10_000)
     change_summary: str = Field(min_length=1, max_length=1000)
+
+
+class PolicySimulationRequest(BaseModel):
+    action: str = Field(min_length=1, max_length=100)
+    has_scope: bool = True
+    suspended: bool = False
+    current_risk: int = Field(default=0, ge=0, le=10_000)
+
+
+class PolicyTestCaseRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    action: str = Field(min_length=1, max_length=100)
+    expected_decision: Literal["ALLOW", "ASK", "BLOCK", "REFUSED"]
+    has_scope: bool = True
+    suspended: bool = False
+
+
+class PolicyEmergencyRequest(BaseModel):
+    global_deny: bool = False
+    disabled_agents: list[str] = Field(default_factory=list)
+    disabled_tools: list[str] = Field(default_factory=list)
+    disabled_integrations: list[str] = Field(default_factory=list)
 
 
 class SecretCreateRequest(BaseModel):
@@ -983,6 +1011,57 @@ def policy_versions(
         "versions": list_policy_versions(),
         "published": get_published_policy(),
     }
+
+
+@app.post("/policy-versions/{policy_id}/simulate")
+def simulate_policy_version(policy_id: str, payload: PolicySimulationRequest, x_admin_pin: str | None = Header(default=None)):
+    """Safely preview a decision with no enforcement side effects."""
+    require_admin(x_admin_pin)
+    try:
+        return simulate_policy(policy_id, payload.action, payload.has_scope, payload.suspended, payload.current_risk)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/policy-versions/{policy_id}/conflicts")
+def policy_version_conflicts(policy_id: str, x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    try:
+        return detect_policy_conflicts(policy_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/policy-versions/{policy_id}/tests", status_code=201)
+def create_policy_test(policy_id: str, payload: PolicyTestCaseRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_policy_editor(x_admin_pin)
+    try:
+        return add_policy_test_case(policy_id, payload.name, payload.action, payload.expected_decision, payload.has_scope, payload.suspended)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/policy-versions/{policy_id}/tests/run")
+def execute_policy_tests(policy_id: str, x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    try:
+        return run_policy_tests(policy_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/policy-emergency-controls")
+def policy_emergency_control_state(x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    return get_emergency_controls()
+
+
+@app.put("/policy-emergency-controls")
+def configure_policy_emergency_controls(payload: PolicyEmergencyRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    return update_emergency_controls(payload.global_deny, payload.disabled_agents, payload.disabled_tools, payload.disabled_integrations, policy_actor(administrator))
 
 
 @app.get("/policy-versions/{policy_id}")

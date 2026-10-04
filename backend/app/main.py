@@ -42,6 +42,7 @@ from .tool_gateway import (
     get_supported_tools,
     initialize_sandbox,
 )
+from .policy_control import get_emergency_controls
 
 
 permissions = {
@@ -1040,6 +1041,27 @@ def evaluate_action(
     state = get_agent_state(
         normalized_name
     )
+
+    try:
+        emergency = get_emergency_controls()
+    except Exception:
+        emergency = {"global_deny": False, "disabled_agents": [], "disabled_tools": []}
+
+    emergency_reason = None
+    if emergency["global_deny"]:
+        emergency_reason = "the emergency global deny policy is active"
+    elif normalized_name in emergency["disabled_agents"]:
+        emergency_reason = "this agent is emergency-disabled"
+    elif normalized_action in emergency["disabled_tools"]:
+        emergency_reason = "this tool is emergency-disabled"
+
+    if emergency_reason:
+        write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED", approval="NOT_REQUIRED", risk_added=0)
+        return action_result(
+            agent_name=normalized_name, action=normalized_action,
+            policy_decision="REFUSED", approval="NOT_REQUIRED", risk_added=0,
+            message=f"Action refused because {emergency_reason}.",
+        )
 
     if state["agent_status"] == "SUSPENDED":
         write_log(
