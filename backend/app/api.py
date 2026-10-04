@@ -153,6 +153,7 @@ from .enterprise_identity import (
     request_elevation,
     save_provider,
 )
+from .production_config import load_production_config
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -161,6 +162,7 @@ from .request_investigation import build_request_investigation
 async def lifespan(_app: FastAPI):
     """Initialize GreyGuard for the API lifecycle."""
 
+    load_production_config()
     main.initialize_greyguard()
     initialize_policy_control(
         permissions=main.permissions,
