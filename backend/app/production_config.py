@@ -17,7 +17,7 @@ def load_production_config(environ=None):
     env = environ if environ is not None else os.environ
     environment = env.get("GREYGUARD_ENV", "development").strip().lower()
     origins = tuple(item.strip() for item in env.get("GREYGUARD_ALLOWED_ORIGINS", "http://localhost:5173").split(",") if item.strip())
-    hosts = tuple(item.strip() for item in env.get("GREYGUARD_TRUSTED_HOSTS", "localhost,127.0.0.1").split(",") if item.strip())
+    hosts = tuple(item.strip() for item in env.get("GREYGUARD_TRUSTED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if item.strip())
     data_directory = env.get("GREYGUARD_DATA_DIR", "backend/data").strip()
     if environment == "production":
         missing = [key for key in ("GREYGUARD_BOOTSTRAP_EMAIL", "GREYGUARD_BOOTSTRAP_PASSWORD", "GREYGUARD_ALLOWED_ORIGINS", "GREYGUARD_TRUSTED_HOSTS") if not env.get(key)]

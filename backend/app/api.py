@@ -25,6 +25,8 @@ from fastapi import (
 )
 from fastapi.responses import Response, StreamingResponse
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
 from . import main
@@ -154,6 +156,7 @@ from .enterprise_identity import (
     save_provider,
 )
 from .production_config import load_production_config
+from .runtime_security import RuntimeSecurityMiddleware, readiness
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -194,6 +197,17 @@ app = FastAPI(
         "suspension, and audit control plane."
     ),
     version="10.0",
+)
+
+runtime_config = load_production_config()
+app.add_middleware(RuntimeSecurityMiddleware, production=runtime_config.environment == "production")
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(runtime_config.trusted_hosts))
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(runtime_config.allowed_origins),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "X-Admin-Pin", "X-Agent-Name", "X-Agent-Key", "X-Correlation-ID"],
 )
 
 
@@ -1047,6 +1061,19 @@ def administrator_service_accounts(x_admin_pin: str | None = Header(default=None
         "available_scopes": sorted(AVAILABLE_SCOPES),
         "plaintext_keys_stored": False,
     }
+
+
+@app.get("/health/live", include_in_schema=False)
+def liveness():
+    return {"status": "alive"}
+
+
+@app.get("/health/ready", include_in_schema=False)
+def readiness_probe():
+    result = readiness()
+    if result["status"] != "ready":
+        return JSONResponse(status_code=503, content=result)
+    return result
 
 
 @app.post("/service-accounts", status_code=201)
