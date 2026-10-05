@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: greyguard-sandbox
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: greyguard-sandbox-runner
+  namespace: greyguard-sandbox
+automountServiceAccountToken: false
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: greyguard-sandbox
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]

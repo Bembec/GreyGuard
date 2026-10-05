@@ -217,6 +217,14 @@ from .execution_isolation import (
     run_predefined_job,
     update_config as update_isolation_config,
 )
+from .isolation_operations import (
+    create_workspace,
+    destroy_workspace,
+    get_operations as get_isolation_operations,
+    initialize_isolation_operations,
+    kubernetes_job_manifest,
+    update_operations as update_isolation_operations,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -250,6 +258,7 @@ async def lifespan(_app: FastAPI):
     initialize_notification_delivery()
     initialize_incident_integrations()
     initialize_execution_isolation()
+    initialize_isolation_operations()
 
     yield
 
@@ -648,6 +657,22 @@ class IsolationConfigurationRequest(BaseModel):
 
 class IsolatedJobRequest(BaseModel):
     job_type: Literal["SANDBOX_PROBE"]
+
+
+class IsolationOperationsRequest(BaseModel):
+    global_kill_switch: bool = False
+    network_enabled: bool = False
+    destination_allowlist: list[str] = Field(default_factory=list)
+    dns_allowlist: list[str] = Field(default_factory=list)
+
+
+class WorkspaceCreateRequest(BaseModel):
+    agent_name: str = Field(min_length=1,max_length=64)
+
+
+class KubernetesJobRequest(BaseModel):
+    agent_name: str = Field(min_length=1,max_length=64)
+    job_id: str = Field(min_length=1,max_length=64)
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -1770,6 +1795,39 @@ def execute_isolated_job(payload: IsolatedJobRequest,x_admin_pin: str | None = H
 @app.post("/execution-isolation/emergency-terminate")
 def terminate_isolated_jobs(x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin);return emergency_terminate(policy_actor(administrator))
+
+
+@app.get("/isolation-operations")
+def isolation_operations_control(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return get_isolation_operations()
+
+
+@app.put("/isolation-operations")
+def configure_isolation_operations(payload: IsolationOperationsRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return update_isolation_operations(payload.global_kill_switch,payload.network_enabled,payload.destination_allowlist,payload.dns_allowlist,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/isolation-operations/workspaces",status_code=201)
+def create_isolated_agent_workspace(payload: WorkspaceCreateRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return create_workspace(payload.agent_name)
+    except (ValueError,PermissionError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.delete("/isolation-operations/workspaces/{workspace_id}")
+def destroy_isolated_agent_workspace(workspace_id: str,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return destroy_workspace(workspace_id,policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.post("/isolation-operations/kubernetes-manifest")
+def create_kubernetes_isolated_job(payload: KubernetesJobRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return kubernetes_job_manifest(payload.agent_name,payload.job_id)
+    except (ValueError,PermissionError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.get("/compliance-reports")

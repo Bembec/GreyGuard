@@ -137,6 +137,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Isolation Operations",
+    path: "/isolation-operations",
+    description: "Workspaces, quarantine, network boundaries and Kubernetes jobs",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",

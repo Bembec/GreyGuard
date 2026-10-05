@@ -70,4 +70,7 @@ describe("GreyGuard navigation", () => {
   it("restricts execution isolation to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/execution-isolation")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("restricts isolation operations to platform administrators", () => {
+    expect(navigationItems.find((entry) => entry.path === "/isolation-operations")?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });

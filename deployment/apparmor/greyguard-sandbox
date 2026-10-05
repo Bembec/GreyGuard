@@ -1,0 +1,14 @@
+#include <tunables/global>
+
+profile greyguard-sandbox flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  /usr/local/bin/python3 ix,
+  /usr/local/lib/python*/** r,
+  /workspace/** rw,
+  /tmp/** rw,
+  deny network,
+  deny mount,
+  deny ptrace,
+  deny /proc/sys/** w,
+  deny /sys/** w,
+}

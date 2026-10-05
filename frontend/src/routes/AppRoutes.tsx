@@ -37,6 +37,7 @@ import AuditIntegrityPage from "../pages/AuditIntegrityPage"
 import CommunicationIntegrationsPage from "../pages/CommunicationIntegrationsPage"
 import IncidentIntegrationsPage from "../pages/IncidentIntegrationsPage"
 import ExecutionIsolationPage from "../pages/ExecutionIsolationPage"
+import IsolationOperationsPage from "../pages/IsolationOperationsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -143,6 +144,8 @@ export function AppRoutes() {
         <Route path="/incident-integrations" element={<IncidentIntegrationsPage />} />
 
         <Route path="/execution-isolation" element={<ExecutionIsolationPage />} />
+
+        <Route path="/isolation-operations" element={<IsolationOperationsPage />} />
 
         <Route path="/account-security" element={<AccountSecurityPage />} />
 
