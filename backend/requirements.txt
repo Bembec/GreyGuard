@@ -1,2 +1,6 @@
 fastapi
 uvicorn[standard]
+alembic>=1.13,<2
+SQLAlchemy>=2.0,<3
+psycopg[binary]>=3.2,<4
+cryptography>=46,<47

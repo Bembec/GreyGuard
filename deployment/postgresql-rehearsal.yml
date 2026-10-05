@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: greyguard
+      POSTGRES_USER: greyguard
+      POSTGRES_PASSWORD: ${GREYGUARD_POSTGRES_PASSWORD:?set GREYGUARD_POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greyguard -d greyguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes: [greyguard-postgres-rehearsal:/var/lib/postgresql/data]
+    ports: ["127.0.0.1:5432:5432"]
+  migrations:
+    build:
+      context: ..
+      dockerfile: deployment/backend.Dockerfile
+    environment:
+      GREYGUARD_DATABASE_URL: postgresql+psycopg://greyguard:${GREYGUARD_POSTGRES_PASSWORD}@postgres/greyguard
+    depends_on:
+      postgres: {condition: service_healthy}
+    command: ["alembic", "upgrade", "head"]
+volumes:
+  greyguard-postgres-rehearsal:
