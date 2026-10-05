@@ -193,6 +193,13 @@ from .audit_integrity import (
     update_retention,
     verify_integrity,
 )
+from .notification_delivery import (
+    initialize_notification_delivery,
+    list_configuration as notification_delivery_configuration,
+    queue_notification,
+    save_destination as save_notification_destination,
+    save_template as save_notification_template,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -223,6 +230,7 @@ async def lifespan(_app: FastAPI):
     initialize_enterprise_identity()
     initialize_security_exports()
     initialize_audit_integrity()
+    initialize_notification_delivery()
 
     yield
 
@@ -552,6 +560,31 @@ class LegalHoldRequest(BaseModel):
 
 class RetentionExecutionRequest(BaseModel):
     confirm: bool = False
+
+
+class NotificationDestinationRequest(BaseModel):
+    name: str = Field(min_length=3,max_length=100)
+    channel: Literal["EMAIL","SLACK","MICROSOFT_TEAMS","PAGERDUTY","OPSGENIE"]
+    endpoint_reference: str = Field(min_length=3,max_length=128)
+    enabled: bool = False
+    minimum_severity: Literal["INFO","LOW","MEDIUM","HIGH","CRITICAL"] = "HIGH"
+    quiet_start_hour: int | None = Field(default=None,ge=0,le=23)
+    quiet_end_hour: int | None = Field(default=None,ge=0,le=23)
+    critical_bypass: bool = True
+    escalation_minutes: int = Field(default=15,ge=0,le=1440)
+
+
+class NotificationTemplateRequest(BaseModel):
+    name: str = Field(min_length=3,max_length=100)
+    event_type: str = Field(min_length=1,max_length=100)
+    subject_template: str = Field(min_length=1,max_length=200)
+    body_template: str = Field(min_length=1,max_length=2000)
+
+
+class ExternalNotificationRequest(BaseModel):
+    destination_id: str
+    template_id: str | None = None
+    event: dict
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -1579,6 +1612,33 @@ def execute_audit_retention(payload: RetentionExecutionRequest,x_admin_pin: str 
     administrator=require_platform_admin(x_admin_pin)
     try: return apply_retention(policy_actor(administrator),payload.confirm)
     except PermissionError as error: raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.get("/notification-delivery")
+def notification_delivery_controls(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return notification_delivery_configuration()
+
+
+@app.post("/notification-delivery/destinations",status_code=201)
+def configure_notification_destination(payload: NotificationDestinationRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return save_notification_destination(payload.name,payload.channel,payload.endpoint_reference,payload.enabled,payload.minimum_severity,payload.quiet_start_hour,payload.quiet_end_hour,payload.critical_bypass,payload.escalation_minutes,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/notification-delivery/templates",status_code=201)
+def configure_notification_template(payload: NotificationTemplateRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return save_notification_template(payload.name,payload.event_type,payload.subject_template,payload.body_template,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/notification-delivery/queue",status_code=202)
+def queue_external_notification(payload: ExternalNotificationRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return queue_notification(payload.destination_id,payload.event,payload.template_id)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
 
 
 @app.get("/compliance-reports")

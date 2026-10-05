@@ -61,4 +61,7 @@ describe("GreyGuard navigation", () => {
   it("restricts audit integrity controls to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/audit-integrity")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("restricts communication integrations to platform administrators", () => {
+    expect(navigationItems.find((entry) => entry.path === "/communication-integrations")?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });
