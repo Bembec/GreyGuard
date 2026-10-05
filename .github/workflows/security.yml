@@ -16,9 +16,37 @@ jobs:
         with: {python-version: "3.12"}
       - run: pip install pip-audit
       - run: pip-audit -r backend/requirements.txt
+      - run: pip install bandit
+      - run: bandit -r backend/app -x backend/tests -ll
       - uses: actions/setup-node@v4
         with: {node-version: 22}
       - run: cd frontend && npm ci && npm audit --audit-level=high
+      - run: python scripts/generate_sbom.py
+      - uses: actions/upload-artifact@v4
+        with: {name: greyguard-sbom, path: artifacts/greyguard-sbom.cdx.json}
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: gitleaks/gitleaks-action@v2
+  browser-e2e:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: frontend}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:e2e
+  container-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@0.28.0
+        with: {scan-type: fs, scan-ref: ., severity: HIGH,CRITICAL, exit-code: "1"}
   codeql:
     runs-on: ubuntu-latest
     steps:
