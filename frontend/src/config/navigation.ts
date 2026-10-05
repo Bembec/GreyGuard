@@ -143,6 +143,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Endpoint Telemetry",
+    path: "/endpoint-telemetry",
+    description: "Consent-bound read-only endpoint monitoring",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",

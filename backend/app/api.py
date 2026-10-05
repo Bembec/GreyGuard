@@ -139,6 +139,10 @@ from .report_governance import (
     initialize_report_governance, list_schedules, retention_report,
     signed_manifest,
 )
+from .endpoint_telemetry import (
+    initialize_endpoint_telemetry, list_collectors, register_collector,
+    set_collector_enabled, uninstall_collector,
+)
 from .abuse_protection import (
     abuse_summary,
     check_rate_limit,
@@ -259,6 +263,7 @@ async def lifespan(_app: FastAPI):
     initialize_service_accounts()
     initialize_compliance_reports()
     initialize_report_governance()
+    initialize_endpoint_telemetry()
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
@@ -706,6 +711,21 @@ class ReportScheduleRequest(BaseModel):
 class PostmortemRequest(BaseModel):
     incident_id: str = Field(min_length=1,max_length=100)
     title: str = Field(min_length=3,max_length=150)
+
+
+class EndpointCollectorRequest(BaseModel):
+    name: str = Field(min_length=3,max_length=100)
+    owner: str = Field(min_length=3,max_length=100)
+    purpose: str = Field(min_length=5,max_length=300)
+    consent_reference: str = Field(min_length=6,max_length=150)
+    permissions: list[Literal["PROCESS_HEALTH","FILESYSTEM_EVENTS","NETWORK_METADATA","RESOURCE_USAGE"]]
+    approved_directories: list[str] = Field(default_factory=list,max_length=20)
+    retention_days: int = Field(ge=1,le=90)
+    public_key_fingerprint: str = Field(min_length=32,max_length=128)
+
+
+class EndpointCollectorStateRequest(BaseModel):
+    enabled: bool
 
 
 class RateLimitPolicyRequest(BaseModel):
@@ -1969,6 +1989,34 @@ def generate_postmortem_template(payload: PostmortemRequest,x_admin_pin: str | N
     administrator=require_admin(x_admin_pin)
     try:return create_postmortem(payload.incident_id,payload.title,policy_actor(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.get("/endpoint-telemetry")
+def endpoint_telemetry_overview(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return {"collectors":list_collectors(),"disabled_by_default":True,"payload_capture":False}
+
+
+@app.post("/endpoint-telemetry/collectors",status_code=201)
+def create_endpoint_collector(payload: EndpointCollectorRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return register_collector(payload.name,payload.owner,payload.purpose,payload.consent_reference,payload.permissions,payload.approved_directories,payload.retention_days,payload.public_key_fingerprint)
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.put("/endpoint-telemetry/collectors/{collector_id}")
+def update_endpoint_collector(collector_id: str,payload: EndpointCollectorStateRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return set_collector_enabled(collector_id,payload.enabled,policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.delete("/endpoint-telemetry/collectors/{collector_id}")
+def remove_endpoint_collector(collector_id: str,confirm: bool = Query(default=False),x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return uninstall_collector(collector_id,confirm)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.get("/abuse-protection")
