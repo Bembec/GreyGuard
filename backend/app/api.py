@@ -97,9 +97,11 @@ from .policy_integrations import (
     verify_signed_policy_bundle,
 )
 from .secret_manager import (
-    create_secret, initialize_secret_manager, list_secrets,
-    redact, revoke_secret, rotate_secret,
+    SecretRedactionMiddleware, create_secret, emergency_revoke_all,
+    initialize_secret_manager, list_secrets, redact, revoke_secret,
+    rotate_secret, secret_events,
 )
+from .secret_providers import provider_status
 from .notifications import (
     cleanup_expired_notifications,
     get_retention_policy,
@@ -218,6 +220,7 @@ app = FastAPI(
 
 runtime_config = load_production_config()
 app.add_middleware(RuntimeSecurityMiddleware, production=runtime_config.environment == "production")
+app.add_middleware(SecretRedactionMiddleware)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(runtime_config.trusted_hosts))
 app.add_middleware(
     CORSMiddleware,
@@ -424,11 +427,17 @@ class SignedPolicyBundleRequest(BaseModel):
 
 class SecretCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    reference: str = Field(min_length=3, max_length=128)
+    provider: Literal["ENVIRONMENT", "HASHICORP_VAULT", "AWS", "AZURE", "GCP"] = "ENVIRONMENT"
+    reference: str = Field(min_length=3, max_length=512)
+    rotation_interval_days: int | None = Field(default=None, ge=1, le=365)
 
 
 class SecretRotateRequest(BaseModel):
-    reference: str = Field(min_length=3, max_length=128)
+    reference: str = Field(min_length=3, max_length=512)
+
+
+class EmergencySecretRevocationRequest(BaseModel):
+    provider: Literal["HASHICORP_VAULT", "AWS", "AZURE", "GCP", "ENVIRONMENT"] | None = None
 
 
 class ServiceAccountCreateRequest(BaseModel):
@@ -1204,13 +1213,13 @@ def policy_version_history(
 @app.get("/secrets")
 def secret_references(x_admin_pin: str | None = Header(default=None)):
     require_admin(x_admin_pin)
-    return {"secrets": list_secrets(), "values_exposed": False}
+    return {"secrets": list_secrets(), "providers": provider_status(), "values_exposed": False}
 
 
 @app.post("/secrets", status_code=201)
 def create_secret_reference(payload: SecretCreateRequest, x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try: return create_secret(payload.name,payload.reference,policy_actor(administrator))
+    try: return create_secret(payload.name,payload.reference,policy_actor(administrator),payload.provider,payload.rotation_interval_days)
     except ValueError as error: raise HTTPException(status_code=400,detail=redact(error)) from error
 
 
@@ -1227,6 +1236,18 @@ def revoke_secret_reference(secret_id: str,x_admin_pin: str | None = Header(defa
     administrator=require_platform_admin(x_admin_pin)
     try: return revoke_secret(secret_id,policy_actor(administrator))
     except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.get("/secret-events")
+def secret_access_evidence(secret_id: str | None = Query(default=None), x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    return {"events": secret_events(secret_id), "values_exposed": False}
+
+
+@app.post("/secrets/emergency-revoke")
+def emergency_secret_revocation(payload: EmergencySecretRevocationRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    return emergency_revoke_all(policy_actor(administrator),payload.provider)
 
 
 @app.get("/service-accounts")
