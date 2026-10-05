@@ -209,6 +209,14 @@ from .incident_integrations import (
     save_destination as save_incident_destination,
     verify_callback,
 )
+from .execution_isolation import (
+    emergency_terminate,
+    execution_history,
+    get_config as get_isolation_config,
+    initialize_execution_isolation,
+    run_predefined_job,
+    update_config as update_isolation_config,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -241,6 +249,7 @@ async def lifespan(_app: FastAPI):
     initialize_audit_integrity()
     initialize_notification_delivery()
     initialize_incident_integrations()
+    initialize_execution_isolation()
 
     yield
 
@@ -626,6 +635,19 @@ class SignedCallbackRequest(BaseModel):
     payload: dict
     signature: str
     key_reference: str = Field(min_length=3,max_length=128)
+
+
+class IsolationConfigurationRequest(BaseModel):
+    enabled: bool = False
+    image: str = Field(min_length=3,max_length=128)
+    cpu_limit: float = Field(ge=.1,le=2)
+    memory_mb: int = Field(ge=64,le=1024)
+    pids_limit: int = Field(ge=16,le=256)
+    timeout_seconds: int = Field(ge=1,le=300)
+
+
+class IsolatedJobRequest(BaseModel):
+    job_type: Literal["SANDBOX_PROBE"]
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -1724,6 +1746,30 @@ def receive_signed_incident_callback(payload: SignedCallbackRequest,x_admin_pin:
     try:return verify_callback(payload.record_id,payload.payload,payload.signature,payload.key_reference)
     except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.get("/execution-isolation")
+def execution_isolation_controls(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return {"config":get_isolation_config(),"history":execution_history()}
+
+
+@app.put("/execution-isolation")
+def configure_execution_isolation(payload: IsolationConfigurationRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return update_isolation_config(payload.enabled,payload.image,payload.cpu_limit,payload.memory_mb,payload.pids_limit,payload.timeout_seconds,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/execution-isolation/jobs",status_code=202)
+def execute_isolated_job(payload: IsolatedJobRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return run_predefined_job(payload.job_type,policy_actor(administrator))
+    except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
+
+
+@app.post("/execution-isolation/emergency-terminate")
+def terminate_isolated_jobs(x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin);return emergency_terminate(policy_actor(administrator))
 
 
 @app.get("/compliance-reports")

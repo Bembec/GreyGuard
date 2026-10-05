@@ -26,6 +26,24 @@ services:
     depends_on: [backend]
     ports: ["127.0.0.1:8080:8080"]
     networks: [greyguard-internal]
+  sandbox-runner:
+    profiles: ["sandbox"]
+    build:
+      context: .
+      dockerfile: deployment/sandbox.Dockerfile
+    user: "65532:65532"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./deployment/seccomp-sandbox.json
+    cap_drop: ["ALL"]
+    pids_limit: 64
+    cpus: 0.50
+    mem_limit: 256m
+    tmpfs:
+      - /workspace:rw,noexec,nosuid,nodev,size=32m
+    restart: "no"
 volumes:
   greyguard-data:
 networks:

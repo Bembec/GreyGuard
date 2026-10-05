@@ -131,6 +131,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Execution Isolation",
+    path: "/execution-isolation",
+    description: "Hardened Docker sandbox and emergency termination",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",

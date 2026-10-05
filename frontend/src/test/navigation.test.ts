@@ -67,4 +67,7 @@ describe("GreyGuard navigation", () => {
   it("restricts incident integrations to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/incident-integrations")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("restricts execution isolation to platform administrators", () => {
+    expect(navigationItems.find((entry) => entry.path === "/execution-isolation")?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });
