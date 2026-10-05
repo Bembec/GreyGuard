@@ -88,4 +88,7 @@ describe("GreyGuard navigation", () => {
   it("restricts capability removal to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/capability-removals")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("includes the threat and vulnerability register", () => {
+    expect(navigationItems.some((entry) => entry.path === "/threat-register")).toBe(true);
+  });
 });

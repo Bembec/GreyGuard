@@ -173,6 +173,11 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Threat Register",
+    path: "/threat-register",
+    description: "Threat ownership, residual risk and review evidence",
+  },
+  {
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",

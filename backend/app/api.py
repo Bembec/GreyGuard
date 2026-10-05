@@ -161,6 +161,10 @@ from .capability_removal import (
     emergency_shutdown, get_removal, initialize_capability_removal,
     list_removals,
 )
+from .threat_register import (
+    get_threat, initialize_threat_register, list_threats,
+    threat_history, threat_summary, update_threat,
+)
 from .abuse_protection import (
     abuse_summary,
     check_rate_limit,
@@ -286,6 +290,7 @@ async def lifespan(_app: FastAPI):
     initialize_simulations()
     initialize_universal_controls()
     initialize_capability_removal()
+    initialize_threat_register()
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
@@ -806,6 +811,20 @@ class RemovalStepRequest(BaseModel):
 
 class EmergencyShutdownRequest(BaseModel):
     reason: str = Field(min_length=8,max_length=500)
+
+
+class ThreatRegisterRequest(BaseModel):
+    status: Literal["NEEDS_REVIEW","OPEN","MONITORED","MITIGATED","ACCEPTED"]
+    severity: Literal["LOW","MEDIUM","HIGH","CRITICAL"]
+    asset: str = Field(min_length=3,max_length=300)
+    threat_actor: str = Field(min_length=3,max_length=300)
+    attack_path: str = Field(min_length=3,max_length=1000)
+    existing_controls: list[str] = Field(default_factory=list,max_length=100)
+    residual_risk: Literal["LOW","MEDIUM","HIGH","CRITICAL"]
+    test_evidence: list[str] = Field(default_factory=list,max_length=100)
+    incident_response: str = Field(min_length=3,max_length=1000)
+    owner: str = Field(min_length=3,max_length=150)
+    review_date: str | None = Field(default=None,max_length=10)
 
 
 class RateLimitPolicyRequest(BaseModel):
@@ -2213,6 +2232,26 @@ def capability_removal_details(removal_id: str,x_admin_pin: str | None = Header(
     require_platform_admin(x_admin_pin)
     try:return get_removal(removal_id)
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.get("/threat-register")
+def threat_register_overview(status: str | None = None,severity: str | None = None,x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin);return {"summary":threat_summary(),"threats":list_threats(status,severity)}
+
+
+@app.get("/threat-register/{threat_id}")
+def threat_register_record(threat_id: str,x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    try:return {"threat":get_threat(threat_id),"history":threat_history(threat_id)}
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.put("/threat-register/{threat_id}")
+def revise_threat_register_record(threat_id: str,payload: ThreatRegisterRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return update_threat(threat_id,payload.model_dump(),policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.get("/abuse-protection")

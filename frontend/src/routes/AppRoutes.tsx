@@ -43,6 +43,7 @@ import DefensiveIntegrationsPage from "../pages/DefensiveIntegrationsPage"
 import SimulationsPage from "../pages/SimulationsPage"
 import UniversalControlsPage from "../pages/UniversalControlsPage"
 import CapabilityRemovalPage from "../pages/CapabilityRemovalPage"
+import ThreatRegisterPage from "../pages/ThreatRegisterPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -161,6 +162,8 @@ export function AppRoutes() {
         <Route path="/universal-controls" element={<UniversalControlsPage />} />
 
         <Route path="/capability-removals" element={<CapabilityRemovalPage />} />
+
+        <Route path="/threat-register" element={<ThreatRegisterPage />} />
 
         <Route path="/account-security" element={<AccountSecurityPage />} />
 
