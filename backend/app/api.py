@@ -86,6 +86,16 @@ from .alerts import (
     initialize_alert_database,
     update_alert,
 )
+from .policy_integrations import (
+    configure_policy_adapter,
+    create_rollout,
+    export_signed_policy_bundle,
+    initialize_policy_integrations,
+    list_policy_adapters,
+    list_rollouts,
+    update_rollout,
+    verify_signed_policy_bundle,
+)
 from .secret_manager import (
     create_secret, initialize_secret_manager, list_secrets,
     redact, revoke_secret, rotate_secret,
@@ -181,6 +191,7 @@ async def lifespan(_app: FastAPI):
         ),
         max_risk_score=main.max_risk_score,
     )
+    initialize_policy_integrations()
     initialize_alert_database()
     initialize_secret_manager()
     initialize_notification_database()
@@ -385,6 +396,30 @@ class PolicyEmergencyRequest(BaseModel):
     disabled_agents: list[str] = Field(default_factory=list)
     disabled_tools: list[str] = Field(default_factory=list)
     disabled_integrations: list[str] = Field(default_factory=list)
+
+
+class PolicyAdapterRequest(BaseModel):
+    enabled: bool = False
+    endpoint: str | None = Field(default=None, max_length=500)
+    owner: str = Field(default="", max_length=100)
+    purpose: str = Field(default="", max_length=500)
+
+
+class PolicyRolloutCreateRequest(BaseModel):
+    policy_id: str
+    percentage: int = Field(ge=0, le=100)
+    agent_allowlist: list[str] = Field(default_factory=list)
+
+
+class PolicyRolloutUpdateRequest(BaseModel):
+    status: Literal["ACTIVE", "PAUSED", "COMPLETED", "CANCELLED"]
+    percentage: int = Field(ge=0, le=100)
+
+
+class SignedPolicyBundleRequest(BaseModel):
+    document: dict
+    algorithm: str
+    signature: str
 
 
 class SecretCreateRequest(BaseModel):
@@ -1062,6 +1097,69 @@ def policy_emergency_control_state(x_admin_pin: str | None = Header(default=None
 def configure_policy_emergency_controls(payload: PolicyEmergencyRequest, x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
     return update_emergency_controls(payload.global_deny, payload.disabled_agents, payload.disabled_tools, payload.disabled_integrations, policy_actor(administrator))
+
+
+@app.get("/policy-adapters")
+def policy_adapters(x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    return {"adapters": list_policy_adapters(), "network_authority_automatic": False}
+
+
+@app.put("/policy-adapters/{adapter_type}")
+def update_policy_adapter(adapter_type: str, payload: PolicyAdapterRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return configure_policy_adapter(adapter_type, payload.enabled, payload.endpoint, payload.owner, payload.purpose, policy_actor(administrator))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/policy-rollouts")
+def policy_rollouts(x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    return {"rollouts": list_rollouts()}
+
+
+@app.post("/policy-rollouts", status_code=201)
+def create_policy_rollout(payload: PolicyRolloutCreateRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return create_rollout(payload.policy_id, payload.percentage, payload.agent_allowlist, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.put("/policy-rollouts/{rollout_id}")
+def change_policy_rollout(rollout_id: str, payload: PolicyRolloutUpdateRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return update_rollout(rollout_id, payload.status, payload.percentage, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/policy-versions/{policy_id}/bundle")
+def signed_policy_bundle(policy_id: str, x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:
+        return export_signed_policy_bundle(policy_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+
+@app.post("/policy-bundles/verify")
+def verify_policy_bundle(payload: SignedPolicyBundleRequest, x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    try:
+        return verify_signed_policy_bundle(payload.model_dump())
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 @app.get("/policy-versions/{policy_id}")

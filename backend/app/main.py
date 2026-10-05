@@ -43,6 +43,7 @@ from .tool_gateway import (
     initialize_sandbox,
 )
 from .policy_control import get_emergency_controls
+from .policy_integrations import effective_rollout_policy
 
 
 permissions = {
@@ -1084,11 +1085,20 @@ def evaluate_action(
             ),
         )
 
-    policy_decision = permissions.get(
+    try:
+        staged_policy = effective_rollout_policy(normalized_name)
+    except Exception:
+        staged_policy = None
+    active_permissions = staged_policy["permissions"] if staged_policy else permissions
+    active_weights = staged_policy["risk_weights"] if staged_policy else risk_weights
+    active_block_limit = staged_policy["max_blocked_attempts"] if staged_policy else max_blocked_attempts
+    active_risk_limit = staged_policy["max_risk_score"] if staged_policy else max_risk_score
+
+    policy_decision = active_permissions.get(
         normalized_action,
         "BLOCK",
     )
-    risk_added = risk_weights.get(
+    risk_added = active_weights.get(
         normalized_action,
         50,
     )
@@ -1112,9 +1122,9 @@ def evaluate_action(
 
     if (
         state["blocked_attempts"]
-        >= max_blocked_attempts
+        >= active_block_limit
         or state["risk_score"]
-        >= max_risk_score
+        >= active_risk_limit
     ):
         state["agent_status"] = "SUSPENDED"
 
