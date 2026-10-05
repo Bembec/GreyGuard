@@ -200,6 +200,15 @@ from .notification_delivery import (
     save_destination as save_notification_destination,
     save_template as save_notification_template,
 )
+from .incident_integrations import (
+    consume_approval_link,
+    create_approval_link,
+    initialize_incident_integrations,
+    list_controls as incident_integration_controls,
+    queue_incident,
+    save_destination as save_incident_destination,
+    verify_callback,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -231,6 +240,7 @@ async def lifespan(_app: FastAPI):
     initialize_security_exports()
     initialize_audit_integrity()
     initialize_notification_delivery()
+    initialize_incident_integrations()
 
     yield
 
@@ -585,6 +595,37 @@ class ExternalNotificationRequest(BaseModel):
     destination_id: str
     template_id: str | None = None
     event: dict
+
+
+class IncidentDestinationRequest(BaseModel):
+    name: str = Field(min_length=3,max_length=100)
+    system_type: Literal["JIRA","SERVICENOW"]
+    endpoint: str = Field(min_length=8,max_length=500)
+    credential_reference: str = Field(min_length=3,max_length=128)
+    project_or_table: str = Field(min_length=1,max_length=100)
+    enabled: bool = False
+
+
+class ExternalIncidentRequest(BaseModel):
+    destination_id: str
+    alert: dict
+
+
+class ApprovalLinkCreateRequest(BaseModel):
+    request_id: str
+    decision: Literal["APPROVED","DENIED"]
+    minutes: int = Field(default=15,ge=5,le=60)
+
+
+class ApprovalLinkConsumeRequest(BaseModel):
+    token: str = Field(min_length=32,max_length=256)
+
+
+class SignedCallbackRequest(BaseModel):
+    record_id: str
+    payload: dict
+    signature: str
+    key_reference: str = Field(min_length=3,max_length=128)
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -1639,6 +1680,50 @@ def queue_external_notification(payload: ExternalNotificationRequest,x_admin_pin
     try:return queue_notification(payload.destination_id,payload.event,payload.template_id)
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
+
+
+@app.get("/incident-integrations")
+def incident_integration_configuration(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return incident_integration_controls()
+
+
+@app.post("/incident-integrations/destinations",status_code=201)
+def configure_incident_destination(payload: IncidentDestinationRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return save_incident_destination(payload.name,payload.system_type,payload.endpoint,payload.credential_reference,payload.project_or_table,payload.enabled,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/incident-integrations/incidents",status_code=202)
+def create_external_incident(payload: ExternalIncidentRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return queue_incident(payload.destination_id,payload.alert)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/incident-integrations/approval-links",status_code=201)
+def issue_expiring_approval_link(payload: ApprovalLinkCreateRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_admin(x_admin_pin)
+    return create_approval_link(payload.request_id,payload.decision,payload.minutes,policy_actor(administrator))
+
+
+@app.post("/incident-integrations/approval-links/consume")
+def use_expiring_approval_link(payload: ApprovalLinkConsumeRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_admin(x_admin_pin)
+    try:
+        claim=consume_approval_link(payload.token,policy_actor(administrator))
+        return main.review_tool_request(request_id=claim["request_id"],actor=policy_actor(administrator),decision=claim["decision"],note=f"Decision through expiring approval link {claim['link_id']}.")
+    except (ValueError,KeyError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.post("/incident-integrations/callbacks")
+def receive_signed_incident_callback(payload: SignedCallbackRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return verify_callback(payload.record_id,payload.payload,payload.signature,payload.key_reference)
+    except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.get("/compliance-reports")
