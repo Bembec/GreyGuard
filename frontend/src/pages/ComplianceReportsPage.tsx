@@ -16,6 +16,7 @@ import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
 import "../styles/compliance-reports.css"
+import ReportGovernancePanel from "./ReportGovernancePanel"
 
 type ReportSummary = {
   audit_events: number
@@ -111,6 +112,7 @@ export default function ComplianceReportsPage() {
   return <main className="compliance-page">
     <section className="compliance-hero"><div><p><ShieldCheck size={15} /> Assurance and governance</p><h1>Compliance Reports</h1><span>Capture immutable, verifiable evidence snapshots and export them for review.</span></div><button onClick={() => setShowCreate(true)}><FileCheck2 size={17} /> Generate report</button></section>
     <section className="compliance-assurance"><Fingerprint /><div><strong>Evidence integrity built in</strong><span>Every report is sealed with a SHA-256 fingerprint and verified whenever it is opened.</span></div></section>
+    <ReportGovernancePanel />
     <section className="compliance-history"><header><div><FileCheck2 /><span><strong>Report history</strong><small>{reports.length} immutable snapshots</small></span></div><button onClick={() => void load()}><RefreshCw size={16} /> Refresh</button></header>
       {loading && <LoadingState label="Loading compliance reports" rows={4}/>}
       {!loading && loadError && <ErrorState message={loadError} onRetry={() => void load()}/>}

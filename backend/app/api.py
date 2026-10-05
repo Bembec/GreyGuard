@@ -133,6 +133,12 @@ from .compliance_reports import (
     initialize_compliance_reports,
     list_compliance_reports,
 )
+from .report_governance import (
+    administrator_action_report, compliance_mapping, create_postmortem,
+    create_schedule, disable_schedule, export_checksums,
+    initialize_report_governance, list_schedules, retention_report,
+    signed_manifest,
+)
 from .abuse_protection import (
     abuse_summary,
     check_rate_limit,
@@ -252,6 +258,7 @@ async def lifespan(_app: FastAPI):
     initialize_notification_database()
     initialize_service_accounts()
     initialize_compliance_reports()
+    initialize_report_governance()
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
@@ -688,6 +695,17 @@ class ComplianceReportRequest(BaseModel):
     date_to: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     severities: list[Literal["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]] = Field(default_factory=list)
     event_types: list[Literal["POLICY", "AUTHENTICATION", "APPROVAL", "EXECUTION"]] = Field(default_factory=list)
+
+
+class ReportScheduleRequest(BaseModel):
+    title: str = Field(min_length=3,max_length=150)
+    frequency: Literal["DAILY","WEEKLY","MONTHLY"]
+    next_run_at: str = Field(min_length=10,max_length=40)
+
+
+class PostmortemRequest(BaseModel):
+    incident_id: str = Field(min_length=1,max_length=100)
+    title: str = Field(min_length=3,max_length=150)
 
 
 class RateLimitPolicyRequest(BaseModel):
@@ -1908,6 +1926,49 @@ def compliance_evidence_catalog(report_id: str,x_admin_pin: str | None = Header(
     require_admin(x_admin_pin)
     try:return {"categories":evidence_catalog(report_id)}
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.get("/report-governance")
+def report_governance_overview(x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    return {"schedules":list_schedules(),"control_mapping":compliance_mapping(),"retention":retention_report()}
+
+
+@app.post("/report-governance/schedules",status_code=201)
+def schedule_security_report(payload: ReportScheduleRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return create_schedule(payload.title,payload.frequency,payload.next_run_at,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.delete("/report-governance/schedules/{schedule_id}")
+def remove_report_schedule(schedule_id: str,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return disable_schedule(schedule_id,policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.get("/compliance-reports/{report_id}/signed-manifest")
+def report_signed_manifest(report_id: str,x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    try:
+        report=get_compliance_report(report_id,include_evidence=False)
+        checksums=export_checksums(report_id,{"json":export_json,"csv":export_csv,"html":export_html,"pdf":export_pdf})
+        return signed_manifest(report,checksums)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except RuntimeError as error:raise HTTPException(status_code=503,detail=str(error)) from error
+
+
+@app.get("/report-governance/administrator-actions")
+def governance_administrator_actions(x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin);return administrator_action_report()
+
+
+@app.post("/report-governance/postmortems",status_code=201)
+def generate_postmortem_template(payload: PostmortemRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_admin(x_admin_pin)
+    try:return create_postmortem(payload.incident_id,payload.title,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.get("/abuse-protection")
