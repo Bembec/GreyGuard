@@ -40,6 +40,7 @@ import ExecutionIsolationPage from "../pages/ExecutionIsolationPage"
 import IsolationOperationsPage from "../pages/IsolationOperationsPage"
 import EndpointTelemetryPage from "../pages/EndpointTelemetryPage"
 import DefensiveIntegrationsPage from "../pages/DefensiveIntegrationsPage"
+import SimulationsPage from "../pages/SimulationsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -152,6 +153,8 @@ export function AppRoutes() {
         <Route path="/endpoint-telemetry" element={<EndpointTelemetryPage />} />
 
         <Route path="/defensive-integrations" element={<DefensiveIntegrationsPage />} />
+
+        <Route path="/simulations" element={<SimulationsPage />} />
 
         <Route path="/account-security" element={<AccountSecurityPage />} />
 

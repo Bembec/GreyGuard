@@ -79,4 +79,7 @@ describe("GreyGuard navigation", () => {
   it("restricts defensive integrations to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/defensive-integrations")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("restricts the non-operational simulation lab to platform administrators", () => {
+    expect(navigationItems.find((entry) => entry.path === "/simulations")?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });

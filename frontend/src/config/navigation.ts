@@ -155,6 +155,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Simulation Lab",
+    path: "/simulations",
+    description: "Non-operational adversarial control validation",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",

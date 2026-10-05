@@ -148,6 +148,10 @@ from .defensive_integrations import (
     list_connectors as list_browser_connectors, list_responses,
     request_response, set_connector_enabled,
 )
+from .adversarial_simulations import (
+    export_assessment, initialize_simulations, run_simulation,
+    set_enabled as set_simulations_enabled, simulation_status,
+)
 from .abuse_protection import (
     abuse_summary,
     check_rate_limit,
@@ -270,6 +274,7 @@ async def lifespan(_app: FastAPI):
     initialize_report_governance()
     initialize_endpoint_telemetry()
     initialize_defensive_integrations()
+    initialize_simulations()
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
@@ -751,6 +756,14 @@ class DefensiveResponseRequest(BaseModel):
     target: str = Field(min_length=1,max_length=200)
     reason: str = Field(min_length=5,max_length=500)
     duration_minutes: int = Field(ge=1,le=1440)
+
+
+class SimulationStateRequest(BaseModel):
+    enabled: bool
+
+
+class SimulationRunRequest(BaseModel):
+    scenario_id: str = Field(min_length=3,max_length=80)
 
 
 class RateLimitPolicyRequest(BaseModel):
@@ -2077,6 +2090,31 @@ def authorize_defensive_response(response_id: str,x_admin_pin: str | None = Head
     try:return approve_response(response_id,policy_actor(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.get("/simulations")
+def simulation_lab_overview(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return simulation_status()
+
+
+@app.put("/simulations")
+def update_simulation_lab(payload: SimulationStateRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin);return set_simulations_enabled(payload.enabled,policy_actor(administrator))
+
+
+@app.post("/simulations/run",status_code=201)
+def execute_safe_simulation(payload: SimulationRunRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return run_simulation(payload.scenario_id,policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.get("/simulations/{run_id}/assessment")
+def simulation_assessment(run_id: str,x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    try:return export_assessment(run_id)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.get("/abuse-protection")
