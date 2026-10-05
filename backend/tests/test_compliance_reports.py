@@ -46,3 +46,19 @@ def test_csv_export_has_expected_sections(isolated_reports):
     exported = compliance_reports.export_csv(report["report_id"])
     assert b"audit_event" in exported
     assert b"security_alert" in exported
+
+
+def test_printable_html_and_pdf_exports(isolated_reports):
+    report = compliance_reports.create_compliance_report("Printable evidence", {}, "admin")
+    assert compliance_reports.export_html(report["report_id"]).startswith(b"<!doctype html>")
+    assert compliance_reports.export_pdf(report["report_id"]).startswith(b"%PDF-1.4")
+
+
+def test_csv_formula_injection_is_neutralized():
+    assert compliance_reports._safe_csv_value("=cmd()") == "'=cmd()"
+
+
+def test_evidence_catalog_covers_required_assessments(isolated_reports):
+    report = compliance_reports.create_compliance_report("Evidence catalog", {}, "admin")
+    keys = {item["key"] for item in compliance_reports.evidence_catalog(report["report_id"])}
+    assert {"agent_security_assessment", "risk_timeline", "approval_evidence", "containment_evidence", "authentication_evidence", "policy_version_evidence"} <= keys

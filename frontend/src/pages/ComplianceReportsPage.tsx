@@ -96,7 +96,7 @@ export default function ComplianceReportsPage() {
     setSelected(body)
   }
 
-  const download = async (report: ComplianceReport, format: "json" | "csv") => {
+  const download = async (report: ComplianceReport, format: "json" | "csv" | "html" | "pdf") => {
     const response = await fetch(`${API}/compliance-reports/${report.report_id}/export?format=${format}`, { headers })
     if (!response.ok) { const body = await response.json(); pushToast({ tone: "error", title: "Export failed", message: body.detail }); return }
     const blob = await response.blob()
@@ -118,7 +118,7 @@ export default function ComplianceReportsPage() {
       {!loading && !loadError && <div className="compliance-list">{reports.map((report) => <article key={report.report_id}>
         <button className="compliance-main" onClick={() => void inspect(report)}><span className="report-icon"><FileCheck2 /></span><span className="report-copy"><strong>{report.title}</strong><small>{new Date(report.created_at).toLocaleString()} · {report.created_by}</small><code>{formatEvidenceHash(report.evidence_hash)}</code></span></button>
         <div className="report-counts"><span><strong>{report.summary.audit_events}</strong> events</span><span><strong>{report.summary.security_alerts}</strong> alerts</span><span><strong>{report.summary.privileged_actions}</strong> privileged</span></div>
-        <div className="report-downloads"><button onClick={() => void download(report, "json")}><FileJson size={16} /> JSON</button><button onClick={() => void download(report, "csv")}><FileSpreadsheet size={16} /> CSV</button></div>
+        <div className="report-downloads"><button onClick={() => void download(report, "json")}><FileJson size={16} /> JSON</button><button onClick={() => void download(report, "csv")}><FileSpreadsheet size={16} /> CSV</button><button onClick={() => void download(report, "html")}><Download size={16} /> HTML</button><button onClick={() => void download(report, "pdf")}><Download size={16} /> PDF</button></div>
       </article>)}</div>}
     </section>
 
@@ -133,7 +133,7 @@ export default function ComplianceReportsPage() {
     {selected && <div className="compliance-modal"><button className="backdrop" onClick={() => setSelected(null)} aria-label="Close"/><section className="report-details"><header><div><h2>{selected.title}</h2><p>{selected.report_id}</p></div><button onClick={() => setSelected(null)}><X /></button></header>
       <div className={`integrity ${selected.integrity_verified ? "verified" : "failed"}`}><CheckCircle2 /><div><strong>{selected.integrity_verified ? "Integrity verified" : "Integrity check failed"}</strong><code>{selected.evidence_hash}</code></div></div>
       <div className="detail-metrics">{Object.entries(selected.summary).map(([label, value]) => <div key={label}><strong>{value}</strong><span>{label.replaceAll("_", " ")}</span></div>)}</div>
-      <footer><button onClick={() => void download(selected, "json")}><Download size={16} /> Export JSON</button><button onClick={() => void download(selected, "csv")}><Download size={16} /> Export CSV</button></footer>
+      <footer><button onClick={() => void download(selected, "json")}><Download size={16} /> JSON</button><button onClick={() => void download(selected, "csv")}><Download size={16} /> CSV</button><button onClick={() => void download(selected, "html")}><Download size={16} /> Printable HTML</button><button onClick={() => void download(selected, "pdf")}><Download size={16} /> PDF</button></footer>
     </section></div>}
   </main>
 }

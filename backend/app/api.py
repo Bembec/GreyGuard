@@ -125,7 +125,10 @@ from .service_accounts import (
 from .compliance_reports import (
     create_compliance_report,
     export_csv,
+    export_html,
     export_json,
+    export_pdf,
+    evidence_catalog,
     get_compliance_report,
     initialize_compliance_reports,
     list_compliance_reports,
@@ -1874,7 +1877,7 @@ def compliance_report_details(
 @app.get("/compliance-reports/{report_id}/export")
 def export_compliance_report(
     report_id: str,
-    format: Literal["json", "csv"] = Query(default="json"),
+    format: Literal["json", "csv", "html", "pdf"] = Query(default="json"),
     x_admin_pin: str | None = Header(default=None),
 ):
     require_admin(x_admin_pin)
@@ -1882,6 +1885,12 @@ def export_compliance_report(
         if format == "csv":
             content = export_csv(report_id)
             media_type = "text/csv; charset=utf-8"
+        elif format == "html":
+            content = export_html(report_id)
+            media_type = "text/html; charset=utf-8"
+        elif format == "pdf":
+            content = export_pdf(report_id)
+            media_type = "application/pdf"
         else:
             content = export_json(report_id)
             media_type = "application/json"
@@ -1892,6 +1901,13 @@ def export_compliance_report(
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{report_id}.{format}"'},
     )
+
+
+@app.get("/compliance-reports/{report_id}/evidence-catalog")
+def compliance_evidence_catalog(report_id: str,x_admin_pin: str | None = Header(default=None)):
+    require_admin(x_admin_pin)
+    try:return {"categories":evidence_catalog(report_id)}
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.get("/abuse-protection")

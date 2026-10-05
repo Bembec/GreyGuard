@@ -2,6 +2,7 @@
 
 import csv
 import hashlib
+import html
 import io
 import json
 import sqlite3
@@ -211,9 +212,57 @@ def export_csv(report_id: str) -> bytes:
     ])
     writer.writeheader()
     for event in evidence["audit_events"]:
-        writer.writerow({"section": "audit_event", "timestamp": event.get("timestamp"), "type": event.get("event_type"), "severity": event.get("severity"), "actor": event.get("agent_name"), "subject": event.get("action"), "status": event.get("outcome"), "summary": event.get("summary")})
+        writer.writerow(_safe_csv_row({"section": "audit_event", "timestamp": event.get("timestamp"), "type": event.get("event_type"), "severity": event.get("severity"), "actor": event.get("agent_name"), "subject": event.get("action"), "status": event.get("outcome"), "summary": event.get("summary")}))
     for alert in evidence["security_alerts"]:
-        writer.writerow({"section": "security_alert", "timestamp": alert.get("created_at"), "type": alert.get("event_type"), "severity": alert.get("severity"), "actor": alert.get("assigned_to"), "subject": alert.get("agent_name"), "status": alert.get("status"), "summary": alert.get("summary")})
+        writer.writerow(_safe_csv_row({"section": "security_alert", "timestamp": alert.get("created_at"), "type": alert.get("event_type"), "severity": alert.get("severity"), "actor": alert.get("assigned_to"), "subject": alert.get("agent_name"), "status": alert.get("status"), "summary": alert.get("summary")}))
     for activity in evidence["privileged_activity"]:
-        writer.writerow({"section": "privileged_activity", "timestamp": activity.get("timestamp"), "type": activity.get("event_type"), "actor": activity.get("actor"), "subject": activity.get("subject_id"), "summary": activity.get("detail")})
+        writer.writerow(_safe_csv_row({"section": "privileged_activity", "timestamp": activity.get("timestamp"), "type": activity.get("event_type"), "actor": activity.get("actor"), "subject": activity.get("subject_id"), "summary": activity.get("detail")}))
     return output.getvalue().encode("utf-8-sig")
+
+
+def _safe_csv_value(value: Any) -> Any:
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+        return "'" + value
+    return value
+
+
+def _safe_csv_row(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: _safe_csv_value(value) for key, value in row.items()}
+
+
+def evidence_catalog(report_id: str) -> list[dict[str, Any]]:
+    evidence = get_compliance_report(report_id, include_evidence=True)["evidence"]
+    return [
+        {"key": "agent_security_assessment", "label": "Agent security assessment", "count": len({item.get("agent_name") for item in evidence["audit_events"] if item.get("agent_name")})},
+        {"key": "risk_timeline", "label": "Risk timeline", "count": len(evidence["security_alerts"])},
+        {"key": "decision_statistics", "label": "Decision statistics", "count": len(evidence["audit_events"])},
+        {"key": "approval_evidence", "label": "Approval evidence", "count": sum(str(item.get("event_type", "")).upper() == "APPROVAL" for item in evidence["audit_events"])},
+        {"key": "containment_evidence", "label": "Containment evidence", "count": sum("SUSPEND" in str(item.get("event_type", "")).upper() or "CONTAIN" in str(item.get("event_type", "")).upper() for item in evidence["audit_events"])},
+        {"key": "authentication_evidence", "label": "Authentication evidence", "count": sum("AUTH" in str(item.get("event_type", "")).upper() for item in evidence["audit_events"])},
+        {"key": "policy_version_evidence", "label": "Policy version evidence", "count": len(evidence["policy_versions"])},
+    ]
+
+
+def export_html(report_id: str) -> bytes:
+    report = get_compliance_report(report_id, include_evidence=True)
+    rows = "".join(f"<tr><th>{html.escape(item['label'])}</th><td>{item['count']}</td></tr>" for item in evidence_catalog(report_id))
+    title = html.escape(report["title"]); digest = html.escape(report["evidence_hash"])
+    document = f"""<!doctype html><html><head><meta charset=\"utf-8\"><title>{title}</title><style>body{{font:14px Arial;color:#172033;margin:40px}}h1{{color:#102a43}}table{{border-collapse:collapse;width:100%}}th,td{{padding:10px;border:1px solid #cbd5e1;text-align:left}}code{{word-break:break-all}}@media print{{button{{display:none}}}}</style></head><body><button onclick=\"print()\">Print report</button><h1>{title}</h1><p>Generated {html.escape(report['created_at'])} by {html.escape(report['created_by'])}</p><p>Integrity: <strong>{'VERIFIED' if report['integrity_verified'] else 'FAILED'}</strong></p><table>{rows}</table><h2>Evidence checksum</h2><code>{digest}</code></body></html>"""
+    return document.encode("utf-8")
+
+
+def _pdf_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def export_pdf(report_id: str) -> bytes:
+    report = get_compliance_report(report_id, include_evidence=True)
+    lines = [report["title"], f"Generated: {report['created_at']}", f"Created by: {report['created_by']}", f"Integrity: {'VERIFIED' if report['integrity_verified'] else 'FAILED'}"]
+    lines.extend(f"{item['label']}: {item['count']}" for item in evidence_catalog(report_id)); lines.append(f"SHA-256: {report['evidence_hash']}")
+    stream = "BT /F1 12 Tf 50 790 Td " + " ".join(f"({_pdf_escape(line)}) Tj 0 -24 Td" for line in lines) + " ET"
+    objects = ["1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj", "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj", "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 842]/Resources<</Font<</F1 5 0 R>>>>/Contents 4 0 R>>endobj", f"4 0 obj<</Length {len(stream.encode('latin-1','replace'))}>>stream\n{stream}\nendstream endobj", "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj"]
+    data = bytearray(b"%PDF-1.4\n"); offsets = [0]
+    for obj in objects: offsets.append(len(data)); data.extend(obj.encode("latin-1", "replace") + b"\n")
+    xref = len(data); data.extend(f"xref\n0 {len(objects)+1}\n0000000000 65535 f \n".encode())
+    for offset in offsets[1:]: data.extend(f"{offset:010d} 00000 n \n".encode())
+    data.extend(f"trailer<</Size {len(objects)+1}/Root 1 0 R>>\nstartxref\n{xref}\n%%EOF".encode()); return bytes(data)
