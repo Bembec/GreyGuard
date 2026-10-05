@@ -156,6 +156,11 @@ from .universal_controls import (
     authorize as authorize_capability, configure_control,
     initialize_universal_controls, list_controls, removal_plan,
 )
+from .capability_removal import (
+    begin_removal, complete_step as complete_removal_step,
+    emergency_shutdown, get_removal, initialize_capability_removal,
+    list_removals,
+)
 from .abuse_protection import (
     abuse_summary,
     check_rate_limit,
@@ -280,6 +285,7 @@ async def lifespan(_app: FastAPI):
     initialize_defensive_integrations()
     initialize_simulations()
     initialize_universal_controls()
+    initialize_capability_removal()
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
@@ -786,6 +792,20 @@ class UniversalControlRequest(BaseModel):
     global_kill_switch: bool = False
     disabled_agents: list[str] = Field(default_factory=list,max_length=100)
     integration_kill_switch: bool = False
+
+
+class CapabilityRemovalRequest(BaseModel):
+    capability: str = Field(min_length=2,max_length=100)
+    reason: str = Field(min_length=8,max_length=500)
+
+
+class RemovalStepRequest(BaseModel):
+    step_name: str = Field(min_length=3,max_length=100)
+    evidence: str = Field(min_length=5,max_length=1000)
+
+
+class EmergencyShutdownRequest(BaseModel):
+    reason: str = Field(min_length=8,max_length=500)
 
 
 class RateLimitPolicyRequest(BaseModel):
@@ -2158,6 +2178,40 @@ def update_universal_control(capability: str,payload: UniversalControlRequest,x_
 def universal_control_removal(capability: str,x_admin_pin: str | None = Header(default=None)):
     require_platform_admin(x_admin_pin)
     try:return removal_plan(capability.upper())
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.get("/capability-removals")
+def capability_removal_history(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return {"removals":list_removals(),"automatic_audit_deletion":False}
+
+
+@app.post("/capability-removals",status_code=201)
+def start_capability_removal(payload: CapabilityRemovalRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return begin_removal(payload.capability,payload.reason,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/capability-removals/actions/emergency-shutdown",status_code=202)
+def start_emergency_capability_shutdown(payload: EmergencyShutdownRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return emergency_shutdown(payload.reason,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/capability-removals/{removal_id}/steps")
+def record_capability_removal_step(removal_id: str,payload: RemovalStepRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return complete_removal_step(removal_id,payload.step_name,payload.evidence,policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except (ValueError,PermissionError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.get("/capability-removals/{removal_id}")
+def capability_removal_details(removal_id: str,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return get_removal(removal_id)
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 

@@ -85,4 +85,7 @@ describe("GreyGuard navigation", () => {
   it("restricts universal controls to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/universal-controls")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("restricts capability removal to platform administrators", () => {
+    expect(navigationItems.find((entry) => entry.path === "/capability-removals")?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });

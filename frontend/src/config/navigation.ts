@@ -167,6 +167,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Capability Removal",
+    path: "/capability-removals",
+    description: "Guided retirement, rollback and emergency shutdown",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",
