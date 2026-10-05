@@ -76,4 +76,7 @@ describe("GreyGuard navigation", () => {
   it("restricts endpoint telemetry to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/endpoint-telemetry")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("restricts defensive integrations to platform administrators", () => {
+    expect(navigationItems.find((entry) => entry.path === "/defensive-integrations")?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });

@@ -143,6 +143,11 @@ from .endpoint_telemetry import (
     initialize_endpoint_telemetry, list_collectors, register_collector,
     set_collector_enabled, uninstall_collector,
 )
+from .defensive_integrations import (
+    approve_response, create_connector, initialize_defensive_integrations,
+    list_connectors as list_browser_connectors, list_responses,
+    request_response, set_connector_enabled,
+)
 from .abuse_protection import (
     abuse_summary,
     check_rate_limit,
@@ -264,6 +269,7 @@ async def lifespan(_app: FastAPI):
     initialize_compliance_reports()
     initialize_report_governance()
     initialize_endpoint_telemetry()
+    initialize_defensive_integrations()
     initialize_abuse_protection()
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
@@ -726,6 +732,25 @@ class EndpointCollectorRequest(BaseModel):
 
 class EndpointCollectorStateRequest(BaseModel):
     enabled: bool
+
+
+class BrowserConnectorRequest(BaseModel):
+    name: str = Field(min_length=3,max_length=100)
+    owner: str = Field(min_length=3,max_length=100)
+    purpose: str = Field(min_length=5,max_length=300)
+    domains: list[str] = Field(min_length=1,max_length=50)
+    consent_reference: str = Field(min_length=6,max_length=150)
+
+
+class BrowserConnectorStateRequest(BaseModel):
+    enabled: bool
+
+
+class DefensiveResponseRequest(BaseModel):
+    action: Literal["TERMINATE_APPROVED_PROCESS","QUARANTINE_FILE","TEMPORARY_NETWORK_ISOLATION","REVOKE_CREDENTIAL","SUSPEND_AGENT","DISABLE_TOOL","DISABLE_INTEGRATION"]
+    target: str = Field(min_length=1,max_length=200)
+    reason: str = Field(min_length=5,max_length=500)
+    duration_minutes: int = Field(ge=1,le=1440)
 
 
 class RateLimitPolicyRequest(BaseModel):
@@ -2015,6 +2040,41 @@ def update_endpoint_collector(collector_id: str,payload: EndpointCollectorStateR
 def remove_endpoint_collector(collector_id: str,confirm: bool = Query(default=False),x_admin_pin: str | None = Header(default=None)):
     require_platform_admin(x_admin_pin)
     try:return uninstall_collector(collector_id,confirm)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.get("/defensive-integrations")
+def defensive_integrations_overview(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return {"browser_connectors":list_browser_connectors(),"responses":list_responses(),"disabled_by_default":True,"hack_back":False}
+
+
+@app.post("/defensive-integrations/browser-connectors",status_code=201)
+def register_browser_connector(payload: BrowserConnectorRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return create_connector(payload.name,payload.owner,payload.purpose,payload.domains,payload.consent_reference)
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.put("/defensive-integrations/browser-connectors/{connector_id}")
+def update_browser_connector(connector_id: str,payload: BrowserConnectorStateRequest,x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    try:return set_connector_enabled(connector_id,payload.enabled)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.post("/defensive-integrations/responses",status_code=201)
+def create_defensive_response(payload: DefensiveResponseRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return request_response(payload.action,payload.target,payload.reason,payload.duration_minutes,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/defensive-integrations/responses/{response_id}/approve")
+def authorize_defensive_response(response_id: str,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return approve_response(response_id,policy_actor(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
