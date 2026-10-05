@@ -5,6 +5,8 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
+  attestations: write
 jobs:
   release-images:
     runs-on: ubuntu-latest
@@ -15,6 +17,12 @@ jobs:
         with: {registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}"}
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
+        id: backend
         with: {context: ., file: deployment/backend.Dockerfile, push: true, tags: "ghcr.io/${{ github.repository_owner }}/greyguard-backend:${{ github.ref_name }}"}
       - uses: docker/build-push-action@v6
+        id: frontend
         with: {context: ., file: deployment/frontend.Dockerfile, push: true, tags: "ghcr.io/${{ github.repository_owner }}/greyguard-frontend:${{ github.ref_name }}"}
+      - uses: actions/attest-build-provenance@v2
+        with: {subject-name: "ghcr.io/${{ github.repository_owner }}/greyguard-backend", subject-digest: "${{ steps.backend.outputs.digest }}", push-to-registry: true}
+      - uses: actions/attest-build-provenance@v2
+        with: {subject-name: "ghcr.io/${{ github.repository_owner }}/greyguard-frontend", subject-digest: "${{ steps.frontend.outputs.digest }}", push-to-registry: true}
