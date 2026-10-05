@@ -175,6 +175,15 @@ from .enterprise_identity import (
 )
 from .production_config import load_production_config
 from .runtime_security import RuntimeSecurityMiddleware, readiness
+from .security_exports import (
+    DESTINATION_TYPES,
+    MINIMIZATION_PROFILES,
+    enqueue_export,
+    export_summary,
+    initialize_security_exports,
+    list_destinations,
+    save_destination,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -203,6 +212,7 @@ async def lifespan(_app: FastAPI):
     initialize_adapter_control(main.permissions.keys())
     initialize_observability()
     initialize_enterprise_identity()
+    initialize_security_exports()
 
     yield
 
@@ -499,6 +509,22 @@ class ObservabilityConfigurationRequest(BaseModel):
     structured_logs_enabled: bool
     sample_rate: float = Field(ge=0, le=1)
     retention_limit: int = Field(ge=100, le=100_000)
+
+
+class ExportDestinationRequest(BaseModel):
+    name: str = Field(min_length=3, max_length=100)
+    destination_type: Literal["SIGNED_WEBHOOK", "SPLUNK", "MICROSOFT_SENTINEL", "ELASTIC", "GRAFANA_LOKI", "SYSLOG", "STIX_TAXII"]
+    endpoint: str = Field(min_length=8, max_length=500)
+    enabled: bool = False
+    signing_key_reference: str | None = Field(default=None, max_length=128)
+    minimization_profile: Literal["MINIMAL", "STANDARD", "FORENSIC"] = "STANDARD"
+    rate_limit_per_minute: int = Field(default=60, ge=1, le=10_000)
+    max_attempts: int = Field(default=5, ge=1, le=20)
+
+
+class SecurityExportRequest(BaseModel):
+    destination_id: str
+    event: dict
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -1443,6 +1469,49 @@ def observability_traces(
 ):
     require_platform_admin(x_admin_pin)
     return otlp_export(limit)
+
+
+@app.get("/security-exports")
+def security_export_control(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    return {
+        "destinations": list_destinations(),
+        "summary": export_summary(),
+        "destination_types": sorted(DESTINATION_TYPES),
+        "minimization_profiles": sorted(MINIMIZATION_PROFILES),
+    }
+
+
+@app.post("/security-exports/destinations", status_code=201)
+def configure_security_export_destination(
+    payload: ExportDestinationRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return save_destination(
+            payload.name, payload.destination_type, payload.endpoint, payload.enabled,
+            payload.signing_key_reference, payload.minimization_profile,
+            payload.rate_limit_per_minute, payload.max_attempts, policy_actor(administrator),
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/security-exports/queue", status_code=202)
+def queue_security_export(
+    payload: SecurityExportRequest,
+    x_admin_pin: str | None = Header(default=None),
+):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return enqueue_export(payload.destination_id, payload.event, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/compliance-reports")

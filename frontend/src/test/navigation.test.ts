@@ -53,4 +53,9 @@ describe("GreyGuard navigation", () => {
     const item = navigationItems.find((entry) => entry.path === "/abuse-protection");
     expect(item?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+
+  it("restricts SIEM exports to platform administrators", () => {
+    const item = navigationItems.find((entry) => entry.path === "/security-exports");
+    expect(item?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });

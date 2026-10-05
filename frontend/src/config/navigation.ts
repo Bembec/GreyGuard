@@ -107,6 +107,12 @@ export const navigationItems: NavigationItem[] = [
     requiredRole: "PLATFORM_ADMIN",
   },
   {
+    label: "Security Exports",
+    path: "/security-exports",
+    description: "Signed SIEM delivery, queues and destination health",
+    requiredRole: "PLATFORM_ADMIN",
+  },
+  {
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",

@@ -32,6 +32,7 @@ import AgentAdaptersPage from "../pages/AgentAdaptersPage"
 import ObservabilityPage from "../pages/ObservabilityPage"
 import AccountSecurityPage from "../pages/AccountSecurityPage"
 import EnterpriseIdentityPage from "../pages/EnterpriseIdentityPage"
+import SecurityExportsPage from "../pages/SecurityExportsPage"
 
 export function AppRoutes() {
   const { isAuthenticated } = useAuth()
@@ -128,6 +129,8 @@ export function AppRoutes() {
         <Route path="/adapters" element={<AgentAdaptersPage />} />
 
         <Route path="/observability" element={<ObservabilityPage />} />
+
+        <Route path="/security-exports" element={<SecurityExportsPage />} />
 
         <Route path="/account-security" element={<AccountSecurityPage />} />
 
