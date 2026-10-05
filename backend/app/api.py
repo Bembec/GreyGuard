@@ -184,6 +184,15 @@ from .security_exports import (
     list_destinations,
     save_destination,
 )
+from .audit_integrity import (
+    apply_retention,
+    create_legal_hold,
+    get_controls as get_audit_integrity_controls,
+    initialize_audit_integrity,
+    release_legal_hold,
+    update_retention,
+    verify_integrity,
+)
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -213,6 +222,7 @@ async def lifespan(_app: FastAPI):
     initialize_observability()
     initialize_enterprise_identity()
     initialize_security_exports()
+    initialize_audit_integrity()
 
     yield
 
@@ -525,6 +535,23 @@ class ExportDestinationRequest(BaseModel):
 class SecurityExportRequest(BaseModel):
     destination_id: str
     event: dict
+
+
+class AuditRetentionRequest(BaseModel):
+    retention_days: int = Field(ge=30, le=3650)
+    immutable_enabled: bool = False
+
+
+class LegalHoldRequest(BaseModel):
+    name: str = Field(min_length=3, max_length=120)
+    reason: str = Field(min_length=12, max_length=1000)
+    agent_name: str | None = Field(default=None, max_length=100)
+    starts_at: str | None = None
+    ends_at: str | None = None
+
+
+class RetentionExecutionRequest(BaseModel):
+    confirm: bool = False
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -1512,6 +1539,46 @@ def queue_security_export(
         raise HTTPException(status_code=403, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/audit-integrity")
+def audit_integrity_controls(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin)
+    return get_audit_integrity_controls()
+
+
+@app.post("/audit-integrity/verify")
+def verify_audit_chain(x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    return verify_integrity(policy_actor(administrator))
+
+
+@app.put("/audit-integrity/retention")
+def configure_audit_retention(payload: AuditRetentionRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try: return update_retention(payload.retention_days,payload.immutable_enabled,policy_actor(administrator))
+    except PermissionError as error: raise HTTPException(status_code=409,detail=str(error)) from error
+
+
+@app.post("/audit-integrity/legal-holds",status_code=201)
+def add_audit_legal_hold(payload: LegalHoldRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try: return create_legal_hold(payload.name,payload.reason,payload.agent_name,payload.starts_at,payload.ends_at,policy_actor(administrator))
+    except ValueError as error: raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/audit-integrity/legal-holds/{hold_id}/release")
+def release_audit_legal_hold(hold_id: str,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try: return release_legal_hold(hold_id,policy_actor(administrator))
+    except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.post("/audit-integrity/apply-retention")
+def execute_audit_retention(payload: RetentionExecutionRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try: return apply_retention(policy_actor(administrator),payload.confirm)
+    except PermissionError as error: raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.get("/compliance-reports")
