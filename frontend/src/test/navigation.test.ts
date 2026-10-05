@@ -82,4 +82,7 @@ describe("GreyGuard navigation", () => {
   it("restricts the non-operational simulation lab to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/simulations")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
+  it("restricts universal controls to platform administrators", () => {
+    expect(navigationItems.find((entry) => entry.path === "/universal-controls")?.requiredRole).toBe("PLATFORM_ADMIN");
+  });
 });
