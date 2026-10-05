@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "backend_groups": {
+    "authentication_authorization": ["backend/tests/test_security_foundation.py", "backend/tests/test_enterprise_sessions.py", "backend/tests/test_enterprise_identity.py"],
+    "agent_scope_isolation": ["backend/tests/test_service_accounts.py", "backend/tests/test_global_search.py", "backend/tests/test_live_events.py"],
+    "approval_replay_race": ["backend/tests/test_policy_governance.py", "backend/tests/test_incident_integrations.py", "backend/tests/test_live_events.py"],
+    "path_symlink_sandbox": ["backend/tests/test_security_foundation.py", "backend/tests/test_execution_isolation.py", "backend/tests/test_isolation_operations.py"],
+    "redaction_rate_integrity": ["backend/tests/test_secret_integrations.py", "backend/tests/test_abuse_protection.py", "backend/tests/test_audit_integrity.py"]
+  },
+  "frontend_groups": {
+    "components": ["frontend/src/test/uxFoundation.test.ts", "frontend/src/test/navigation.test.ts"],
+    "security_workflows": ["frontend/src/test/accountSecurity.test.ts", "frontend/src/test/auditIntegrity.test.ts", "frontend/src/test/executionIsolation.test.ts", "frontend/src/test/isolationOperations.test.ts"]
+  },
+  "required_controls": ["authentication", "authorization", "cross-agent isolation", "scope boundaries", "approval bypass", "replay", "race safety", "path traversal", "symlink escape", "credential redaction", "rate limiting", "audit integrity"]
+}
