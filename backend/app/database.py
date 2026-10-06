@@ -7,7 +7,7 @@ human approvals, and execution evidence.
 """
 
 import json
-import sqlite3
+from . import db_compat as sqlite3
 from pathlib import Path
 
 

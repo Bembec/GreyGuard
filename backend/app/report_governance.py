@@ -1,6 +1,7 @@
 """Scheduling, signed manifests, control mapping, and governance reports."""
 from __future__ import annotations
-import hashlib,hmac,json,os,re,sqlite3,uuid
+import hashlib,hmac,json,os,re,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from typing import Callable
 from .database import database_path,get_administrator_audit_events

@@ -1,6 +1,7 @@
 """Fail-closed controls for predefined Docker sandbox jobs."""
 from __future__ import annotations
-import re,sqlite3,subprocess,threading,uuid
+import re,subprocess,threading,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from .database import database_path
 

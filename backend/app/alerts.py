@@ -1,7 +1,7 @@
 """Persistent defensive alert management for GreyGuard."""
 
 import json
-import sqlite3
+from . import db_compat as sqlite3
 import uuid
 from datetime import datetime
 from typing import Any

@@ -24,7 +24,7 @@ def test_restore_requires_confirmation(tmp_path):
 
 def test_postgresql_migration_inventory_is_explicit(tmp_path):
     (tmp_path/"module.py").write_text("import sqlite3\nsqlite3.connect('x')\n",encoding="utf-8")
-    result=inventory(tmp_path);assert not result["ready_for_postgresql"] and result["totals"]["direct_connect"]==1
+    result=inventory(tmp_path);assert not result["ready_for_postgresql"] and result["totals"]["stdlib_import"]==1
 
 def test_postgresql_url_validation():
     assert validate_postgresql_url("postgresql://greyguard:secret@postgres/greyguard")

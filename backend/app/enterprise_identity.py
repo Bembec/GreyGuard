@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-import sqlite3
+from . import db_compat as sqlite3
 from datetime import datetime, timedelta, timezone
 
 from .database import database_path as greyguard_database_path

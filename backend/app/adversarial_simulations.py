@@ -1,6 +1,7 @@
 """Non-operational defensive simulations with no executable side effects."""
 from __future__ import annotations
-import json,sqlite3,uuid
+import json,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from .database import database_path
 

@@ -1,6 +1,7 @@
 """Consent-bound, read-only endpoint telemetry governance and evidence."""
 from __future__ import annotations
-import json,re,sqlite3,uuid
+import json,re,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from pathlib import PurePath
 from .database import database_path

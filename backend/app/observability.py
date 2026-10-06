@@ -6,7 +6,7 @@ import json
 import logging
 import re
 import secrets
-import sqlite3
+from . import db_compat as sqlite3
 import threading
 import time
 from datetime import datetime, timezone

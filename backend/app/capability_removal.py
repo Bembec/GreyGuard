@@ -1,6 +1,7 @@
 """Audited capability removal, rollback, and emergency shutdown workflow."""
 from __future__ import annotations
-import json,sqlite3,uuid
+import json,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from .database import database_path
 STEPS=("DISABLE_INTERFACE","DISABLE_CONFIGURATION","REVOKE_CREDENTIALS","STOP_WORKERS","REMOVE_NETWORK_ACCESS","UNINSTALL_COMPONENT","MIGRATE_OR_DELETE_DATA","PRESERVE_AUDIT_EVIDENCE","ROLLBACK_DATABASE_MIGRATION","RESTORE_KNOWN_GOOD_RELEASE","VERIFY_NO_BACKGROUND_COMPONENT","ROTATE_EXPOSED_SECRETS","NOTIFY_ADMINISTRATORS","POST_REMOVAL_TESTS")

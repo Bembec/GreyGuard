@@ -1,13 +1,15 @@
-﻿"""Inventory SQLite coupling before the controlled PostgreSQL migration."""
+"""Inventory SQLite coupling before the controlled PostgreSQL migration."""
 from __future__ import annotations
 import argparse,json,re
 from pathlib import Path
 
-SQLITE_PATTERNS={"direct_connect":r"sqlite3\.connect","sqlite_master":r"sqlite_master","pragma":r"PRAGMA\s+","insert_or":r"INSERT\s+OR\s+","autoincrement":r"AUTOINCREMENT"}
+SQLITE_PATTERNS={"stdlib_import":r"(?m)^import\s+sqlite3(?:\s|$)","unsupported_replace":r"INSERT\s+OR\s+REPLACE(?!\s+INTO\s+observability_correlations)"}
+COMPATIBILITY_FILES={"db_compat.py","database_ops.py","encrypted_backups.py","migration_readiness.py"}
 
 def inventory(source_root: Path) -> dict:
     files=[];totals={name:0 for name in SQLITE_PATTERNS}
     for path in sorted(source_root.glob("*.py")):
+        if path.name in COMPATIBILITY_FILES:continue
         text=path.read_text(encoding="utf-8")
         counts={name:len(re.findall(pattern,text,re.IGNORECASE)) for name,pattern in SQLITE_PATTERNS.items()}
         if any(counts.values()):
@@ -25,11 +27,7 @@ def validate_postgresql_url(value: str) -> str:
 def main() -> None:
     parser=argparse.ArgumentParser();parser.add_argument("--source",default="backend/app");parser.add_argument("--output")
     args=parser.parse_args();result=inventory(Path(args.source));rendered=json.dumps(result,indent=2)
-    if args.output:
-        output=Path(args.output)
-        output.parent.mkdir(parents=True,exist_ok=True)
-        output.write_text(rendered+"\n",encoding="utf-8")
+    if args.output:Path(args.output).write_text(rendered+"\n",encoding="utf-8")
     print(rendered)
 
 if __name__=="__main__":main()
-

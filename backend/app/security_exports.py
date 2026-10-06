@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 import os
-import sqlite3
+from . import db_compat as sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 

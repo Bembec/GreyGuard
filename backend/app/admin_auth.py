@@ -6,7 +6,7 @@ import hmac
 import json
 import os
 import secrets
-import sqlite3
+from . import db_compat as sqlite3
 import base64
 import struct
 from datetime import datetime, timedelta, timezone

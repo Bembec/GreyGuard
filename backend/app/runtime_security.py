@@ -1,6 +1,6 @@
 """Production HTTP hardening and readiness checks."""
 from __future__ import annotations
-import sqlite3
+from . import db_compat as sqlite3
 from starlette.responses import JSONResponse
 from .database import database_path
 

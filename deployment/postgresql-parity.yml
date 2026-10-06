@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment: {POSTGRES_DB: greyguard, POSTGRES_USER: greyguard, POSTGRES_PASSWORD: parity-only-password}
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U greyguard -d greyguard"], interval: 5s, timeout: 3s, retries: 20}
+    tmpfs: [/var/lib/postgresql/data]
+  parity:
+    build: {context: .., dockerfile: deployment/postgresql-parity.Dockerfile}
+    environment:
+      GREYGUARD_ENV: test
+      GREYGUARD_DATABASE_URL: postgresql://greyguard:parity-only-password@postgres/greyguard
+      GREYGUARD_BOOTSTRAP_EMAIL: parity@example.com
+      GREYGUARD_BOOTSTRAP_PASSWORD: ParityOnlyPassword123!
+      GREYGUARD_ALLOWED_ORIGINS: http://localhost
+      GREYGUARD_TRUSTED_HOSTS: localhost,testserver
+    depends_on: {postgres: {condition: service_healthy}}
+    command: ["sh", "-c", "python scripts/initialize_database_backend.py && python scripts/verify_postgresql_parity.py"]

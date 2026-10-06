@@ -1,5 +1,6 @@
 """Governed external notification delivery with quiet hours and evidence."""
-import hashlib,json,sqlite3,uuid
+import hashlib,json,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timedelta,timezone
 from .database import database_path
 from .observability import redact

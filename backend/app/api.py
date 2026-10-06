@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 import hashlib
 import hmac
 import os
-import sqlite3
+from . import db_compat as sqlite3
 from typing import Literal
 
 from fastapi import (

@@ -1,6 +1,7 @@
 """Universal Tier 2/3 administrator capability controls and fail-closed gate."""
 from __future__ import annotations
-import json,sqlite3,uuid
+import json,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timedelta,timezone
 from .database import database_path
 CAPABILITIES=("EXECUTION_ISOLATION","ENDPOINT_TELEMETRY","DEFENSIVE_RESPONSE","BROWSER_CONNECTOR","SIMULATION_LAB")

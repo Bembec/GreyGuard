@@ -1,4 +1,4 @@
-"""
+﻿"""
 GreyGuard V10 controlled tool gateway.
 
 The gateway performs a small set of safe operations only.
@@ -6,7 +6,7 @@ It never provides unrestricted terminal, filesystem, or
 network access.
 """
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 backend_path = Path(__file__).resolve().parents[1]
@@ -127,7 +127,12 @@ def normalize_target(target):
 
     target_path = Path(target)
 
-    if target_path.is_absolute():
+    if (
+        target_path.is_absolute()
+        or PurePosixPath(target).is_absolute()
+        or PureWindowsPath(target).is_absolute()
+        or PureWindowsPath(target).drive
+    ):
         raise ToolGatewayError(
             "Absolute paths are not permitted."
         )

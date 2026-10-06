@@ -1,6 +1,7 @@
 """Per-agent workspaces, quarantine, network policy, and Kubernetes job controls."""
 from __future__ import annotations
-import hashlib,json,re,shutil,sqlite3,uuid
+import hashlib,json,re,shutil,uuid
+from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from pathlib import Path
 from .database import database_path

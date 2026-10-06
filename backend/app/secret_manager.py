@@ -1,7 +1,7 @@
 """Secret references, just-in-time retrieval, redaction, and revocation."""
 import os
 import re
-import sqlite3
+from . import db_compat as sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 from .database import database_path
