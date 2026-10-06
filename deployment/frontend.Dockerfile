@@ -1,14 +1,16 @@
-﻿FROM node:22-alpine AS build
-WORKDIR /app
-COPY frontend/package*.json ./frontend/
+FROM node:22-alpine AS build
 WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
 RUN npm ci
-WORKDIR /app
-COPY frontend ./frontend
-COPY sdk/javascript ./sdk/javascript
-WORKDIR /app/frontend
+
+COPY frontend ./
+COPY sdk/javascript /app/sdk/javascript
+
 RUN npm run build
-FROM nginx:1.27-alpine
+
+FROM nginx:1.31.6-alpine3.24-slim
 COPY deployment/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
-EXPOSE 80
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz

@@ -85,7 +85,7 @@
     {
       "type": "library",
       "name": "cryptography",
-      "version": "46,<47",
+      "version": "50,<51",
       "purl": "pkg:pypi/cryptography"
     },
     {
