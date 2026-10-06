@@ -48,7 +48,7 @@ services:
     tmpfs: ["/var/cache/nginx", "/var/run"]
     depends_on: [backend]
     ports: ["127.0.0.1:8080:8080"]
-    networks: [greyguard-internal]
+    networks: [greyguard-internal, greyguard-edge]
   sandbox-runner:
     profiles: ["sandbox"]
     build:
@@ -73,3 +73,4 @@ volumes:
 networks:
   greyguard-internal:
     internal: true
+  greyguard-edge:

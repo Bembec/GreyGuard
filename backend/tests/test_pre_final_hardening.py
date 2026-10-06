@@ -1,4 +1,4 @@
-from scripts import benchmark_greyguard, migrate_sqlite_to_postgresql
+from scripts import benchmark_greyguard, migrate_sqlite_to_postgresql, rehearse_production
 
 
 def test_migration_digest_is_order_independent_and_binary_safe():
@@ -22,3 +22,20 @@ def test_percentile_reports_tail_latency():
     assert benchmark_greyguard.percentile(values, 0.5) == 2
     assert benchmark_greyguard.percentile(values, 0.95) == 4
 
+
+def test_production_probe_retries_until_healthy(monkeypatch):
+    attempts = iter([OSError("starting"), type("Response", (), {"status": 200})()])
+
+    class Context:
+        def __enter__(self):
+            result = next(attempts)
+            if isinstance(result, Exception):
+                raise result
+            return result
+
+        def __exit__(self, *_):
+            return False
+
+    monkeypatch.setattr(rehearse_production.urllib.request, "urlopen", lambda *_args, **_kwargs: Context())
+    monkeypatch.setattr(rehearse_production.time, "sleep", lambda *_: None)
+    assert rehearse_production.probe("http://example.test", attempts=2) == 200

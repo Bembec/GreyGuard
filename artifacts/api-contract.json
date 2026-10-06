@@ -1,0 +1,832 @@
+{
+  "api_version": "1",
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/",
+      "operation_id": "home__get"
+    },
+    {
+      "method": "GET",
+      "path": "/abuse-protection",
+      "operation_id": "abuse_protection_overview_abuse_protection_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/abuse-protection/policies/{category}",
+      "operation_id": "administrator_update_rate_limit_policy_abuse_protection_policies__category__put"
+    },
+    {
+      "method": "POST",
+      "path": "/actions/evaluate",
+      "operation_id": "evaluate_action_actions_evaluate_post"
+    },
+    {
+      "method": "POST",
+      "path": "/adapter-requests/{adapter_id}",
+      "operation_id": "create_adapter_request_adapter_requests__adapter_id__post"
+    },
+    {
+      "method": "GET",
+      "path": "/adapters",
+      "operation_id": "administrator_adapters_adapters_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/adapters/{adapter_id}",
+      "operation_id": "administrator_configure_adapter_adapters__adapter_id__put"
+    },
+    {
+      "method": "POST",
+      "path": "/adapters/{adapter_id}/test",
+      "operation_id": "administrator_test_adapter_adapters__adapter_id__test_post"
+    },
+    {
+      "method": "GET",
+      "path": "/administrators",
+      "operation_id": "administrators_administrators_get"
+    },
+    {
+      "method": "POST",
+      "path": "/administrators",
+      "operation_id": "register_administrator_administrators_post"
+    },
+    {
+      "method": "PUT",
+      "path": "/administrators/{admin_id}",
+      "operation_id": "edit_administrator_administrators__admin_id__put"
+    },
+    {
+      "method": "POST",
+      "path": "/administrators/{admin_id}/password",
+      "operation_id": "reset_admin_password_administrators__admin_id__password_post"
+    },
+    {
+      "method": "POST",
+      "path": "/administrators/{admin_id}/sessions/revoke",
+      "operation_id": "revoke_admin_sessions_administrators__admin_id__sessions_revoke_post"
+    },
+    {
+      "method": "GET",
+      "path": "/agent-investigations/{agent_name}",
+      "operation_id": "agent_investigation_agent_investigations__agent_name__get"
+    },
+    {
+      "method": "GET",
+      "path": "/agents",
+      "operation_id": "list_agents_agents_get"
+    },
+    {
+      "method": "POST",
+      "path": "/agents",
+      "operation_id": "register_agent_identity_agents_post"
+    },
+    {
+      "method": "GET",
+      "path": "/agents/{agent_name}",
+      "operation_id": "get_agent_agents__agent_name__get"
+    },
+    {
+      "method": "GET",
+      "path": "/agents/{agent_name}/audit",
+      "operation_id": "recent_audit_events_agents__agent_name__audit_get"
+    },
+    {
+      "method": "GET",
+      "path": "/agents/{agent_name}/authentication-events",
+      "operation_id": "authentication_events_agents__agent_name__authentication_events_get"
+    },
+    {
+      "method": "POST",
+      "path": "/agents/{agent_name}/credential/revoke",
+      "operation_id": "revoke_credential_agents__agent_name__credential_revoke_post"
+    },
+    {
+      "method": "POST",
+      "path": "/agents/{agent_name}/credential/rotate",
+      "operation_id": "rotate_credential_agents__agent_name__credential_rotate_post"
+    },
+    {
+      "method": "POST",
+      "path": "/agents/{agent_name}/reset",
+      "operation_id": "reset_agent_agents__agent_name__reset_post"
+    },
+    {
+      "method": "PUT",
+      "path": "/agents/{agent_name}/scopes",
+      "operation_id": "update_agent_scopes_agents__agent_name__scopes_put"
+    },
+    {
+      "method": "GET",
+      "path": "/agents/{agent_name}/summary",
+      "operation_id": "audit_summary_agents__agent_name__summary_get"
+    },
+    {
+      "method": "GET",
+      "path": "/alerts",
+      "operation_id": "administrator_alerts_alerts_get"
+    },
+    {
+      "method": "GET",
+      "path": "/alerts/summary",
+      "operation_id": "administrator_alert_summary_alerts_summary_get"
+    },
+    {
+      "method": "GET",
+      "path": "/alerts/{alert_id}",
+      "operation_id": "administrator_alert_alerts__alert_id__get"
+    },
+    {
+      "method": "PUT",
+      "path": "/alerts/{alert_id}",
+      "operation_id": "administrator_update_alert_alerts__alert_id__put"
+    },
+    {
+      "method": "POST",
+      "path": "/alerts/{alert_id}/notes",
+      "operation_id": "administrator_add_alert_note_alerts__alert_id__notes_post"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/health",
+      "operation_id": "versioned_health_api_v1_health_get"
+    },
+    {
+      "method": "GET",
+      "path": "/api/version",
+      "operation_id": "api_version_api_version_get"
+    },
+    {
+      "method": "GET",
+      "path": "/audit-events",
+      "operation_id": "administrator_audit_events_audit_events_get"
+    },
+    {
+      "method": "GET",
+      "path": "/audit-integrity",
+      "operation_id": "audit_integrity_controls_audit_integrity_get"
+    },
+    {
+      "method": "POST",
+      "path": "/audit-integrity/apply-retention",
+      "operation_id": "execute_audit_retention_audit_integrity_apply_retention_post"
+    },
+    {
+      "method": "POST",
+      "path": "/audit-integrity/legal-holds",
+      "operation_id": "add_audit_legal_hold_audit_integrity_legal_holds_post"
+    },
+    {
+      "method": "POST",
+      "path": "/audit-integrity/legal-holds/{hold_id}/release",
+      "operation_id": "release_audit_legal_hold_audit_integrity_legal_holds__hold_id__release_post"
+    },
+    {
+      "method": "PUT",
+      "path": "/audit-integrity/retention",
+      "operation_id": "configure_audit_retention_audit_integrity_retention_put"
+    },
+    {
+      "method": "POST",
+      "path": "/audit-integrity/verify",
+      "operation_id": "verify_audit_chain_audit_integrity_verify_post"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/login",
+      "operation_id": "administrator_login_auth_login_post"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "operation_id": "administrator_logout_auth_logout_post"
+    },
+    {
+      "method": "GET",
+      "path": "/auth/me",
+      "operation_id": "current_administrator_auth_me_get"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/mfa/confirm",
+      "operation_id": "administrator_mfa_confirm_auth_mfa_confirm_post"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/mfa/enroll",
+      "operation_id": "administrator_mfa_enroll_auth_mfa_enroll_post"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/refresh",
+      "operation_id": "administrator_refresh_auth_refresh_post"
+    },
+    {
+      "method": "GET",
+      "path": "/auth/sessions",
+      "operation_id": "administrator_sessions_auth_sessions_get"
+    },
+    {
+      "method": "DELETE",
+      "path": "/auth/sessions/{session_id}",
+      "operation_id": "administrator_revoke_session_auth_sessions__session_id__delete"
+    },
+    {
+      "method": "GET",
+      "path": "/capability-removals",
+      "operation_id": "capability_removal_history_capability_removals_get"
+    },
+    {
+      "method": "POST",
+      "path": "/capability-removals",
+      "operation_id": "start_capability_removal_capability_removals_post"
+    },
+    {
+      "method": "POST",
+      "path": "/capability-removals/actions/emergency-shutdown",
+      "operation_id": "start_emergency_capability_shutdown_capability_removals_actions_emergency_shutdown_post"
+    },
+    {
+      "method": "GET",
+      "path": "/capability-removals/{removal_id}",
+      "operation_id": "capability_removal_details_capability_removals__removal_id__get"
+    },
+    {
+      "method": "POST",
+      "path": "/capability-removals/{removal_id}/steps",
+      "operation_id": "record_capability_removal_step_capability_removals__removal_id__steps_post"
+    },
+    {
+      "method": "GET",
+      "path": "/compliance-reports",
+      "operation_id": "compliance_report_history_compliance_reports_get"
+    },
+    {
+      "method": "POST",
+      "path": "/compliance-reports",
+      "operation_id": "generate_compliance_report_compliance_reports_post"
+    },
+    {
+      "method": "GET",
+      "path": "/compliance-reports/{report_id}",
+      "operation_id": "compliance_report_details_compliance_reports__report_id__get"
+    },
+    {
+      "method": "GET",
+      "path": "/compliance-reports/{report_id}/evidence-catalog",
+      "operation_id": "compliance_evidence_catalog_compliance_reports__report_id__evidence_catalog_get"
+    },
+    {
+      "method": "GET",
+      "path": "/compliance-reports/{report_id}/export",
+      "operation_id": "export_compliance_report_compliance_reports__report_id__export_get"
+    },
+    {
+      "method": "GET",
+      "path": "/compliance-reports/{report_id}/signed-manifest",
+      "operation_id": "report_signed_manifest_compliance_reports__report_id__signed_manifest_get"
+    },
+    {
+      "method": "GET",
+      "path": "/defensive-integrations",
+      "operation_id": "defensive_integrations_overview_defensive_integrations_get"
+    },
+    {
+      "method": "POST",
+      "path": "/defensive-integrations/browser-connectors",
+      "operation_id": "register_browser_connector_defensive_integrations_browser_connectors_post"
+    },
+    {
+      "method": "PUT",
+      "path": "/defensive-integrations/browser-connectors/{connector_id}",
+      "operation_id": "update_browser_connector_defensive_integrations_browser_connectors__connector_id__put"
+    },
+    {
+      "method": "POST",
+      "path": "/defensive-integrations/responses",
+      "operation_id": "create_defensive_response_defensive_integrations_responses_post"
+    },
+    {
+      "method": "POST",
+      "path": "/defensive-integrations/responses/{response_id}/approve",
+      "operation_id": "authorize_defensive_response_defensive_integrations_responses__response_id__approve_post"
+    },
+    {
+      "method": "GET",
+      "path": "/endpoint-telemetry",
+      "operation_id": "endpoint_telemetry_overview_endpoint_telemetry_get"
+    },
+    {
+      "method": "POST",
+      "path": "/endpoint-telemetry/collectors",
+      "operation_id": "create_endpoint_collector_endpoint_telemetry_collectors_post"
+    },
+    {
+      "method": "DELETE",
+      "path": "/endpoint-telemetry/collectors/{collector_id}",
+      "operation_id": "remove_endpoint_collector_endpoint_telemetry_collectors__collector_id__delete"
+    },
+    {
+      "method": "PUT",
+      "path": "/endpoint-telemetry/collectors/{collector_id}",
+      "operation_id": "update_endpoint_collector_endpoint_telemetry_collectors__collector_id__put"
+    },
+    {
+      "method": "GET",
+      "path": "/enterprise-identity",
+      "operation_id": "enterprise_identity_overview_enterprise_identity_get"
+    },
+    {
+      "method": "POST",
+      "path": "/enterprise-identity/break-glass",
+      "operation_id": "emergency_identity_activation_enterprise_identity_break_glass_post"
+    },
+    {
+      "method": "POST",
+      "path": "/enterprise-identity/elevations",
+      "operation_id": "create_elevation_request_enterprise_identity_elevations_post"
+    },
+    {
+      "method": "POST",
+      "path": "/enterprise-identity/elevations/{elevation_id}/decision",
+      "operation_id": "review_elevation_request_enterprise_identity_elevations__elevation_id__decision_post"
+    },
+    {
+      "method": "POST",
+      "path": "/enterprise-identity/mappings",
+      "operation_id": "configure_identity_mapping_enterprise_identity_mappings_post"
+    },
+    {
+      "method": "POST",
+      "path": "/enterprise-identity/providers",
+      "operation_id": "configure_identity_provider_enterprise_identity_providers_post"
+    },
+    {
+      "method": "POST",
+      "path": "/enterprise-identity/workloads",
+      "operation_id": "register_workload_identity_enterprise_identity_workloads_post"
+    },
+    {
+      "method": "GET",
+      "path": "/execution-isolation",
+      "operation_id": "execution_isolation_controls_execution_isolation_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/execution-isolation",
+      "operation_id": "configure_execution_isolation_execution_isolation_put"
+    },
+    {
+      "method": "POST",
+      "path": "/execution-isolation/emergency-terminate",
+      "operation_id": "terminate_isolated_jobs_execution_isolation_emergency_terminate_post"
+    },
+    {
+      "method": "POST",
+      "path": "/execution-isolation/jobs",
+      "operation_id": "execute_isolated_job_execution_isolation_jobs_post"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "operation_id": "health_health_get"
+    },
+    {
+      "method": "GET",
+      "path": "/incident-integrations",
+      "operation_id": "incident_integration_configuration_incident_integrations_get"
+    },
+    {
+      "method": "POST",
+      "path": "/incident-integrations/approval-links",
+      "operation_id": "issue_expiring_approval_link_incident_integrations_approval_links_post"
+    },
+    {
+      "method": "POST",
+      "path": "/incident-integrations/approval-links/consume",
+      "operation_id": "use_expiring_approval_link_incident_integrations_approval_links_consume_post"
+    },
+    {
+      "method": "POST",
+      "path": "/incident-integrations/callbacks",
+      "operation_id": "receive_signed_incident_callback_incident_integrations_callbacks_post"
+    },
+    {
+      "method": "POST",
+      "path": "/incident-integrations/destinations",
+      "operation_id": "configure_incident_destination_incident_integrations_destinations_post"
+    },
+    {
+      "method": "POST",
+      "path": "/incident-integrations/incidents",
+      "operation_id": "create_external_incident_incident_integrations_incidents_post"
+    },
+    {
+      "method": "GET",
+      "path": "/isolation-operations",
+      "operation_id": "isolation_operations_control_isolation_operations_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/isolation-operations",
+      "operation_id": "configure_isolation_operations_isolation_operations_put"
+    },
+    {
+      "method": "POST",
+      "path": "/isolation-operations/kubernetes-manifest",
+      "operation_id": "create_kubernetes_isolated_job_isolation_operations_kubernetes_manifest_post"
+    },
+    {
+      "method": "POST",
+      "path": "/isolation-operations/workspaces",
+      "operation_id": "create_isolated_agent_workspace_isolation_operations_workspaces_post"
+    },
+    {
+      "method": "DELETE",
+      "path": "/isolation-operations/workspaces/{workspace_id}",
+      "operation_id": "destroy_isolated_agent_workspace_isolation_operations_workspaces__workspace_id__delete"
+    },
+    {
+      "method": "GET",
+      "path": "/live-events",
+      "operation_id": "live_administrator_events_live_events_get"
+    },
+    {
+      "method": "GET",
+      "path": "/notification-delivery",
+      "operation_id": "notification_delivery_controls_notification_delivery_get"
+    },
+    {
+      "method": "POST",
+      "path": "/notification-delivery/destinations",
+      "operation_id": "configure_notification_destination_notification_delivery_destinations_post"
+    },
+    {
+      "method": "POST",
+      "path": "/notification-delivery/queue",
+      "operation_id": "queue_external_notification_notification_delivery_queue_post"
+    },
+    {
+      "method": "POST",
+      "path": "/notification-delivery/templates",
+      "operation_id": "configure_notification_template_notification_delivery_templates_post"
+    },
+    {
+      "method": "GET",
+      "path": "/notifications",
+      "operation_id": "administrator_notifications_notifications_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/notifications/read-all",
+      "operation_id": "administrator_read_all_notifications_notifications_read_all_put"
+    },
+    {
+      "method": "GET",
+      "path": "/notifications/retention",
+      "operation_id": "administrator_notification_retention_notifications_retention_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/notifications/retention",
+      "operation_id": "administrator_update_notification_retention_notifications_retention_put"
+    },
+    {
+      "method": "POST",
+      "path": "/notifications/retention/cleanup",
+      "operation_id": "administrator_cleanup_notifications_notifications_retention_cleanup_post"
+    },
+    {
+      "method": "GET",
+      "path": "/notifications/summary",
+      "operation_id": "administrator_notification_summary_notifications_summary_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/notifications/{notification_id}/read",
+      "operation_id": "administrator_read_notification_notifications__notification_id__read_put"
+    },
+    {
+      "method": "GET",
+      "path": "/observability/config",
+      "operation_id": "observability_configuration_observability_config_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/observability/config",
+      "operation_id": "configure_observability_observability_config_put"
+    },
+    {
+      "method": "GET",
+      "path": "/observability/metrics",
+      "operation_id": "observability_metrics_observability_metrics_get"
+    },
+    {
+      "method": "GET",
+      "path": "/observability/traces",
+      "operation_id": "observability_traces_observability_traces_get"
+    },
+    {
+      "method": "GET",
+      "path": "/permissions",
+      "operation_id": "permissions_permissions_get"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-adapters",
+      "operation_id": "policy_adapters_policy_adapters_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/policy-adapters/{adapter_type}",
+      "operation_id": "update_policy_adapter_policy_adapters__adapter_type__put"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-bundles/verify",
+      "operation_id": "verify_policy_bundle_policy_bundles_verify_post"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-emergency-controls",
+      "operation_id": "policy_emergency_control_state_policy_emergency_controls_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/policy-emergency-controls",
+      "operation_id": "configure_policy_emergency_controls_policy_emergency_controls_put"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-rollouts",
+      "operation_id": "policy_rollouts_policy_rollouts_get"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-rollouts",
+      "operation_id": "create_policy_rollout_policy_rollouts_post"
+    },
+    {
+      "method": "PUT",
+      "path": "/policy-rollouts/{rollout_id}",
+      "operation_id": "change_policy_rollout_policy_rollouts__rollout_id__put"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-versions",
+      "operation_id": "policy_versions_policy_versions_get"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/drafts",
+      "operation_id": "create_policy_version_draft_policy_versions_drafts_post"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-versions/{policy_id}",
+      "operation_id": "policy_version_policy_versions__policy_id__get"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/{policy_id}/approve",
+      "operation_id": "approve_policy_version_policy_versions__policy_id__approve_post"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-versions/{policy_id}/bundle",
+      "operation_id": "signed_policy_bundle_policy_versions__policy_id__bundle_get"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-versions/{policy_id}/conflicts",
+      "operation_id": "policy_version_conflicts_policy_versions__policy_id__conflicts_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/policy-versions/{policy_id}/draft",
+      "operation_id": "update_policy_version_draft_policy_versions__policy_id__draft_put"
+    },
+    {
+      "method": "GET",
+      "path": "/policy-versions/{policy_id}/history",
+      "operation_id": "policy_version_history_policy_versions__policy_id__history_get"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/{policy_id}/reject",
+      "operation_id": "reject_policy_version_policy_versions__policy_id__reject_post"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/{policy_id}/rollback",
+      "operation_id": "rollback_policy_version_policy_versions__policy_id__rollback_post"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/{policy_id}/simulate",
+      "operation_id": "simulate_policy_version_policy_versions__policy_id__simulate_post"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/{policy_id}/submit",
+      "operation_id": "submit_policy_version_policy_versions__policy_id__submit_post"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/{policy_id}/tests",
+      "operation_id": "create_policy_test_policy_versions__policy_id__tests_post"
+    },
+    {
+      "method": "POST",
+      "path": "/policy-versions/{policy_id}/tests/run",
+      "operation_id": "execute_policy_tests_policy_versions__policy_id__tests_run_post"
+    },
+    {
+      "method": "GET",
+      "path": "/report-governance",
+      "operation_id": "report_governance_overview_report_governance_get"
+    },
+    {
+      "method": "GET",
+      "path": "/report-governance/administrator-actions",
+      "operation_id": "governance_administrator_actions_report_governance_administrator_actions_get"
+    },
+    {
+      "method": "POST",
+      "path": "/report-governance/postmortems",
+      "operation_id": "generate_postmortem_template_report_governance_postmortems_post"
+    },
+    {
+      "method": "POST",
+      "path": "/report-governance/schedules",
+      "operation_id": "schedule_security_report_report_governance_schedules_post"
+    },
+    {
+      "method": "DELETE",
+      "path": "/report-governance/schedules/{schedule_id}",
+      "operation_id": "remove_report_schedule_report_governance_schedules__schedule_id__delete"
+    },
+    {
+      "method": "GET",
+      "path": "/request-investigations/{request_id}",
+      "operation_id": "request_investigation_request_investigations__request_id__get"
+    },
+    {
+      "method": "GET",
+      "path": "/sandbox/resources",
+      "operation_id": "sandbox_resources_sandbox_resources_get"
+    },
+    {
+      "method": "GET",
+      "path": "/search",
+      "operation_id": "global_search_search_get"
+    },
+    {
+      "method": "GET",
+      "path": "/secret-events",
+      "operation_id": "secret_access_evidence_secret_events_get"
+    },
+    {
+      "method": "GET",
+      "path": "/secrets",
+      "operation_id": "secret_references_secrets_get"
+    },
+    {
+      "method": "POST",
+      "path": "/secrets",
+      "operation_id": "create_secret_reference_secrets_post"
+    },
+    {
+      "method": "POST",
+      "path": "/secrets/emergency-revoke",
+      "operation_id": "emergency_secret_revocation_secrets_emergency_revoke_post"
+    },
+    {
+      "method": "POST",
+      "path": "/secrets/{secret_id}/revoke",
+      "operation_id": "revoke_secret_reference_secrets__secret_id__revoke_post"
+    },
+    {
+      "method": "POST",
+      "path": "/secrets/{secret_id}/rotate",
+      "operation_id": "rotate_secret_reference_secrets__secret_id__rotate_post"
+    },
+    {
+      "method": "GET",
+      "path": "/security-exports",
+      "operation_id": "security_export_control_security_exports_get"
+    },
+    {
+      "method": "POST",
+      "path": "/security-exports/destinations",
+      "operation_id": "configure_security_export_destination_security_exports_destinations_post"
+    },
+    {
+      "method": "POST",
+      "path": "/security-exports/queue",
+      "operation_id": "queue_security_export_security_exports_queue_post"
+    },
+    {
+      "method": "GET",
+      "path": "/service-accounts",
+      "operation_id": "administrator_service_accounts_service_accounts_get"
+    },
+    {
+      "method": "POST",
+      "path": "/service-accounts",
+      "operation_id": "administrator_create_service_account_service_accounts_post"
+    },
+    {
+      "method": "POST",
+      "path": "/service-accounts/verify",
+      "operation_id": "verify_service_account_key_service_accounts_verify_post"
+    },
+    {
+      "method": "POST",
+      "path": "/service-accounts/{account_id}/revoke",
+      "operation_id": "administrator_revoke_service_account_service_accounts__account_id__revoke_post"
+    },
+    {
+      "method": "POST",
+      "path": "/service-accounts/{account_id}/rotate",
+      "operation_id": "administrator_rotate_service_account_key_service_accounts__account_id__rotate_post"
+    },
+    {
+      "method": "GET",
+      "path": "/simulations",
+      "operation_id": "simulation_lab_overview_simulations_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/simulations",
+      "operation_id": "update_simulation_lab_simulations_put"
+    },
+    {
+      "method": "POST",
+      "path": "/simulations/run",
+      "operation_id": "execute_safe_simulation_simulations_run_post"
+    },
+    {
+      "method": "GET",
+      "path": "/simulations/{run_id}/assessment",
+      "operation_id": "simulation_assessment_simulations__run_id__assessment_get"
+    },
+    {
+      "method": "GET",
+      "path": "/threat-register",
+      "operation_id": "threat_register_overview_threat_register_get"
+    },
+    {
+      "method": "GET",
+      "path": "/threat-register/{threat_id}",
+      "operation_id": "threat_register_record_threat_register__threat_id__get"
+    },
+    {
+      "method": "PUT",
+      "path": "/threat-register/{threat_id}",
+      "operation_id": "revise_threat_register_record_threat_register__threat_id__put"
+    },
+    {
+      "method": "GET",
+      "path": "/tool-requests",
+      "operation_id": "list_tool_requests_tool_requests_get"
+    },
+    {
+      "method": "POST",
+      "path": "/tool-requests",
+      "operation_id": "create_tool_request_tool_requests_post"
+    },
+    {
+      "method": "GET",
+      "path": "/tool-requests/{request_id}",
+      "operation_id": "get_tool_request_tool_requests__request_id__get"
+    },
+    {
+      "method": "POST",
+      "path": "/tool-requests/{request_id}/decision",
+      "operation_id": "review_tool_request_tool_requests__request_id__decision_post"
+    },
+    {
+      "method": "GET",
+      "path": "/tools",
+      "operation_id": "tools_tools_get"
+    },
+    {
+      "method": "GET",
+      "path": "/universal-controls",
+      "operation_id": "universal_control_overview_universal_controls_get"
+    },
+    {
+      "method": "PUT",
+      "path": "/universal-controls/{capability}",
+      "operation_id": "update_universal_control_universal_controls__capability__put"
+    },
+    {
+      "method": "GET",
+      "path": "/universal-controls/{capability}/removal-plan",
+      "operation_id": "universal_control_removal_universal_controls__capability__removal_plan_get"
+    }
+  ],
+  "operation_count": 165,
+  "sha256": "b203bbcc8631f2631047bddf705626156398f56745ef2921a5f1f60060c1d09e"
+}

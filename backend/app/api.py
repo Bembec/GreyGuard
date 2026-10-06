@@ -30,6 +30,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
 from . import main
+from .api_versioning import install_api_versioning
 from .admin_auth import (
     authenticate as authenticate_administrator,
     begin_mfa_enrollment,
@@ -315,6 +316,8 @@ app = FastAPI(
     ),
     version="10.0",
 )
+
+install_api_versioning(app)
 
 runtime_config = load_production_config()
 app.add_middleware(RuntimeSecurityMiddleware, production=runtime_config.environment == "production")

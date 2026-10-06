@@ -1,0 +1,8 @@
+{
+  "started_at": "2026-10-06T11:15:24.145983+00:00",
+  "project": "greyguard-clean-rehearsal",
+  "frontend_health_status": 200,
+  "api_health_status": 200,
+  "passed": true,
+  "completed_at": "2026-10-06T11:18:43.753910+00:00"
+}
