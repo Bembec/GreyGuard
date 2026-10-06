@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: greyguard
+      POSTGRES_USER: greyguard
+      POSTGRES_PASSWORD: rehearsal-only-password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greyguard -d greyguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  rehearsal:
+    build:
+      context: ..
+      dockerfile: deployment/postgresql-parity.Dockerfile
+    environment:
+      GREYGUARD_ENV: test
+      GREYGUARD_DATABASE_URL: postgresql://greyguard:rehearsal-only-password@postgres/greyguard
+      GREYGUARD_BOOTSTRAP_EMAIL: rehearsal@example.com
+      GREYGUARD_BOOTSTRAP_PASSWORD: RehearsalOnlyPassword123!
+      GREYGUARD_ALLOWED_ORIGINS: http://localhost
+      GREYGUARD_TRUSTED_HOSTS: localhost,testserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../artifacts:/app/artifacts
+    command:
+      - sh
+      - -c
+      - >-
+        rm -f backend/data/greyguard.db &&
+        GREYGUARD_DATABASE_URL= python scripts/initialize_database_backend.py &&
+        python scripts/initialize_database_backend.py &&
+        python scripts/migrate_sqlite_to_postgresql.py
+        --source backend/data/greyguard.db
+        --database-url "$${GREYGUARD_DATABASE_URL}"
+        --backup artifacts/rehearsal-source-backup.db
+        --evidence artifacts/postgresql-migration-evidence.json
+        --confirm &&
+        python scripts/verify_postgresql_parity.py
