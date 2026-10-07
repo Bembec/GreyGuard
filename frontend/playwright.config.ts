@@ -6,7 +6,7 @@ process.env.GREYGUARD_E2E_EMAIL ??= "e2e-admin@example.com"
 process.env.GREYGUARD_E2E_PASSWORD ??= randomBytes(24).toString("base64url")
 
 export default defineConfig({
- testDir:"./e2e",fullyParallel:false,workers:1,retries:1,reporter:"list",
+ testDir:"./e2e",fullyParallel:false,workers:1,retries:1,reporter:[["list"],["json",{outputFile:"test-results/e2e-results.json"}]],
  use:{baseURL:"http://127.0.0.1:4173",trace:"retain-on-failure"},
  webServer:[
   // Never reuse a running backend: the tests must not write into a real database.
