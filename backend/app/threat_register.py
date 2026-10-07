@@ -6,6 +6,7 @@ from . import db_compat as sqlite3
 from datetime import date, datetime, timezone
 
 from .database import database_path
+from .threat_assessments import ASSESSMENTS
 
 THREATS = (
     "CREDENTIAL_THEFT", "CREDENTIAL_REPLAY", "TOKEN_REUSE", "SCOPE_ESCALATION",
@@ -45,13 +46,21 @@ def initialize_threat_register() -> None:
             history_id INTEGER PRIMARY KEY AUTOINCREMENT, threat_id TEXT NOT NULL,
             changed_at TEXT NOT NULL, changed_by TEXT NOT NULL, snapshot_json TEXT NOT NULL)""")
         for threat_id in THREATS:
+            seed = {**DEFAULTS, **ASSESSMENTS.get(threat_id, {})}
+            values = (seed["severity"], seed["asset"], seed["threat_actor"], seed["attack_path"],
+                      json.dumps(seed["existing_controls"]), seed["residual_risk"],
+                      json.dumps(seed["test_evidence"]), seed["incident_response"])
             connection.execute(
                 """INSERT OR IGNORE INTO threat_register VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                (threat_id, threat_id.replace("_", " ").title(), DEFAULTS["status"],
-                 DEFAULTS["severity"], DEFAULTS["asset"], DEFAULTS["threat_actor"],
-                 DEFAULTS["attack_path"], json.dumps(DEFAULTS["existing_controls"]),
-                 DEFAULTS["residual_risk"], "[]", DEFAULTS["incident_response"],
-                 DEFAULTS["owner"], None, utc_now(), "system-seed"),
+                (threat_id, threat_id.replace("_", " ").title(), DEFAULTS["status"], *values[:6],
+                 values[6], values[7], DEFAULTS["owner"], None, utc_now(), "system-seed"),
+            )
+            # Upgrade only untouched placeholder rows; never overwrite a reviewer's edits.
+            connection.execute(
+                """UPDATE threat_register SET severity=?,asset=?,threat_actor=?,attack_path=?,
+                   existing_controls_json=?,residual_risk=?,test_evidence_json=?,incident_response=?,updated_at=?
+                   WHERE threat_id=? AND updated_by='system-seed' AND attack_path=?""",
+                (*values, utc_now(), threat_id, DEFAULTS["attack_path"]),
             )
 
 def _row(row: sqlite3.Row) -> dict:

@@ -21,3 +21,24 @@ def test_closed_risk_requires_evidence(isolated):
 
 def test_summary_highlights_unreviewed_risks(isolated):
     assert register.threat_summary()["needs_review"]==30
+
+def test_every_threat_has_a_real_assessment_with_existing_test_evidence(isolated):
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[2]
+    for item in register.list_threats():
+        assert item["attack_path"] != register.DEFAULTS["attack_path"]
+        assert item["test_evidence"] and all((root / path).is_file() for path in item["test_evidence"])
+        assert item["status"] == "NEEDS_REVIEW" and item["review_date"] is None
+
+def test_existing_placeholder_rows_are_upgraded(isolated):
+    with register.sqlite3.connect(isolated) as connection:
+        connection.execute("UPDATE threat_register SET attack_path=?, test_evidence_json='[]' WHERE threat_id='PATH_TRAVERSAL'", (register.DEFAULTS["attack_path"],))
+    register.initialize_threat_register()
+    item = next(i for i in register.list_threats() if i["threat_id"] == "PATH_TRAVERSAL")
+    assert item["attack_path"] != register.DEFAULTS["attack_path"] and item["test_evidence"]
+
+def test_reviewer_edits_are_never_overwritten(isolated):
+    register.update_threat("CREDENTIAL_THEFT", complete_payload(attack_path="Reviewed path"), "reviewer@example.com")
+    register.initialize_threat_register()
+    item = next(i for i in register.list_threats() if i["threat_id"] == "CREDENTIAL_THEFT")
+    assert item["attack_path"] == "Reviewed path"
