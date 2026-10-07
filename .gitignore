@@ -2,10 +2,12 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
+!.env.production.example
 *.log
 greyguard_state.json
 
-greyguard.dbgreyguard_greyguard_greyguard_security.log
 greyguard.db
 greyguard_greyguard_security.log
 greyguard_security.log

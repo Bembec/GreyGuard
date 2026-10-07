@@ -69,8 +69,8 @@ def main():
     evidence = {"started_at": datetime.now(timezone.utc).isoformat(), "project": PROJECT}
     try:
         compose("config", "-q")
-        compose("up", "--build", "-d")
         try:
+            compose("up", "--build", "-d")
             evidence["frontend_health_status"] = probe(
                 "http://127.0.0.1:8080/healthz"
             )
