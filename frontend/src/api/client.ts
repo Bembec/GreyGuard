@@ -115,3 +115,25 @@ export function logoutAdministrator(token: string) {
     headers: { "x-admin-pin": token },
   })
 }
+
+export interface SSOProvider {
+  provider_id: string
+  name: string
+}
+
+export function listSSOProviders() {
+  return apiRequest<{ providers: SSOProvider[] }>("/auth/sso/providers")
+}
+
+export function beginSSOLogin(providerId: string) {
+  return apiRequest<{ authorization_url: string }>(`/auth/sso/${encodeURIComponent(providerId)}/begin`, {
+    method: "POST",
+  })
+}
+
+export function completeSSOLogin(state: string, code: string) {
+  return apiRequest<AdministratorLoginResponse>("/auth/sso/callback", {
+    method: "POST",
+    body: JSON.stringify({ state, code, device_name: navigator.userAgent.slice(0, 100) }),
+  })
+}

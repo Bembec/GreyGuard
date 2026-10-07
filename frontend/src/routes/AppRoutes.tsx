@@ -10,6 +10,7 @@ import AgentsPage from "../pages/AgentsPage"
 import AgentDetailPage from "../pages/AgentDetailPage"
 import { DashboardPage } from "../pages/DashboardPage"
 import { LoginPage } from "../pages/LoginPage"
+import { SsoCallbackPage } from "../pages/SsoCallbackPage"
 import LiveOperationsPage from "../pages/LiveOperationsPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
 import RequestDetailPage from "../pages/RequestDetailPage"
@@ -49,7 +50,12 @@ export function AppRoutes() {
   const { isAuthenticated } = useAuth()
 
   if (!isAuthenticated) {
-    return <LoginPage />
+    return (
+      <Routes>
+        <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    )
   }
 
   return (
