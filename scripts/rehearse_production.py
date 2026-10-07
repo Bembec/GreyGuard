@@ -77,6 +77,15 @@ def main():
             evidence["api_health_status"] = probe(
                 "http://127.0.0.1:8080/api/health/ready"
             )
+            evidence["versioned_api_health_status"] = probe(
+                "http://127.0.0.1:8080/api/v1/health"
+            )
+            evidence["versioned_route_alias_status"] = probe(
+                "http://127.0.0.1:8080/api/v1/health/ready"
+            )
+            evidence["api_version_discovery_status"] = probe(
+                "http://127.0.0.1:8080/api/version"
+            )
         except Exception:
             compose("ps", check=False)
             compose("logs", "--no-color", "--tail", "200", check=False)

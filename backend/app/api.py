@@ -30,7 +30,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel, Field
 
 from . import main
-from .api_versioning import install_api_versioning
+from .api_versioning import ApiVersionMiddleware, install_api_versioning
 from .db_compat import initialization_lock
 from .admin_auth import (
     authenticate as authenticate_administrator,
@@ -3278,3 +3278,8 @@ def emergency_identity_activation(payload: BreakGlassRequest, x_admin_pin: str |
         raise HTTPException(status_code=403, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+# SECURITY: keep this registration LAST so ApiVersionMiddleware is the outermost layer.
+# Every security middleware above must see the canonical path, never /api/v1/... .
+app.add_middleware(ApiVersionMiddleware)
