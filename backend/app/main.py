@@ -24,10 +24,12 @@ from .database import (
     get_agent_identities,
     get_agent_identity,
     get_audit_summary,
+    get_credential_history,
     get_recent_audit_events,
     get_tool_request,
     get_tool_request_details,
     initialize_database,
+    record_credential_history_event,
     revoke_agent_credential as revoke_stored_credential,
     rotate_agent_credential as rotate_stored_credential,
     save_audit_event,
@@ -504,6 +506,7 @@ def list_public_agent_identities():
 def issue_agent_credential(
     agent_name,
     scopes,
+    actor="system",
 ):
     """Create an identity and credential."""
 
@@ -557,6 +560,13 @@ def issue_agent_credential(
             "Agent identity could not be created."
         )
 
+    record_credential_history_event(
+        agent_name=normalized_name,
+        event_type="ISSUED",
+        actor=actor,
+        timestamp=current_timestamp(),
+    )
+
     identity = get_agent_identity(
         normalized_name
     )
@@ -575,7 +585,7 @@ def issue_agent_credential(
     }
 
 
-def rotate_agent_credential(agent_name):
+def rotate_agent_credential(agent_name, actor="system"):
     """Replace an agent credential."""
 
     normalized_name = normalize_agent_name(
@@ -614,6 +624,13 @@ def rotate_agent_credential(agent_name):
             f"{normalized_name}"
         )
 
+    record_credential_history_event(
+        agent_name=normalized_name,
+        event_type="ROTATED",
+        actor=actor,
+        timestamp=current_timestamp(),
+    )
+
     updated_identity = get_agent_identity(
         normalized_name
     )
@@ -631,7 +648,7 @@ def rotate_agent_credential(agent_name):
     }
 
 
-def revoke_agent_credential(agent_name):
+def revoke_agent_credential(agent_name, actor="system"):
     """Revoke an agent credential."""
 
     normalized_name = normalize_agent_name(
@@ -674,6 +691,13 @@ def revoke_agent_credential(agent_name):
             f"{normalized_name}"
         )
 
+    record_credential_history_event(
+        agent_name=normalized_name,
+        event_type="REVOKED",
+        actor=actor,
+        timestamp=current_timestamp(),
+    )
+
     updated_identity = get_agent_identity(
         normalized_name
     )
@@ -688,6 +712,36 @@ def revoke_agent_credential(agent_name):
             updated_identity
         ),
     }
+
+
+def get_agent_credential_history(
+    agent_name,
+    limit=20,
+    offset=0,
+):
+    """Return one page of an agent's credential issue/rotate/revoke evidence.
+
+    Never includes a credential or its hash - only event_type, timestamp, and actor.
+    """
+
+    normalized_name = normalize_agent_name(
+        agent_name
+    )
+
+    if get_agent_identity(normalized_name) is None:
+        raise KeyError(
+            f"Identity not found: "
+            f"{normalized_name}"
+        )
+
+    safe_limit = max(1, min(int(limit), 100))
+    safe_offset = max(0, int(offset))
+
+    return get_credential_history(
+        normalized_name,
+        limit=safe_limit,
+        offset=safe_offset,
+    )
 
 
 def set_agent_scopes(

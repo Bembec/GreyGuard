@@ -77,6 +77,27 @@ def initialize_database():
         connection.execute(
             """
             CREATE TABLE IF NOT EXISTS
+            agent_credential_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                agent_name TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                actor TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS
+            idx_agent_credential_events_agent
+            ON agent_credential_events(agent_name, id)
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS
             authentication_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp TEXT NOT NULL,
@@ -570,6 +591,57 @@ def revoke_agent_credential(
         )
 
         return cursor.rowcount > 0
+
+
+def record_credential_history_event(
+    agent_name,
+    event_type,
+    actor,
+    timestamp,
+):
+    """Append an immutable credential lifecycle event. Never store a credential or its hash
+    here - this table exists only to answer who issued, rotated, or revoked a credential and
+    when, never to reconstruct or verify one."""
+
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO agent_credential_events
+            (agent_name, timestamp, event_type, actor)
+            VALUES (?, ?, ?, ?)
+            """,
+            (agent_name, timestamp, event_type, actor),
+        )
+
+
+def get_credential_history(
+    agent_name,
+    limit=20,
+    offset=0,
+):
+    """Return one page of credential lifecycle evidence, newest first."""
+
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            """
+            SELECT id, agent_name, timestamp, event_type, actor
+            FROM agent_credential_events
+            WHERE agent_name = ?
+            ORDER BY id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (agent_name, limit, offset),
+        ).fetchall()
+        total = connection.execute(
+            "SELECT COUNT(*) FROM agent_credential_events WHERE agent_name = ?",
+            (agent_name,),
+        ).fetchone()[0]
+
+    return {
+        "events": [dict(row) for row in rows],
+        "total": total,
+    }
 
 
 def save_authentication_event(
