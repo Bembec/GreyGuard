@@ -12,3 +12,10 @@ greyguard.db
 greyguard_greyguard_security.log
 greyguard_security.log
 sandbox_data/
+# Detailed reports written by the security gate on every run (summaries are committed)
+artifacts/*-scan.txt
+artifacts/pip-audit.txt
+artifacts/bandit-high.txt
+artifacts/npm-audit.txt
+artifacts/sbom-verification.json
+artifacts/secret-scan.json

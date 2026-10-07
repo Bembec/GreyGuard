@@ -41,3 +41,12 @@ def test_frontend_writable_folders_belong_to_the_nginx_user():
 def test_backend_image_runs_as_a_non_root_user():
     dockerfile = (ROOT / "deployment" / "backend.Dockerfile").read_text(encoding="utf-8")
     assert "\nUSER " in dockerfile and "USER root" not in dockerfile
+
+
+def test_both_proxy_configurations_send_a_strict_content_security_policy():
+    for name in ("nginx.conf", "nginx-tls.conf"):
+        config = (ROOT / "deployment" / name).read_text(encoding="utf-8")
+        assert "Content-Security-Policy" in config
+        policy = config.split("Content-Security-Policy", 1)[1].split("\n", 1)[0]
+        assert "script-src 'self';" in policy and "unsafe-eval" not in policy
+        assert "frame-ancestors 'none'" in policy and "object-src 'none'" in policy
