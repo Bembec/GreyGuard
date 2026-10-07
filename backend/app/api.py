@@ -215,7 +215,12 @@ from .enterprise_identity import (
     list_role_mappings,
     list_workload_identities,
     request_elevation,
+    revoke_workload_identity,
     save_provider,
+)
+from .agent_certificate_auth import (
+    authenticate_and_authorize_agent_by_certificate,
+    certificate_was_presented,
 )
 from .production_config import load_production_config
 from .runtime_security import RuntimeSecurityMiddleware, readiness
@@ -605,6 +610,11 @@ class WorkloadIdentityRequest(BaseModel):
     certificate_pem: str = Field(min_length=32, max_length=20_000)
     scopes: list[str] = Field(min_length=1)
     expires_in_days: int = Field(default=90, ge=1, le=365)
+    agent_name: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class WorkloadIdentityRevocation(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
 
 
 class ElevationRequest(BaseModel):
@@ -1015,10 +1025,27 @@ def authenticate_request(
     x_agent_name,
     x_agent_key,
     action,
+    x_ssl_client_verify=None,
+    x_ssl_client_cert=None,
 ):
-    """Authenticate an agent and enforce scope."""
+    """Authenticate an agent and enforce scope.
+
+    A client certificate verified by the reverse proxy (see
+    docs/agent-certificate-authentication.md) takes priority whenever one was actually
+    presented; an agent that never presents one authenticates exactly as it always has, via
+    X-Agent-Name/X-Agent-Key. A presented-but-invalid certificate fails outright rather than
+    silently retrying against the credential headers.
+    """
 
     try:
+        if certificate_was_presented(x_ssl_client_verify):
+            return authenticate_and_authorize_agent_by_certificate(
+                verify_header=x_ssl_client_verify,
+                client_cert_pem=x_ssl_client_cert,
+                action=action,
+                claimed_agent_name=x_agent_name,
+            )
+
         return (
             main.authenticate_and_authorize_agent(
                 agent_name=x_agent_name,
@@ -1052,6 +1079,8 @@ def authenticate_agent_owner(
     x_agent_name,
     x_agent_key,
     required_scope,
+    x_ssl_client_verify=None,
+    x_ssl_client_cert=None,
 ):
     """Authenticate an agent accessing its records."""
 
@@ -1059,6 +1088,8 @@ def authenticate_agent_owner(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,
         action=required_scope,
+        x_ssl_client_verify=x_ssl_client_verify,
+        x_ssl_client_cert=x_ssl_client_cert,
     )
 
     identity = authentication["identity"]
@@ -1756,12 +1787,16 @@ def create_adapter_request(
     x_agent_name: str | None = Header(default=None),
     x_agent_key: str | None = Header(default=None),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    x_ssl_client_verify: str | None = Header(default=None),
+    x_ssl_client_cert: str | None = Header(default=None),
 ):
     candidate_action = extract_action(adapter_id, payload)
     authentication = authenticate_request(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,
         action=candidate_action,
+        x_ssl_client_verify=x_ssl_client_verify,
+        x_ssl_client_cert=x_ssl_client_cert,
     )
     try:
         translated = translate_request(adapter_id, payload)
@@ -2599,6 +2634,12 @@ def evaluate_action(
     x_agent_key: str | None = Header(
         default=None,
     ),
+    x_ssl_client_verify: str | None = Header(
+        default=None,
+    ),
+    x_ssl_client_cert: str | None = Header(
+        default=None,
+    ),
 ):
     """Authenticate and evaluate an action."""
 
@@ -2606,6 +2647,8 @@ def evaluate_action(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,
         action=request.action,
+        x_ssl_client_verify=x_ssl_client_verify,
+        x_ssl_client_cert=x_ssl_client_cert,
     )
 
     authenticated_name = (
@@ -2650,6 +2693,12 @@ def create_tool_request(
         default=None,
         alias="Idempotency-Key",
     ),
+    x_ssl_client_verify: str | None = Header(
+        default=None,
+    ),
+    x_ssl_client_cert: str | None = Header(
+        default=None,
+    ),
 ):
     """Submit a controlled tool request."""
 
@@ -2657,6 +2706,8 @@ def create_tool_request(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,
         action=request.action,
+        x_ssl_client_verify=x_ssl_client_verify,
+        x_ssl_client_cert=x_ssl_client_cert,
     )
 
     authenticated_name = (
@@ -2763,6 +2814,12 @@ def get_tool_request(
     x_agent_key: str | None = Header(
         default=None,
     ),
+    x_ssl_client_verify: str | None = Header(
+        default=None,
+    ),
+    x_ssl_client_cert: str | None = Header(
+        default=None,
+    ),
 ):
     """Return an agent's tool-request evidence."""
 
@@ -2782,6 +2839,8 @@ def get_tool_request(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,
         action=request_data["action"],
+        x_ssl_client_verify=x_ssl_client_verify,
+        x_ssl_client_cert=x_ssl_client_cert,
     )
 
     identity = authentication["identity"]
@@ -2866,6 +2925,12 @@ def recent_audit_events(
     x_agent_key: str | None = Header(
         default=None,
     ),
+    x_ssl_client_verify: str | None = Header(
+        default=None,
+    ),
+    x_ssl_client_cert: str | None = Header(
+        default=None,
+    ),
 ):
     """Return an agent's audit events."""
 
@@ -2874,6 +2939,8 @@ def recent_audit_events(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,
         required_scope="view_audit",
+        x_ssl_client_verify=x_ssl_client_verify,
+        x_ssl_client_cert=x_ssl_client_cert,
     )
 
     events = get_recent_audit_events(
@@ -2907,6 +2974,12 @@ def audit_summary(
     x_agent_key: str | None = Header(
         default=None,
     ),
+    x_ssl_client_verify: str | None = Header(
+        default=None,
+    ),
+    x_ssl_client_cert: str | None = Header(
+        default=None,
+    ),
 ):
     """Return an agent's audit summary."""
 
@@ -2915,6 +2988,8 @@ def audit_summary(
         x_agent_name=x_agent_name,
         x_agent_key=x_agent_key,
         required_scope="audit_summary",
+        x_ssl_client_verify=x_ssl_client_verify,
+        x_ssl_client_cert=x_ssl_client_cert,
     )
 
     normalized_name = (
@@ -3318,9 +3393,23 @@ def register_workload_identity(payload: WorkloadIdentityRequest, x_admin_pin: st
     actor = _platform_admin(x_admin_pin)
     try:
         return create_workload_identity(actor["admin_id"], payload.name, payload.subject,
-                                        payload.certificate_pem, payload.scopes, payload.expires_in_days)
+                                        payload.certificate_pem, payload.scopes, payload.expires_in_days,
+                                        payload.agent_name)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
     except (ValueError, sqlite3.IntegrityError) as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/enterprise-identity/workloads/{workload_id}/revoke")
+def revoke_workload_identity_route(workload_id: str, payload: WorkloadIdentityRevocation, x_admin_pin: str | None = Header(default=None)):
+    actor = _platform_admin(x_admin_pin)
+    try:
+        return revoke_workload_identity(actor["admin_id"], workload_id, payload.reason)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/enterprise-identity/elevations", status_code=201)
