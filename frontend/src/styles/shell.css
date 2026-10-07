@@ -309,9 +309,11 @@
   font-size: 0.64rem;
 }
 
-.topbar__left h1 {
+.topbar__left .topbar__title {
   margin: 0;
   font-size: 1rem;
+  font-weight: 700;
+  color: var(--gg-text-primary);
 }
 
 .topbar__actions {

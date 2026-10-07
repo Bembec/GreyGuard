@@ -274,7 +274,7 @@ export function AppShell() {
                 {currentPage.label}
               </p>
 
-              <h1>{currentPage.label}</h1>
+              <p className="topbar__title">{currentPage.label}</p>
             </div>
           </div>
 
