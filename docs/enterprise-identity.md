@@ -14,7 +14,7 @@ GreyGuard supports standards-based OIDC provider metadata for Microsoft Entra ID
 - The resulting role always comes from the role mappings below, evaluated fresh on every sign-in — an identity whose claims match no mapping is rejected, it is never given a default role.
 - No ID token, access token, authorization code, client secret, state, nonce, or PKCE verifier is ever written to the evidence log or included in an error message.
 
-Role mappings translate explicit provider claims into GreyGuard roles. Workload identities use certificate SHA-256 thumbprints, bounded scopes, expiry, and status without persisting certificate material.
+Role mappings translate explicit provider claims into GreyGuard roles. Workload identities use certificate SHA-256 thumbprints, bounded scopes, expiry, and status without persisting certificate material. A workload identity may optionally be bound to an already-registered agent (`agent_name`), which is what lets that certificate authenticate *as* that agent — see `docs/agent-certificate-authentication.md` for the full nginx/mTLS boundary, header contract, and revocation behavior; this is a second, additive way for an agent to prove the identity it already has via `X-Agent-Name`/`X-Agent-Key`, not a separate identity system.
 
 Temporary privilege elevation is time-bound, recorded, and requires approval by a different Platform Administrator. Break-glass activation is limited to specifically designated active administrators with MFA, requires a detailed reason, expires automatically, and produces an immutable security event, and remains available independently of SSO so an identity-provider outage never locks out a designated administrator.
 

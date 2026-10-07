@@ -39,3 +39,10 @@ result = agent.request_tool(
 
 The SDK never executes an operation itself. GreyGuard remains responsible for
 identity, authorization, human approval, risk, and sandboxed execution.
+
+## Certificate-based authentication (optional)
+
+An agent may instead (or additionally) prove its identity with a TLS client certificate verified
+by the reverse proxy, in deployments that enable it. This is a second way to prove the same
+identity a registered agent already has — it changes nothing about scopes, policy, or the above
+flow. See `docs/agent-certificate-authentication.md` for the nginx/mTLS boundary this requires.
