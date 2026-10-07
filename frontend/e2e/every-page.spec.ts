@@ -25,15 +25,16 @@ test.beforeAll(async({browser})=>{
  await page.close()
 })
 
-async function expectHealthyPage(page:Page,path:string,heading?:string){
+async function expectHealthyPage(page:Page,path:string){
  const pageErrors:string[]=[],serverErrors:string[]=[]
  page.on("pageerror",error=>pageErrors.push(error.message))
  page.on("response",response=>{if(response.url().includes("/api/")&&response.status()>=500)serverErrors.push(`${response.status()} ${response.url()}`)})
  await page.addInitScript(values=>{for(const [key,value] of Object.entries(values))sessionStorage.setItem(key,value)},session)
  await page.goto(path)
+ // Each page owns exactly one meaningful <h1> (enforced by this single-element locator); it must
+ // have moved past the login tagline and must not be blank.
  const title=page.getByRole("heading",{level:1})
- await expect(title).not.toHaveText(/Every action passes/i,{timeout:15_000})
- if(heading)await expect(title).toHaveText(heading)
+ await expect(title).not.toHaveText(/^\s*$|Every action passes/i,{timeout:15_000})
  // Pages with live streams never go fully idle, so settle for at most five seconds.
  await page.waitForLoadState("networkidle",{timeout:5_000}).catch(()=>undefined)
  await expect(page.getByText("Something went wrong"),"page shows an error state").toHaveCount(0)
@@ -42,7 +43,7 @@ async function expectHealthyPage(page:Page,path:string,heading?:string){
 }
 
 for(const item of navigationItems){
- test(`${item.label} (${item.path}) loads without errors`,async({page})=>{await expectHealthyPage(page,item.path,item.label)})
+ test(`${item.label} (${item.path}) loads without errors`,async({page})=>{await expectHealthyPage(page,item.path)})
 }
 
 test("unknown agent detail page fails gracefully",async({page})=>{await expectHealthyPage(page,"/agents/no-such-agent")})

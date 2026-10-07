@@ -25,6 +25,7 @@
   text-transform: uppercase;
 }
 
+.page-heading h1,
 .page-heading h2 {
   margin-bottom: 0.8rem;
   font-size: clamp(2rem, 4.5vw, 4.2rem);
@@ -32,6 +33,7 @@
   letter-spacing: -0.055em;
 }
 
+.page-heading h1 span,
 .page-heading h2 span {
   color: transparent;
   background:

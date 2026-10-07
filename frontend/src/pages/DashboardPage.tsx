@@ -37,10 +37,10 @@ export function DashboardPage() {
             Live security posture
           </p>
 
-          <h2>
+          <h1>
             Good afternoon,
             <span> Administrator.</span>
-          </h2>
+          </h1>
 
           <p>
             GreyGuard is monitoring identity,
