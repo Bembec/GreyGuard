@@ -1,6 +1,6 @@
 import { Eye, EyeOff, Fingerprint, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react"
-import { useState, type FormEvent } from "react"
-import { ApiError } from "../api/client"
+import { useEffect, useState, type FormEvent } from "react"
+import { ApiError, beginSSOLogin, listSSOProviders, type SSOProvider } from "../api/client"
 import { useAuth } from "../context/AuthContext"
 import "../styles/login.css"
 
@@ -13,6 +13,16 @@ export function LoginPage() {
   const [mfaRequired,setMfaRequired]=useState(false)
   const [error, setError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [ssoProviders, setSsoProviders] = useState<SSOProvider[]>([])
+  const [ssoStarting, setSsoStarting] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    listSSOProviders()
+      .then((result) => { if (active) setSsoProviders(result.providers) })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setIsSubmitting(true)
@@ -22,6 +32,18 @@ export function LoginPage() {
       setError(value instanceof ApiError || value instanceof Error
         ? value.message : "GreyGuard could not verify the administrator.")
     } finally { setIsSubmitting(false) }
+  }
+
+  async function handleSsoClick(provider: SSOProvider) {
+    setError(""); setSsoStarting(provider.provider_id)
+    try {
+      const { authorization_url } = await beginSSOLogin(provider.provider_id)
+      window.location.href = authorization_url
+    } catch (value) {
+      setSsoStarting(null)
+      setError(value instanceof ApiError || value instanceof Error
+        ? value.message : "GreyGuard could not start enterprise sign-in.")
+    }
   }
 
   return <main className="login-page">
@@ -53,6 +75,23 @@ export function LoginPage() {
           {error && <p className="login-error" role="alert">{error}</p>}
           <button className="login-submit" type="submit" disabled={isSubmitting}>{isSubmitting?"Verifying identity…":"Enter command center"}</button>
         </form>
+        {ssoProviders.length > 0 && (
+          <div className="login-sso">
+            <span className="login-sso__divider">Or sign in with your organization</span>
+            {ssoProviders.map((provider) => (
+              <button
+                key={provider.provider_id}
+                type="button"
+                className="login-sso__button"
+                onClick={() => handleSsoClick(provider)}
+                disabled={ssoStarting !== null}
+              >
+                <ShieldCheck size={18} />
+                {ssoStarting === provider.provider_id ? "Redirecting…" : `Continue with ${provider.name}`}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="login-security-note"><ShieldCheck size={18}/><p>The session token remains in this browser tab and is revoked when you sign out.</p></div>
       </div>
       <footer className="login-footer"><span><span className="login-footer__dot"/>RBAC identity verification</span><span>Local defensive environment</span></footer>

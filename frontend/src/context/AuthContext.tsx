@@ -10,10 +10,12 @@ import {
 
 import {
   administratorLogin,
+  completeSSOLogin,
   refreshAdministrator,
   getCurrentAdministrator,
   logoutAdministrator,
   verifyAdministrator,
+  type AdministratorLoginResponse,
 } from "../api/client"
 import type { Agent } from "../types/api"
 
@@ -43,6 +45,7 @@ interface AuthContextValue {
     password: string,
     mfaCode?: string,
   ) => Promise<void>
+  completeSso: (state: string, code: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -98,19 +101,8 @@ export function AuthProvider({
     }
   }, [administrator, clearSession, sessionToken])
 
-  const login = useCallback(
-    async (email: string, password: string, mfaCode?: string) => {
-      if (!email.trim() || !password) {
-        throw new Error(
-          "Email and password are required.",
-        )
-      }
-
-      const result = await administratorLogin(
-        email.trim(),
-        password,
-        mfaCode,
-      )
+  const applySession = useCallback(
+    async (result: AdministratorLoginResponse) => {
       const agentList = await verifyAdministrator(
         result.access_token,
       )
@@ -125,6 +117,32 @@ export function AuthProvider({
       setAgents(agentList)
     },
     [],
+  )
+
+  const login = useCallback(
+    async (email: string, password: string, mfaCode?: string) => {
+      if (!email.trim() || !password) {
+        throw new Error(
+          "Email and password are required.",
+        )
+      }
+
+      const result = await administratorLogin(
+        email.trim(),
+        password,
+        mfaCode,
+      )
+      await applySession(result)
+    },
+    [applySession],
+  )
+
+  const completeSso = useCallback(
+    async (state: string, code: string) => {
+      const result = await completeSSOLogin(state, code)
+      await applySession(result)
+    },
+    [applySession],
   )
 
   const logout = useCallback(async () => {
@@ -145,6 +163,7 @@ export function AuthProvider({
         sessionToken && administrator,
       ),
       login,
+      completeSso,
       logout,
     }),
     [
@@ -152,6 +171,7 @@ export function AuthProvider({
       administrator,
       agents,
       login,
+      completeSso,
       logout,
     ],
   )
