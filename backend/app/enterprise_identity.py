@@ -8,6 +8,7 @@ from . import db_compat as sqlite3
 from datetime import datetime, timedelta, timezone
 
 from .database import database_path as greyguard_database_path
+from .database import get_agent_identity
 
 database_path = greyguard_database_path
 ROLES = {"PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"}
@@ -15,6 +16,18 @@ ROLES = {"PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"}
 
 def _now():
     return datetime.now(timezone.utc)
+
+
+def certificate_thumbprint(certificate_pem: str) -> str:
+    """SHA-256 of the certificate's PEM text, used as its registered fingerprint.
+
+    This hashes the PEM text (not the parsed DER bytes), matching how this value has always been
+    computed here. Any header that forwards the verified client certificate for matching must
+    forward the same PEM text so the backend can derive this identical value independently,
+    rather than trusting a bare "fingerprint" value from the proxy - see
+    agent_certificate_auth.py and docs/agent-certificate-authentication.md.
+    """
+    return hashlib.sha256(certificate_pem.strip().encode()).hexdigest()
 
 
 def initialize_enterprise_identity():
@@ -43,6 +56,11 @@ def initialize_enterprise_identity():
           event_id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL,
           actor_id TEXT NOT NULL, event_type TEXT NOT NULL, detail TEXT NOT NULL);
         """)
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(workload_identities)")}
+        if "agent_name" not in columns:
+            connection.execute("ALTER TABLE workload_identities ADD COLUMN agent_name TEXT")
+        if "revoked_at" not in columns:
+            connection.execute("ALTER TABLE workload_identities ADD COLUMN revoked_at TEXT")
 
 
 def _event(connection, actor, event_type, detail):
@@ -100,17 +118,30 @@ def list_role_mappings():
         return [dict(row) for row in connection.execute("SELECT * FROM identity_role_mappings ORDER BY priority,mapping_id")]
 
 
-def create_workload_identity(actor_id, name, subject, certificate_pem, scopes, days=90):
+def create_workload_identity(actor_id, name, subject, certificate_pem, scopes, days=90, agent_name=None):
     if "BEGIN CERTIFICATE" not in certificate_pem or not name.strip() or not subject.strip():
         raise ValueError("Name, subject, and a PEM certificate are required.")
-    thumbprint = hashlib.sha256(certificate_pem.strip().encode()).hexdigest()
+    normalized_agent_name = None
+    if agent_name is not None and str(agent_name).strip():
+        from .main import normalize_agent_name
+        normalized_agent_name = normalize_agent_name(agent_name)
+        if get_agent_identity(normalized_agent_name) is None:
+            raise KeyError(f"Registered agent not found: {normalized_agent_name}")
+    thumbprint = certificate_thumbprint(certificate_pem)
     workload_id = "wli_" + secrets.token_hex(10)
     now = _now()
     normalized_scopes = sorted({str(scope).strip() for scope in scopes if str(scope).strip()})
     with sqlite3.connect(database_path) as connection:
-        connection.execute("INSERT INTO workload_identities VALUES(?,?,?,?,?,'ACTIVE',?,?,NULL)",
-                           (workload_id, name.strip(), subject.strip(), thumbprint, json.dumps(normalized_scopes), now.isoformat(), (now + timedelta(days=max(1, min(int(days), 365)))).isoformat()))
-        _event(connection, actor_id, "WORKLOAD_IDENTITY_CREATED", f"Workload {workload_id} certificate registered.")
+        connection.execute(
+            """INSERT INTO workload_identities
+            (workload_id,name,subject,certificate_thumbprint,scopes,status,created_at,expires_at,
+             last_authenticated_at,agent_name,revoked_at)
+            VALUES(?,?,?,?,?,'ACTIVE',?,?,NULL,?,NULL)""",
+            (workload_id, name.strip(), subject.strip(), thumbprint, json.dumps(normalized_scopes),
+             now.isoformat(), (now + timedelta(days=max(1, min(int(days), 365)))).isoformat(), normalized_agent_name),
+        )
+        _event(connection, actor_id, "WORKLOAD_IDENTITY_CREATED",
+               f"Workload {workload_id} certificate registered." + (f" Bound to agent {normalized_agent_name}." if normalized_agent_name else ""))
     return get_workload_identity(workload_id)
 
 
@@ -121,6 +152,44 @@ def get_workload_identity(workload_id):
     if not row:
         raise KeyError("Workload identity not found.")
     item = dict(row); item["scopes"] = json.loads(item["scopes"]); return item
+
+
+def revoke_workload_identity(actor_id, workload_id, reason):
+    if len(str(reason).strip()) < 3:
+        raise ValueError("A revocation reason is required.")
+    now = _now().isoformat()
+    with sqlite3.connect(database_path) as connection:
+        changed = connection.execute(
+            "UPDATE workload_identities SET status='REVOKED',revoked_at=? WHERE workload_id=? AND status='ACTIVE'",
+            (now, workload_id),
+        ).rowcount
+        if not changed:
+            raise KeyError("Active workload identity not found.")
+        _event(connection, actor_id, "WORKLOAD_IDENTITY_REVOKED", f"Workload {workload_id} revoked: {reason.strip()}")
+    return get_workload_identity(workload_id)
+
+
+def find_active_workload_identity_by_thumbprint(thumbprint):
+    """Used only by agent_certificate_auth.py to resolve a verified client certificate to the
+    registered agent it is bound to. Returns None for anything that is not an active, unexpired,
+    agent-bound workload identity - callers must treat that exactly like "no match"."""
+    now = _now().isoformat()
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            """SELECT * FROM workload_identities
+            WHERE certificate_thumbprint=? AND status='ACTIVE' AND expires_at>? AND agent_name IS NOT NULL""",
+            (thumbprint, now),
+        ).fetchone()
+    if not row:
+        return None
+    item = dict(row); item["scopes"] = json.loads(item["scopes"]); return item
+
+
+def mark_workload_identity_authenticated(workload_id):
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("UPDATE workload_identities SET last_authenticated_at=? WHERE workload_id=?",
+                           (_now().isoformat(), workload_id))
 
 
 def list_workload_identities():
