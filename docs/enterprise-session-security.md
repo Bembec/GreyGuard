@@ -1,8 +1,14 @@
 # Enterprise Session Security
 
-GreyGuard administrator access uses individual local accounts, PBKDF2 password
-hashing, role enforcement, login throttling, and final-Platform-Administrator
-protection. Production session controls add the following lifecycle.
+GreyGuard administrator access uses individual accounts (local, with PBKDF2
+password hashing, or enterprise SSO - see `docs/enterprise-identity.md` for
+the OIDC sign-in flow), role enforcement, login throttling, and
+final-Platform-Administrator protection. Once either method establishes who
+is signing in, session issuance, expiry, and revocation below are identical -
+an SSO-provisioned account has no usable local password at all (a random,
+permanently unusable placeholder is stored in its place) and can only ever
+authenticate through its configured provider. Production session controls add
+the following lifecycle.
 
 - Access tokens expire after 15 minutes.
 - Refresh tokens expire after seven days and rotate after every use.
