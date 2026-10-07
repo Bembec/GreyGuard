@@ -31,6 +31,13 @@ def test_frontend_service_has_no_added_capabilities():
     assert "read_only: true" in frontend
 
 
+def test_frontend_writable_folders_belong_to_the_nginx_user():
+    compose = (ROOT / "docker-compose.production.yml").read_text(encoding="utf-8")
+    frontend = _service_block(compose, "frontend")
+    for folder in ("/var/cache/nginx", "/var/run"):
+        assert f"{folder}:uid=101,gid=101,mode=0700" in frontend
+
+
 def test_backend_image_runs_as_a_non_root_user():
     dockerfile = (ROOT / "deployment" / "backend.Dockerfile").read_text(encoding="utf-8")
     assert "\nUSER " in dockerfile and "USER root" not in dockerfile

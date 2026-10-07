@@ -44,7 +44,8 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
     read_only: true
-    tmpfs: ["/var/cache/nginx", "/var/run"]
+    # nginx runs as uid/gid 101, so its writable in-memory folders are owned by it and private to it.
+    tmpfs: ["/var/cache/nginx:uid=101,gid=101,mode=0700", "/var/run:uid=101,gid=101,mode=0700"]
     depends_on: [backend]
     ports: ["127.0.0.1:8080:8080"]
     networks: [greyguard-internal, greyguard-edge]
