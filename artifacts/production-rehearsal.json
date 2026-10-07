@@ -1,8 +1,11 @@
 {
-  "started_at": "2026-10-07T05:54:24.156272+00:00",
+  "started_at": "2026-10-07T09:53:08.159524+00:00",
   "project": "greyguard-clean-rehearsal",
   "frontend_health_status": 200,
   "api_health_status": 200,
+  "versioned_api_health_status": 200,
+  "versioned_route_alias_status": 200,
+  "api_version_discovery_status": 200,
   "passed": true,
-  "completed_at": "2026-10-07T06:01:07.861354+00:00"
+  "completed_at": "2026-10-07T09:55:55.979508+00:00"
 }
