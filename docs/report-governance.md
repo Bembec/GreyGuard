@@ -4,7 +4,7 @@ GreyGuard Section 11 Part 2 adds signed report manifests, independent export che
 
 Set `GREYGUARD_REPORT_SIGNING_KEY` to a randomly generated value of at least 32 characters through the production secret mechanism. The key is never returned to the frontend. Manifests use HMAC-SHA256 and include the immutable evidence hash plus SHA-256 checksums for JSON, CSV, HTML, and PDF exports.
 
-Only Platform Administrators may create or disable schedules. Disabling preserves schedule evidence. The scheduler records intent and next-run time; production automation must invoke the approved report-generation endpoint under a scoped service identity.
+Only Platform Administrators may create or disable schedules. Disabling preserves schedule evidence. A background worker (`backend/app/outbound_worker.py`) runs `run_due_schedules` on an interval, claims due schedules atomically (safe under the two-worker production deployment), generates and signs the report, advances `next_run_at` by the schedule's frequency, and records success or failure as evidence. A schedule may optionally name a notification destination; the worker then queues a "report ready" event through the same governed notification-delivery pipeline used elsewhere, rather than sending anything itself.
 
 Mappings currently cover NIST CSF 2.0, ISO 27001:2022, and SOC 2 evidence references. They support evidence organization and do not claim certification.
 

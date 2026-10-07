@@ -16,15 +16,13 @@ Once it's in place, this Markdown file should be re-reconciled against its actua
 
 **Prior status (per task instruction):** "configuration and queues" marked complete.
 
-**Corrected status: NOT complete.** Verified in code:
+**Status as of Stage 3 Milestone 1: now actually complete.** `backend/app/outbound_delivery.py` (new) provides a shared SSRF-safe sender and `backend/app/outbound_worker.py` (new) runs a background delivery loop inside the API process, wired into `api.py`'s lifespan. `notification_delivery.process_deliveries`, `incident_integrations.process_incidents`, `security_exports.process_queue`, and `report_governance.run_due_schedules` are now actually invoked on an interval and each claims its rows atomically before acting, so the two-worker production deployment can run both loops without double-sending.
 
-- `backend/app/notification_delivery.py` — `queue_notification()` inserts a row into the delivery queue. `process_deliveries(sender)` exists and would actually dispatch a queued notification, but **nothing in the codebase calls it** — no worker, no scheduled task, no startup hook. Confirmed by searching for callers of `process_deliveries` outside its own test file: none found in `api.py`, `main.py`, or any other runtime module.
-- `backend/app/report_governance.py` — `create_schedule()` / `list_schedules()` store schedule rows; there is no runner that ever executes a due schedule.
-- `backend/app/incident_integrations.py` and `backend/app/security_exports.py` have the equivalent "queue exists, nothing drains it" shape (`process_incidents`, `process_queue`).
+Covered: HTTPS-only destinations; fresh DNS resolution and address validation on every attempt (blocking loopback/link-local/multicast/unspecified/reserved/cloud-metadata unconditionally, private ranges unless a Platform Administrator allows that exact hostname); the TCP connection is pinned to the validated address so a later DNS change can't redirect it (DNS-rebinding resistant); redirects are never followed; bounded connect/read/total timeouts; capped exponential backoff with jitter; a dead-letter state after each destination's configured attempt limit; an `Idempotency-Key` on every request; HMAC request signing for security-export destinations that configure a signing key; append-only evidence (`outbound_delivery_evidence`) for enqueue/attempt/success/failure/retry/dead-letter/blocked; and `safe_error()` redaction on every stored error message as a backstop against a dependency ever echoing something sensitive.
 
-**What this means concretely:** an administrator can configure a Slack/PagerDuty/Jira/ServiceNow/SIEM destination and the UI will accept it and show it as "configured," but no notification, incident ticket, SIEM export, or scheduled compliance report will ever actually be delivered until a real worker is wired up. This is Stage 3 Milestone 1 (secure outbound delivery) — tracked, not started.
+**Known, deliberately out-of-scope gaps from this milestone** (fail closed with a clear dead-letter error, never silently dropped or mis-sent): EMAIL notification delivery (needs an SMTP transport) and Syslog-over-TLS export delivery (needs a raw TLS socket transport, not HTTP). Both are flagged in `docs/communication-integrations.md` / `docs/security-export-integrations.md`.
 
-**Why this matters for the roadmap:** "complete" should mean the feature does what an administrator would reasonably expect end-to-end. Configuration-and-queue-only is the groundwork for the feature, not the feature.
+**Still open:** no frontend UI yet for the new private-destination SSRF allowlist (`GET/POST /outbound-delivery/private-allowlist`, `DELETE /outbound-delivery/private-allowlist/{host}`) — an administrator can call the API directly today; a console page is a reasonable fast-follow, not part of this milestone.
 
 ## 2. CSRF — confirmed already covered
 
