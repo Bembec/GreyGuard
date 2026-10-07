@@ -19,3 +19,5 @@ artifacts/bandit-high.txt
 artifacts/npm-audit.txt
 artifacts/sbom-verification.json
 artifacts/secret-scan.json
+# Isolated data written by the browser end-to-end test backend
+.e2e-data/
