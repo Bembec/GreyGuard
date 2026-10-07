@@ -23,7 +23,7 @@ import ssl
 import time
 import uuid
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from . import db_compat as sqlite3
 from .database import database_path
@@ -33,6 +33,7 @@ CONNECT_TIMEOUT_SECONDS = 5.0
 READ_TIMEOUT_SECONDS = 15.0
 TOTAL_TIMEOUT_SECONDS = 25.0
 MAX_RESPONSE_BYTES = 1_000_000
+DISCOVERY_MAX_RESPONSE_BYTES = 256_000
 DEFAULT_LEASE_SECONDS = 120
 DEFAULT_MAX_ATTEMPTS = 8
 BACKOFF_BASE_SECONDS = 2.0
@@ -211,7 +212,8 @@ def _raise_for_status(status: int) -> None:
         raise PermanentDeliveryError(f"Destination rejected the request (HTTP {status}).")
 
 
-def _send_to_ip(hostname, ip, port, path, payload: bytes, headers: dict, *, connect_timeout, read_timeout, deadline, ssl_context=None):
+def _send_to_ip(hostname, ip, port, method, path, payload: bytes, headers: dict, *,
+                 connect_timeout, read_timeout, deadline, max_response_bytes=MAX_RESPONSE_BYTES, ssl_context=None):
     # `ssl_context` exists only so tests can point this at a local server with a throwaway
     # certificate; every production call site leaves it unset and gets the real default context.
     context = ssl_context or ssl.create_default_context()
@@ -221,9 +223,9 @@ def _send_to_ip(hostname, ip, port, path, payload: bytes, headers: dict, *, conn
         connection.sock.settimeout(read_timeout)
         if time.monotonic() > deadline:
             raise DeliveryError("Outbound delivery exceeded its total time budget before the request was sent.")
-        connection.request("POST", path, body=payload, headers=headers)
+        connection.request(method, path, body=payload, headers=headers)
         response = connection.getresponse()
-        body = response.read(MAX_RESPONSE_BYTES + 1)[:MAX_RESPONSE_BYTES]
+        body = response.read(max_response_bytes + 1)[:max_response_bytes]
         status = response.status
     except (SSRFBlocked, PermanentDeliveryError, DeliveryError):
         raise
@@ -237,18 +239,15 @@ def _send_to_ip(hostname, ip, port, path, payload: bytes, headers: dict, *, conn
     return {"status_code": status, "body": body}
 
 
-def send_json(url: str, payload: bytes, *, headers: dict | None = None, idempotency_key: str | None = None,
-              connect_timeout: float = CONNECT_TIMEOUT_SECONDS, read_timeout: float = READ_TIMEOUT_SECONDS,
-              total_timeout: float = TOTAL_TIMEOUT_SECONDS) -> dict:
-    """POST `payload` (already-serialized JSON bytes) to `url` through every SSRF defense.
-
-    Resolves fresh on every call (no caching), validates every resolved
-    address, connects only to the validated IP, enforces HTTPS, never follows
-    redirects, and applies bounded connect/read/total timeouts.
-    """
+def _request(url: str, method: str, body: bytes | None, *, headers: dict | None = None,
+             connect_timeout: float, read_timeout: float, total_timeout: float,
+             max_response_bytes: int, ssl_context=None) -> dict:
+    """Shared HTTPS request path for every outbound call in GreyGuard: resolves fresh on every
+    call (no caching), validates every resolved address, connects only to the validated IP,
+    enforces HTTPS, never follows redirects, and applies bounded connect/read/total timeouts."""
     parts = urlsplit(url)
     if parts.scheme != "https":
-        raise PermanentDeliveryError("Outbound delivery requires an https:// destination.")
+        raise PermanentDeliveryError("Outbound requests require an https:// destination.")
     hostname = parts.hostname
     if not hostname:
         raise PermanentDeliveryError("Destination URL has no host.")
@@ -258,10 +257,55 @@ def send_json(url: str, payload: bytes, *, headers: dict | None = None, idempote
     path = parts.path or "/"
     if parts.query:
         path = f"{path}?{parts.query}"
-    request_headers = {"Content-Type": "application/json", "Content-Length": str(len(payload))}
+    request_headers = dict(headers or {})
+    if body is not None:
+        request_headers.setdefault("Content-Length", str(len(body)))
+    return _send_to_ip(hostname, ip, port, method, path, body or b"", request_headers,
+                        connect_timeout=connect_timeout, read_timeout=read_timeout, deadline=deadline,
+                        max_response_bytes=max_response_bytes, ssl_context=ssl_context)
+
+
+def send_json(url: str, payload: bytes, *, headers: dict | None = None, idempotency_key: str | None = None,
+              connect_timeout: float = CONNECT_TIMEOUT_SECONDS, read_timeout: float = READ_TIMEOUT_SECONDS,
+              total_timeout: float = TOTAL_TIMEOUT_SECONDS) -> dict:
+    """POST `payload` (already-serialized JSON bytes) to `url` through every SSRF defense."""
+    request_headers = {"Content-Type": "application/json"}
     if headers:
         request_headers.update(headers)
     if idempotency_key:
         request_headers["Idempotency-Key"] = idempotency_key
-    return _send_to_ip(hostname, ip, port, path, payload, request_headers,
-                        connect_timeout=connect_timeout, read_timeout=read_timeout, deadline=deadline)
+    return _request(url, "POST", payload, headers=request_headers,
+                     connect_timeout=connect_timeout, read_timeout=read_timeout, total_timeout=total_timeout,
+                     max_response_bytes=MAX_RESPONSE_BYTES)
+
+
+def send_form_urlencoded(url: str, fields: dict, *, headers: dict | None = None,
+                          connect_timeout: float = CONNECT_TIMEOUT_SECONDS, read_timeout: float = READ_TIMEOUT_SECONDS,
+                          total_timeout: float = TOTAL_TIMEOUT_SECONDS) -> dict:
+    """POST `fields` as `application/x-www-form-urlencoded` (the OAuth2/OIDC token-endpoint
+    content type) through every SSRF defense. Field values are never logged or included in any
+    exception raised by this function."""
+    body = urlencode(fields).encode()
+    request_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    if headers:
+        request_headers.update(headers)
+    return _request(url, "POST", body, headers=request_headers,
+                     connect_timeout=connect_timeout, read_timeout=read_timeout, total_timeout=total_timeout,
+                     max_response_bytes=MAX_RESPONSE_BYTES)
+
+
+def fetch_json(url: str, *, connect_timeout: float = CONNECT_TIMEOUT_SECONDS, read_timeout: float = READ_TIMEOUT_SECONDS,
+               total_timeout: float = TOTAL_TIMEOUT_SECONDS, max_response_bytes: int = DISCOVERY_MAX_RESPONSE_BYTES) -> dict:
+    """GET `url` through every SSRF defense and parse the response as JSON.
+
+    Used for OIDC discovery documents and JWKS, both of which are small, well-known documents
+    fetched from an issuer an administrator configured - the response-size cap here is far
+    tighter than the general outbound-delivery default to limit memory exposure to a
+    compromised or misbehaving issuer.
+    """
+    result = _request(url, "GET", None, connect_timeout=connect_timeout, read_timeout=read_timeout,
+                       total_timeout=total_timeout, max_response_bytes=max_response_bytes)
+    try:
+        return json.loads(result["body"])
+    except ValueError as error:
+        raise PermanentDeliveryError("Destination did not return valid JSON.") from error
