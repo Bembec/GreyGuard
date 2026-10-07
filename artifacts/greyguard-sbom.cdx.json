@@ -90,6 +90,12 @@
     },
     {
       "type": "library",
+      "name": "PyJWT",
+      "version": "[crypto]==2.15.1",
+      "purl": "pkg:pypi/pyjwt"
+    },
+    {
+      "type": "library",
       "name": "@adobe/css-tools",
       "version": "4.5.0",
       "purl": "pkg:npm/@adobe/css-tools@4.5.0"
