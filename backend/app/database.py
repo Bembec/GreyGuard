@@ -11,9 +11,9 @@ from . import db_compat as sqlite3
 from pathlib import Path
 
 
-database_path = (
-    Path(__file__).resolve().parents[1] / "data" / "greyguard.db"
-)
+from .paths import data_directory
+
+database_path = data_directory() / "greyguard.db"
 
 
 def initialize_database():

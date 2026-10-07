@@ -7,10 +7,11 @@ network access.
 """
 
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from .paths import data_directory
 
 
 backend_path = Path(__file__).resolve().parents[1]
-data_path = backend_path / "data"
+data_path = data_directory()
 
 sandbox_root = (
     data_path / "sandbox_data"

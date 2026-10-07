@@ -44,6 +44,7 @@ from .tool_gateway import (
 )
 from .policy_control import get_emergency_controls
 from .policy_integrations import effective_rollout_policy
+from .paths import data_directory
 
 
 permissions = {
@@ -77,7 +78,7 @@ credential_prefix = "gg_"
 credential_hash_iterations = 310_000
 
 backend_path = Path(__file__).resolve().parents[1]
-data_path = backend_path / "data"
+data_path = data_directory()
 log_path = (
     data_path / "greyguard_security.log"
 )

@@ -5,8 +5,9 @@ from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from pathlib import Path
 from .database import database_path
+from .paths import data_directory
 
-backend_path=Path(__file__).resolve().parents[1];workspace_root=(backend_path/"data"/"isolated_workspaces").resolve();quarantine_root=(backend_path/"data"/"quarantine").resolve()
+backend_path=Path(__file__).resolve().parents[1];workspace_root=(data_directory()/"isolated_workspaces").resolve();quarantine_root=(data_directory()/"quarantine").resolve()
 def utc_now():return datetime.now(timezone.utc).isoformat()
 def initialize_isolation_operations():
  workspace_root.mkdir(parents=True,exist_ok=True);quarantine_root.mkdir(parents=True,exist_ok=True)
