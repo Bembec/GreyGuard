@@ -1,0 +1,177 @@
+{
+  "generated_at": "2026-10-07T06:06:09.183231+00:00",
+  "passed": true,
+  "policy": "Fixable Critical/High findings fail; upstream-unfixed findings receive a 30-day review exception.",
+  "checks": [
+    {
+      "name": "python-dependencies",
+      "command": [
+        "C:\\Users\\Michael\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "-m",
+        "pip_audit",
+        "-r",
+        "backend/requirements.txt"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:02:47.032574+00:00",
+      "completed_at": "2026-10-07T06:05:27.401819+00:00",
+      "report": "artifacts\\pip-audit.txt"
+    },
+    {
+      "name": "python-static-security",
+      "command": [
+        "C:\\Users\\Michael\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "-m",
+        "bandit",
+        "-r",
+        "backend/app",
+        "-x",
+        "backend/tests",
+        "-lll"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:05:27.402173+00:00",
+      "completed_at": "2026-10-07T06:05:33.814536+00:00",
+      "report": "artifacts\\bandit-high.txt"
+    },
+    {
+      "name": "frontend-dependencies",
+      "command": [
+        "C:\\Program Files\\nodejs\\npm.cmd",
+        "audit",
+        "--audit-level=high"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:05:33.814729+00:00",
+      "completed_at": "2026-10-07T06:06:00.381843+00:00",
+      "report": "artifacts\\npm-audit.txt"
+    },
+    {
+      "name": "secret-scan",
+      "command": [
+        "C:\\Users\\Michael\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "scripts/scan_repository_secrets.py"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:06:00.382018+00:00",
+      "completed_at": "2026-10-07T06:06:05.228944+00:00",
+      "report": null
+    },
+    {
+      "name": "generate-sbom",
+      "command": [
+        "C:\\Users\\Michael\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "scripts/generate_sbom.py"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:06:05.228981+00:00",
+      "completed_at": "2026-10-07T06:06:05.393196+00:00",
+      "report": null
+    },
+    {
+      "name": "verify-sbom",
+      "command": [
+        "C:\\Users\\Michael\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+        "scripts/verify_sbom.py"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:06:05.393212+00:00",
+      "completed_at": "2026-10-07T06:06:05.621540+00:00",
+      "report": null
+    },
+    {
+      "name": "backend-container-inventory",
+      "command": [
+        "docker",
+        "scout",
+        "cves",
+        "--only-severity",
+        "critical,high",
+        "local://greyguard-clean-rehearsal-backend:latest"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:06:09.183270+00:00",
+      "completed_at": "2026-10-07T06:08:54.427669+00:00",
+      "report": "artifacts\\backend-container-scan.txt"
+    },
+    {
+      "name": "backend-container",
+      "command": [
+        "docker",
+        "scout",
+        "cves",
+        "--only-fixed",
+        "--only-severity",
+        "critical,high",
+        "local://greyguard-clean-rehearsal-backend:latest"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:08:54.689778+00:00",
+      "completed_at": "2026-10-07T06:09:04.428553+00:00",
+      "report": "artifacts\\backend-container-fixable-scan.txt"
+    },
+    {
+      "name": "frontend-container-inventory",
+      "command": [
+        "docker",
+        "scout",
+        "cves",
+        "--only-severity",
+        "critical,high",
+        "local://greyguard-clean-rehearsal-frontend:latest"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:09:04.428756+00:00",
+      "completed_at": "2026-10-07T06:09:32.601462+00:00",
+      "report": "artifacts\\frontend-container-scan.txt"
+    },
+    {
+      "name": "frontend-container",
+      "command": [
+        "docker",
+        "scout",
+        "cves",
+        "--only-fixed",
+        "--only-severity",
+        "critical,high",
+        "local://greyguard-clean-rehearsal-frontend:latest"
+      ],
+      "return_code": 0,
+      "started_at": "2026-10-07T06:09:32.664526+00:00",
+      "completed_at": "2026-10-07T06:09:37.930134+00:00",
+      "report": "artifacts\\frontend-container-fixable-scan.txt"
+    }
+  ],
+  "accepted_risks": [
+    {
+      "cve": "CVE-2026-95619",
+      "severity": "HIGH",
+      "image": "greyguard-clean-rehearsal-backend:latest",
+      "status": "temporarily-accepted-upstream-no-fix",
+      "owner": "Platform Security",
+      "approved_by": "GreyGuard no-fix exception policy",
+      "review_due": "2026-11-06",
+      "compensating_controls": [
+        "minimal production image",
+        "non-root application process where supported",
+        "read-only and least-privilege runtime controls",
+        "monthly rebuild and vulnerability review"
+      ]
+    },
+    {
+      "cve": "CVE-2026-85091",
+      "severity": "HIGH",
+      "image": "greyguard-clean-rehearsal-backend:latest",
+      "status": "temporarily-accepted-upstream-no-fix",
+      "owner": "Platform Security",
+      "approved_by": "GreyGuard no-fix exception policy",
+      "review_due": "2026-11-06",
+      "compensating_controls": [
+        "minimal production image",
+        "non-root application process where supported",
+        "read-only and least-privilege runtime controls",
+        "monthly rebuild and vulnerability review"
+      ]
+    }
+  ]
+}
