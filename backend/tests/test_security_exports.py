@@ -55,7 +55,7 @@ def test_signed_webhook_uses_external_key_reference(isolated, monkeypatch):
 def test_delivery_failure_retries_then_dead_letters(isolated):
     item = destination(isolated, max_attempts=1)
     queued = isolated.enqueue_export(item["destination_id"], {"event_type": "EXECUTION"}, "owner")
-    isolated.process_queue(lambda *_: (_ for _ in ()).throw(RuntimeError("offline")))
+    isolated.process_queue(lambda *_, **__: (_ for _ in ()).throw(RuntimeError("offline")))
     failed = isolated.get_export(queued["export_id"])
     assert failed["status"] == "DEAD_LETTER"
     assert failed["attempts"] == 1

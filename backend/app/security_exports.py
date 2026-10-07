@@ -12,10 +12,15 @@ from datetime import datetime, timedelta, timezone
 
 from .database import database_path
 from .observability import redact
+from .outbound_delivery import (
+    PermanentDeliveryError, SSRFBlocked, backoff_seconds,
+    new_claim_token, record_evidence, safe_error, send_json,
+)
 
 
 DESTINATION_TYPES = {"SIGNED_WEBHOOK", "SPLUNK", "MICROSOFT_SENTINEL", "ELASTIC", "GRAFANA_LOKI", "SYSLOG", "STIX_TAXII"}
 MINIMIZATION_PROFILES = {"MINIMAL", "STANDARD", "FORENSIC"}
+LEASE_SECONDS = 120
 
 
 def utc_now():
@@ -37,6 +42,11 @@ def initialize_security_exports():
             event_type TEXT NOT NULL, payload_json TEXT NOT NULL, signature TEXT,
             delivered_at TEXT, last_error TEXT,
             FOREIGN KEY(destination_id) REFERENCES export_destinations(destination_id))""")
+        queue_columns = {row[1] for row in connection.execute("PRAGMA table_info(export_queue)")}
+        if "claim_token" not in queue_columns:
+            connection.execute("ALTER TABLE export_queue ADD COLUMN claim_token TEXT")
+        if "claimed_at" not in queue_columns:
+            connection.execute("ALTER TABLE export_queue ADD COLUMN claimed_at TEXT")
 
 
 def _destination(row):
@@ -129,9 +139,11 @@ def enqueue_export(destination_id, event, actor):
                 raise ValueError("Signing-key environment reference is unavailable.")
             signature = "sha256=" + hmac.new(key.encode(), serialized.encode(), hashlib.sha256).hexdigest()
         export_id = "exp_" + uuid.uuid4().hex
-        connection.execute("INSERT INTO export_queue VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        connection.execute("""INSERT INTO export_queue(export_id,destination_id,created_at,available_at,status,
+            attempts,event_type,payload_json,signature,delivered_at,last_error) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
             (export_id, destination_id, utc_now(), utc_now(), "QUEUED", 0,
              str(event.get("event_type", "SECURITY_EVENT")), serialized, signature, None, None))
+    record_evidence("SECURITY_EXPORT", export_id, "ENQUEUED", detail={"destination_id": destination_id})
     return get_export(export_id)
 
 
@@ -144,33 +156,67 @@ def get_export(export_id):
     return dict(row)
 
 
-def process_queue(sender, limit=100):
+def real_sender(endpoint, payload, signature, *, idempotency_key=None):
+    """The production transport: POST the minimized, adapter-shaped payload, signed if configured."""
+    if endpoint.startswith("tls://"):
+        # Syslog-over-TLS needs a raw TLS socket transport, not an HTTPS POST. Not built in this
+        # milestone; fail loud and dead-letter rather than silently drop or mis-send the event.
+        raise PermanentDeliveryError("Syslog (tls://) delivery is not yet implemented; this export cannot be sent.")
+    headers = {"X-GreyGuard-Signature": signature} if signature else None
+    body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    send_json(endpoint, body, headers=headers, idempotency_key=idempotency_key)
+
+
+def process_queue(sender, limit=100, worker_id=None):
     """Deliver due exports through an injected transport; safe for worker and test use."""
     initialize_security_exports()
     processed = 0
+    now = utc_now()
+    claim_token = new_claim_token()
     with sqlite3.connect(database_path) as connection:
+        connection.execute("""UPDATE export_queue SET claim_token=?,claimed_at=? WHERE export_id IN (
+            SELECT q.export_id FROM export_queue q JOIN export_destinations d USING(destination_id)
+            WHERE (q.status='QUEUED' OR (q.status='SENDING' AND q.claimed_at<=?)) AND q.available_at<=? AND d.enabled=1
+            ORDER BY q.created_at LIMIT ?)""",
+            (claim_token, now, (datetime.now(timezone.utc) - timedelta(seconds=LEASE_SECONDS)).isoformat(), now, limit))
+        connection.execute("UPDATE export_queue SET status='SENDING' WHERE claim_token=?", (claim_token,))
         connection.row_factory = sqlite3.Row
         rows = connection.execute("""SELECT q.*,d.endpoint,d.destination_type,d.max_attempts,d.rate_limit_per_minute
-            FROM export_queue q JOIN export_destinations d USING(destination_id)
-            WHERE q.status='QUEUED' AND q.available_at<=? AND d.enabled=1 ORDER BY q.created_at LIMIT ?""", (utc_now(), limit)).fetchall()
-        per_destination = {}
-        for row in rows:
-            count = per_destination.get(row["destination_id"], 0)
-            if count >= row["rate_limit_per_minute"]:
-                continue
-            per_destination[row["destination_id"]] = count + 1
-            attempts = row["attempts"] + 1
-            try:
-                sender(row["endpoint"], json.loads(row["payload_json"]), row["signature"])
-                connection.execute("UPDATE export_queue SET status='DELIVERED',attempts=?,delivered_at=?,last_error=NULL WHERE export_id=?", (attempts, utc_now(), row["export_id"]))
+            FROM export_queue q JOIN export_destinations d USING(destination_id) WHERE q.claim_token=?""", (claim_token,)).fetchall()
+    per_destination = {}
+    for row in rows:
+        count = per_destination.get(row["destination_id"], 0)
+        if count >= row["rate_limit_per_minute"]:
+            # Rate-limited this tick, not failed: release the claim so the next tick can retry it.
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("UPDATE export_queue SET status='QUEUED',claim_token=NULL,claimed_at=NULL WHERE export_id=?", (row["export_id"],))
+            continue
+        per_destination[row["destination_id"]] = count + 1
+        attempts = row["attempts"] + 1
+        record_evidence("SECURITY_EXPORT", row["export_id"], "ATTEMPT", attempt=attempts, worker_id=worker_id)
+        try:
+            sender(row["endpoint"], json.loads(row["payload_json"]), row["signature"], idempotency_key=row["export_id"])
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("UPDATE export_queue SET status='DELIVERED',attempts=?,delivered_at=?,last_error=NULL,claim_token=NULL,claimed_at=NULL WHERE export_id=?", (attempts, utc_now(), row["export_id"]))
                 connection.execute("UPDATE export_destinations SET last_success_at=?,last_error=NULL WHERE destination_id=?", (utc_now(), row["destination_id"]))
-            except Exception as error:
-                terminal = attempts >= row["max_attempts"]
-                delay = min(300, 2 ** attempts)
-                available = (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat()
-                connection.execute("UPDATE export_queue SET status=?,attempts=?,available_at=?,last_error=? WHERE export_id=?", ("DEAD_LETTER" if terminal else "QUEUED", attempts, available, str(error)[:500], row["export_id"]))
-                connection.execute("UPDATE export_destinations SET last_failure_at=?,last_error=? WHERE destination_id=?", (utc_now(), str(error)[:500], row["destination_id"]))
-            processed += 1
+            record_evidence("SECURITY_EXPORT", row["export_id"], "SUCCESS", attempt=attempts, worker_id=worker_id)
+        except SSRFBlocked as error:
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("UPDATE export_queue SET status='BLOCKED',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE export_id=?", (attempts, safe_error(error), row["export_id"]))
+            record_evidence("SECURITY_EXPORT", row["export_id"], "BLOCKED", attempt=attempts, detail={"error": str(error)}, worker_id=worker_id)
+        except PermanentDeliveryError as error:
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("UPDATE export_queue SET status='DEAD_LETTER',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE export_id=?", (attempts, safe_error(error), row["export_id"]))
+                connection.execute("UPDATE export_destinations SET last_failure_at=?,last_error=? WHERE destination_id=?", (utc_now(), safe_error(error), row["destination_id"]))
+            record_evidence("SECURITY_EXPORT", row["export_id"], "DEAD_LETTER", attempt=attempts, detail={"error": str(error)}, worker_id=worker_id)
+        except Exception as error:
+            terminal = attempts >= row["max_attempts"]
+            available = (datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds(attempts))).isoformat()
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("UPDATE export_queue SET status=?,attempts=?,available_at=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE export_id=?", ("DEAD_LETTER" if terminal else "QUEUED", attempts, available, safe_error(error), row["export_id"]))
+                connection.execute("UPDATE export_destinations SET last_failure_at=?,last_error=? WHERE destination_id=?", (utc_now(), safe_error(error), row["destination_id"]))
+            record_evidence("SECURITY_EXPORT", row["export_id"], "DEAD_LETTER" if terminal else "RETRY", attempt=attempts, detail={"error": safe_error(error)}, worker_id=worker_id)
+        processed += 1
     return {"processed": processed}
 
 
