@@ -10,14 +10,21 @@ const pageErrors:string[]=[]
 const serverErrors:string[]=[]
 
 test.beforeAll(async({browser})=>{
+ // The first login on a fresh database also runs one-time initialization.
+ test.setTimeout(120_000)
  page=await browser.newPage()
  page.on("pageerror",error=>pageErrors.push(error.message))
  page.on("response",response=>{if(response.url().includes("/api/")&&response.status()>=500)serverErrors.push(`${response.status()} ${response.url()}`)})
  await page.goto("/")
  await page.locator("#admin-email").fill(process.env.GREYGUARD_E2E_EMAIL!)
  await page.locator("#admin-password").fill(process.env.GREYGUARD_E2E_PASSWORD!)
- await page.getByRole("button",{name:/Enter command center/i}).click()
- await expect(page.getByRole("heading",{level:1})).toBeVisible({timeout:20_000})
+ const [login]=await Promise.all([
+  page.waitForResponse(response=>response.url().endsWith("/auth/login")&&response.request().method()==="POST",{timeout:90_000}),
+  page.getByRole("button",{name:/Enter command center/i}).click(),
+ ])
+ expect(login.status(),`login failed: ${await login.text()}`).toBe(200)
+ // The login page also has a level-1 heading, so wait until the console has replaced it.
+ await expect(page.getByRole("heading",{level:1})).not.toHaveText(/Every action passes/i,{timeout:30_000})
 })
 
 test.afterAll(async()=>{await page?.close()})
