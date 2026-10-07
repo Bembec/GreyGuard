@@ -58,6 +58,13 @@ from .database import (
     get_tool_request_details,
     get_tool_requests,
 )
+from .enterprise_sso import (
+    SSOError,
+    begin_login as begin_sso_login,
+    complete_login as complete_sso_login,
+    initialize_enterprise_sso,
+    list_enabled_providers_for_login,
+)
 
 
 from .policy_control import (
@@ -312,6 +319,7 @@ async def lifespan(_app: FastAPI):
         initialize_execution_isolation()
         initialize_isolation_operations()
         initialize_outbound_delivery()
+        initialize_enterprise_sso()
 
     worker_task, worker_stop_event = start_worker()
     try:
@@ -370,7 +378,7 @@ async def enforce_administrator_rbac(request: Request, call_next):
     """Enforce the signed-in operator's role before protected API execution."""
     path = request.url.path
     client_host = request.client.host if request.client else "unknown-client"
-    if path == "/auth/login":
+    if path == "/auth/login" or path.startswith("/auth/sso/"):
         rate_category = "ADMIN_AUTH"
         rate_identifier = client_host
     elif path == "/service-accounts/verify":
@@ -405,7 +413,7 @@ async def enforce_administrator_rbac(request: Request, call_next):
                 )
     response = await call_next(request)
     response.headers["X-RateLimit-Remaining"] = str(rate_decision["remaining"])
-    if path == "/auth/login":
+    if path == "/auth/login" or path == "/auth/sso/callback":
         if response.status_code == 200:
             clear_authentication_failures(client_host, "ADMIN_AUTH")
         elif response.status_code == 401:
@@ -460,6 +468,12 @@ class AdministratorLogin(BaseModel):
 
 class AdministratorRefresh(BaseModel):
     refresh_token: str = Field(min_length=20, max_length=256)
+    device_name: str = Field(default="Browser", max_length=100)
+
+
+class SSOCallback(BaseModel):
+    state: str = Field(min_length=1, max_length=256)
+    code: str = Field(min_length=1, max_length=2048)
     device_name: str = Field(default="Browser", max_length=100)
 
 
@@ -1095,6 +1109,31 @@ def administrator_login(credentials: AdministratorLogin, request: Request):
     except PermissionError as error:
         raise HTTPException(status_code=428, detail=str(error)) from error
     except ValueError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.get("/auth/sso/providers")
+def sso_providers():
+    """Public, pre-authentication listing so the login page knows whether to show an SSO button."""
+    return {"providers": list_enabled_providers_for_login()}
+
+
+@app.post("/auth/sso/{provider_id}/begin")
+def sso_begin(provider_id: str):
+    try:
+        return begin_sso_login(provider_id)
+    except SSOError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/auth/sso/callback")
+def sso_callback(payload: SSOCallback, request: Request):
+    try:
+        return complete_sso_login(
+            payload.state, payload.code, payload.device_name,
+            request.client.host if request.client else "",
+        )
+    except SSOError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
 
 
