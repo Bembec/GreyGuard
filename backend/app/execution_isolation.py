@@ -36,12 +36,25 @@ def run_predefined_job(job_type,actor,runner=subprocess.run):
  except subprocess.TimeoutExpired:status="TIMED_OUT";output="Execution exceeded its approved timeout."
  finally:
   with _lock:_running.pop(execution_id,None)
- with sqlite3.connect(database_path) as c:c.execute("UPDATE isolation_executions SET status=?,finished_at=?,result=? WHERE execution_id=?",(status,utc_now(),output,execution_id))
+ with sqlite3.connect(database_path) as c:
+  # Only a still-RUNNING record is finalized here; an emergency TERMINATED status must never be overwritten.
+  c.execute("UPDATE isolation_executions SET status=?,finished_at=?,result=? WHERE execution_id=? AND status='RUNNING'",(status,utc_now(),output,execution_id))
+  c.row_factory=sqlite3.Row;status=c.execute("SELECT status FROM isolation_executions WHERE execution_id=?",(execution_id,)).fetchone()["status"]
  return {"execution_id":execution_id,"status":status,"result":output}
+CONTAINER_NAME_PATTERN=re.compile(r"greyguard-iso_[0-9a-f]{32}")
 def emergency_terminate(actor,runner=subprocess.run):
- with _lock:targets=list(_running.items())
+ """Kill every RUNNING sandbox job, whichever backend worker started it.
+
+ The database is the source of truth because each worker process has its own memory;
+ the in-memory registry is merged in as a fallback for jobs not yet visible elsewhere.
+ """
+ with sqlite3.connect(database_path) as c:
+  c.row_factory=sqlite3.Row
+  targets={r["execution_id"]:r["container_name"] for r in c.execute("SELECT execution_id,container_name FROM isolation_executions WHERE status='RUNNING'")}
+ with _lock:targets.update(_running)
  terminated=[]
- for execution_id,name in targets:
+ for execution_id,name in targets.items():
+  if not CONTAINER_NAME_PATTERN.fullmatch(name):continue
   runner(["docker","kill",name],capture_output=True,text=True,timeout=10,check=False);terminated.append(execution_id)
   with sqlite3.connect(database_path) as c:c.execute("UPDATE isolation_executions SET status='TERMINATED',finished_at=?,termination_reason=? WHERE execution_id=?",(utc_now(),f"Emergency termination by {actor}",execution_id))
  return {"terminated":terminated,"count":len(terminated)}
