@@ -4,8 +4,14 @@ from . import db_compat as sqlite3
 from datetime import datetime,timedelta,timezone
 from .database import database_path
 from .observability import redact
+from .outbound_delivery import (
+ PermanentDeliveryError,SSRFBlocked,backoff_seconds,
+ new_claim_token,record_evidence,safe_error,send_json,
+)
 
 SYSTEMS={"JIRA","SERVICENOW"}
+DEFAULT_MAX_ATTEMPTS=8
+LEASE_SECONDS=120
 def utc_now():return datetime.now(timezone.utc).isoformat()
 def initialize_incident_integrations():
  with sqlite3.connect(database_path) as c:
@@ -13,6 +19,14 @@ def initialize_incident_integrations():
   c.execute("""CREATE TABLE IF NOT EXISTS external_incident_records(record_id TEXT PRIMARY KEY,destination_id TEXT NOT NULL,source_alert_id TEXT NOT NULL,created_at TEXT NOT NULL,status TEXT NOT NULL,payload_json TEXT NOT NULL,external_id TEXT,delivered_at TEXT,last_error TEXT,UNIQUE(destination_id,source_alert_id))""")
   c.execute("""CREATE TABLE IF NOT EXISTS expiring_approval_links(link_id TEXT PRIMARY KEY,request_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,decision TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,created_by TEXT NOT NULL,used_at TEXT,used_by TEXT,revoked_at TEXT)""")
   c.execute("""CREATE TABLE IF NOT EXISTS callback_evidence(callback_id TEXT PRIMARY KEY,record_id TEXT NOT NULL,received_at TEXT NOT NULL,signature_valid INTEGER NOT NULL,payload_hash TEXT NOT NULL,outcome TEXT NOT NULL)""")
+  dest_columns={row[1] for row in c.execute("PRAGMA table_info(incident_destinations)")}
+  if "max_attempts" not in dest_columns:c.execute(f"ALTER TABLE incident_destinations ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT {DEFAULT_MAX_ATTEMPTS}")
+  record_columns={row[1] for row in c.execute("PRAGMA table_info(external_incident_records)")}
+  if "attempts" not in record_columns:c.execute("ALTER TABLE external_incident_records ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
+  if "available_at" not in record_columns:c.execute("ALTER TABLE external_incident_records ADD COLUMN available_at TEXT")
+  if "claim_token" not in record_columns:c.execute("ALTER TABLE external_incident_records ADD COLUMN claim_token TEXT")
+  if "claimed_at" not in record_columns:c.execute("ALTER TABLE external_incident_records ADD COLUMN claimed_at TEXT")
+  c.execute("UPDATE external_incident_records SET available_at=created_at WHERE available_at IS NULL")
 def list_controls():
  initialize_incident_integrations()
  with sqlite3.connect(database_path) as c:
@@ -27,7 +41,7 @@ def save_destination(name,system_type,endpoint,credential_reference,project_or_t
  with sqlite3.connect(database_path) as c:
   old=c.execute("SELECT destination_id FROM incident_destinations WHERE name=?",(name.strip(),)).fetchone()
   if old:did=old[0];c.execute("UPDATE incident_destinations SET system_type=?,endpoint=?,credential_reference=?,project_or_table=?,enabled=? WHERE destination_id=?",(system_type,endpoint,credential_reference,project_or_table,int(enabled),did))
-  else:c.execute("INSERT INTO incident_destinations VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(did,name.strip(),system_type,endpoint,credential_reference,project_or_table,int(enabled),utc_now(),actor,None,None,None))
+  else:c.execute("INSERT INTO incident_destinations(destination_id,name,system_type,endpoint,credential_reference,project_or_table,enabled,created_at,created_by,last_success_at,last_failure_at,last_error) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(did,name.strip(),system_type,endpoint,credential_reference,project_or_table,int(enabled),utc_now(),actor,None,None,None))
  return next(d for d in list_controls()["destinations"] if d["destination_id"]==did)
 def queue_incident(destination_id,alert):
  initialize_incident_integrations();safe=redact(alert)
@@ -39,18 +53,64 @@ def queue_incident(destination_id,alert):
   if not source:raise ValueError("A source alert identifier is required.")
   payload={"system":d["system_type"],"target":d["project_or_table"],"summary":safe.get("title","GreyGuard incident"),"description":safe.get("summary",safe.get("message","")),"severity":safe.get("severity","MEDIUM"),"source_alert_id":source}
   rid="incx_"+uuid.uuid4().hex
-  try:c.execute("INSERT INTO external_incident_records VALUES(?,?,?,?,?,?,?,?,?)",(rid,destination_id,source,utc_now(),"QUEUED",json.dumps(payload,separators=(",",":"),sort_keys=True),None,None,None))
+  try:c.execute("INSERT INTO external_incident_records(record_id,destination_id,source_alert_id,created_at,status,payload_json,external_id,delivered_at,last_error,attempts,available_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(rid,destination_id,source,utc_now(),"QUEUED",json.dumps(payload,separators=(",",":"),sort_keys=True),None,None,None,0,utc_now()))
   except sqlite3.IntegrityError:return {"status":"DEDUPLICATED","source_alert_id":source}
-  c.row_factory=sqlite3.Row;return dict(c.execute("SELECT * FROM external_incident_records WHERE record_id=?",(rid,)).fetchone())
-def process_incidents(sender,limit=100):
- initialize_incident_integrations();processed=0
+ record_evidence("INCIDENT_INTEGRATION",rid,"ENQUEUED",detail={"destination_id":destination_id,"source_alert_id":source})
  with sqlite3.connect(database_path) as c:
-  c.row_factory=sqlite3.Row;rows=c.execute("SELECT r.*,d.endpoint,d.credential_reference,d.system_type FROM external_incident_records r JOIN incident_destinations d USING(destination_id) WHERE r.status='QUEUED' AND d.enabled=1 ORDER BY r.created_at LIMIT ?",(limit,)).fetchall()
-  for row in rows:
-   try:
-    external_id=sender(row["system_type"],row["endpoint"],row["credential_reference"],json.loads(row["payload_json"]));c.execute("UPDATE external_incident_records SET status='CREATED',external_id=?,delivered_at=?,last_error=NULL WHERE record_id=?",(str(external_id),utc_now(),row["record_id"]));c.execute("UPDATE incident_destinations SET last_success_at=?,last_error=NULL WHERE destination_id=?",(utc_now(),row["destination_id"]))
-   except Exception as e:c.execute("UPDATE external_incident_records SET status='FAILED',last_error=? WHERE record_id=?",(str(e)[:500],row["record_id"]));c.execute("UPDATE incident_destinations SET last_failure_at=?,last_error=? WHERE destination_id=?",(utc_now(),str(e)[:500],row["destination_id"]))
-   processed+=1
+  c.row_factory=sqlite3.Row;return dict(c.execute("SELECT * FROM external_incident_records WHERE record_id=?",(rid,)).fetchone())
+def _external_id_from_response(body,fallback):
+ """The POST already succeeded once send_json returns without raising; an unparsable or
+ unexpected response body is not a delivery failure, just a missing external ticket id."""
+ try:parsed=json.loads(body or b"{}")
+ except ValueError:return fallback
+ if not isinstance(parsed,dict):return fallback
+ result=parsed.get("result")
+ return parsed.get("id") or (result.get("sys_id") if isinstance(result,dict) else None) or fallback
+def real_sender(system_type,endpoint,credential_reference,payload,*,idempotency_key=None):
+ """The production transport: POST to the Jira/ServiceNow REST API with a bearer credential."""
+ token=os.getenv(credential_reference)
+ if not token:raise PermanentDeliveryError("Incident-system credential environment reference is unavailable.")
+ body=json.dumps(payload,separators=(",",":"),sort_keys=True).encode()
+ response=send_json(endpoint,body,headers={"Authorization":f"Bearer {token}"},idempotency_key=idempotency_key)
+ return _external_id_from_response(response["body"],idempotency_key)
+def process_incidents(sender,limit=100,worker_id=None):
+ initialize_incident_integrations();processed=0;now=utc_now()
+ claim_token=new_claim_token()
+ with sqlite3.connect(database_path) as c:
+  c.execute("""UPDATE external_incident_records SET claim_token=?,claimed_at=? WHERE record_id IN (
+   SELECT r.record_id FROM external_incident_records r JOIN incident_destinations d USING(destination_id)
+   WHERE (r.status='QUEUED' OR (r.status='SENDING' AND r.claimed_at<=?)) AND r.available_at<=? AND d.enabled=1
+   ORDER BY r.created_at LIMIT ?)""",(claim_token,now,(datetime.now(timezone.utc)-timedelta(seconds=LEASE_SECONDS)).isoformat(),now,limit))
+  c.execute("UPDATE external_incident_records SET status='SENDING' WHERE claim_token=?",(claim_token,))
+  c.row_factory=sqlite3.Row
+  rows=c.execute("""SELECT r.*,d.endpoint,d.credential_reference,d.system_type,d.max_attempts FROM external_incident_records r
+   JOIN incident_destinations d USING(destination_id) WHERE r.claim_token=?""",(claim_token,)).fetchall()
+ for row in rows:
+  attempts=row["attempts"]+1
+  record_evidence("INCIDENT_INTEGRATION",row["record_id"],"ATTEMPT",attempt=attempts,worker_id=worker_id)
+  try:
+   external_id=sender(row["system_type"],row["endpoint"],row["credential_reference"],json.loads(row["payload_json"]),idempotency_key=row["record_id"])
+   with sqlite3.connect(database_path) as c:
+    c.execute("UPDATE external_incident_records SET status='CREATED',attempts=?,external_id=?,delivered_at=?,last_error=NULL,claim_token=NULL,claimed_at=NULL WHERE record_id=?",(attempts,str(external_id),utc_now(),row["record_id"]))
+    c.execute("UPDATE incident_destinations SET last_success_at=?,last_error=NULL WHERE destination_id=?",(utc_now(),row["destination_id"]))
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"SUCCESS",attempt=attempts,worker_id=worker_id)
+  except SSRFBlocked as error:
+   with sqlite3.connect(database_path) as c:
+    c.execute("UPDATE external_incident_records SET status='BLOCKED',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE record_id=?",(attempts,safe_error(error),row["record_id"]))
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"BLOCKED",attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
+  except PermanentDeliveryError as error:
+   with sqlite3.connect(database_path) as c:
+    c.execute("UPDATE external_incident_records SET status='DEAD_LETTER',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE record_id=?",(attempts,safe_error(error),row["record_id"]))
+    c.execute("UPDATE incident_destinations SET last_failure_at=?,last_error=? WHERE destination_id=?",(utc_now(),safe_error(error),row["destination_id"]))
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"DEAD_LETTER",attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
+  except Exception as error:
+   terminal=attempts>=row["max_attempts"]
+   available=(datetime.now(timezone.utc)+timedelta(seconds=backoff_seconds(attempts))).isoformat()
+   with sqlite3.connect(database_path) as c:
+    c.execute("UPDATE external_incident_records SET status=?,attempts=?,available_at=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE record_id=?",("DEAD_LETTER" if terminal else "QUEUED",attempts,available,safe_error(error),row["record_id"]))
+    c.execute("UPDATE incident_destinations SET last_failure_at=?,last_error=? WHERE destination_id=?",(utc_now(),safe_error(error),row["destination_id"]))
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"DEAD_LETTER" if terminal else "RETRY",attempt=attempts,detail={"error":safe_error(error)},worker_id=worker_id)
+  processed+=1
  return {"processed":processed}
 def create_approval_link(request_id,decision,minutes,actor):
  decision=decision.upper()
