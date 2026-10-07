@@ -265,6 +265,13 @@ from .isolation_operations import (
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
+from .outbound_delivery import (
+    allow_private_destination,
+    initialize_outbound_delivery,
+    list_allowed_private_destinations,
+    revoke_private_destination,
+)
+from .outbound_worker import start_worker, stop_worker
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -304,8 +311,13 @@ async def lifespan(_app: FastAPI):
         initialize_incident_integrations()
         initialize_execution_isolation()
         initialize_isolation_operations()
+        initialize_outbound_delivery()
 
-    yield
+    worker_task, worker_stop_event = start_worker()
+    try:
+        yield
+    finally:
+        await stop_worker(worker_task, worker_stop_event)
 
 
 app = FastAPI(
@@ -674,6 +686,11 @@ class IncidentDestinationRequest(BaseModel):
 class ExternalIncidentRequest(BaseModel):
     destination_id: str
     alert: dict
+
+
+class PrivateDestinationAllowRequest(BaseModel):
+    host: str = Field(min_length=1,max_length=255)
+    reason: str = Field(min_length=3,max_length=500)
 
 
 class ApprovalLinkCreateRequest(BaseModel):
@@ -1918,6 +1935,25 @@ def receive_signed_incident_callback(payload: SignedCallbackRequest,x_admin_pin:
     try:return verify_callback(payload.record_id,payload.payload,payload.signature,payload.key_reference)
     except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.get("/outbound-delivery/private-allowlist")
+def outbound_private_allowlist(x_admin_pin: str | None = Header(default=None)):
+    require_platform_admin(x_admin_pin);return {"hosts":list_allowed_private_destinations()}
+
+
+@app.post("/outbound-delivery/private-allowlist",status_code=201)
+def allow_outbound_private_destination(payload: PrivateDestinationAllowRequest,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return allow_private_destination(payload.host,payload.reason,policy_actor(administrator))
+    except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.delete("/outbound-delivery/private-allowlist/{host}")
+def revoke_outbound_private_destination(host: str,x_admin_pin: str | None = Header(default=None)):
+    administrator=require_platform_admin(x_admin_pin)
+    try:return revoke_private_destination(host,policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.get("/execution-isolation")
