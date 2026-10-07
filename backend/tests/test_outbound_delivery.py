@@ -247,7 +247,7 @@ def test_send_to_ip_delivers_payload_with_idempotency_header(isolated, local_tls
     server, cert_path = local_tls_server
     port = server.server_address[1]
     result = od._send_to_ip(
-        "localhost", "127.0.0.1", port, "/hook",
+        "localhost", "127.0.0.1", port, "POST", "/hook",
         b'{"hello":"world"}',
         {"Content-Type": "application/json", "Idempotency-Key": "dedupe-123"},
         connect_timeout=5.0, read_timeout=5.0, deadline=od.time.monotonic() + 10,
@@ -265,7 +265,7 @@ def test_send_to_ip_uses_the_real_hostname_for_tls_verification(isolated, local_
     server, cert_path = local_tls_server
     port = server.server_address[1]
     od._send_to_ip(
-        "localhost", "127.0.0.1", port, "/hook", b"{}", {"Content-Type": "application/json"},
+        "localhost", "127.0.0.1", port, "POST", "/hook", b"{}", {"Content-Type": "application/json"},
         connect_timeout=5.0, read_timeout=5.0, deadline=od.time.monotonic() + 10,
         ssl_context=_client_context_trusting(cert_path),
     )  # no exception means hostname verification against "localhost" succeeded
@@ -278,7 +278,7 @@ def test_send_to_ip_fails_hostname_verification_for_a_mismatched_pinned_target(i
     port = server.server_address[1]
     with pytest.raises(od.DeliveryError):
         od._send_to_ip(
-            "not-the-right-hostname.test", "127.0.0.1", port, "/hook", b"{}", {},
+            "not-the-right-hostname.test", "127.0.0.1", port, "POST", "/hook", b"{}", {},
             connect_timeout=5.0, read_timeout=5.0, deadline=od.time.monotonic() + 10,
             ssl_context=_client_context_trusting(cert_path),
         )
