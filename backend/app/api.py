@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 from . import main
 from .api_versioning import install_api_versioning
+from .db_compat import initialization_lock
 from .admin_auth import (
     authenticate as authenticate_administrator,
     begin_mfa_enrollment,
@@ -270,38 +271,39 @@ async def lifespan(_app: FastAPI):
     """Initialize GreyGuard for the API lifecycle."""
 
     load_production_config()
-    main.initialize_greyguard()
-    initialize_policy_control(
-        permissions=main.permissions,
-        risk_weights=main.risk_weights,
-        max_blocked_attempts=(
-            main.max_blocked_attempts
-        ),
-        max_risk_score=main.max_risk_score,
-    )
-    initialize_policy_integrations()
-    initialize_alert_database()
-    initialize_secret_manager()
-    initialize_notification_database()
-    initialize_service_accounts()
-    initialize_compliance_reports()
-    initialize_report_governance()
-    initialize_endpoint_telemetry()
-    initialize_defensive_integrations()
-    initialize_simulations()
-    initialize_universal_controls()
-    initialize_capability_removal()
-    initialize_threat_register()
-    initialize_abuse_protection()
-    initialize_adapter_control(main.permissions.keys())
-    initialize_observability()
-    initialize_enterprise_identity()
-    initialize_security_exports()
-    initialize_audit_integrity()
-    initialize_notification_delivery()
-    initialize_incident_integrations()
-    initialize_execution_isolation()
-    initialize_isolation_operations()
+    with initialization_lock():
+        main.initialize_greyguard()
+        initialize_policy_control(
+            permissions=main.permissions,
+            risk_weights=main.risk_weights,
+            max_blocked_attempts=(
+                main.max_blocked_attempts
+            ),
+            max_risk_score=main.max_risk_score,
+        )
+        initialize_policy_integrations()
+        initialize_alert_database()
+        initialize_secret_manager()
+        initialize_notification_database()
+        initialize_service_accounts()
+        initialize_compliance_reports()
+        initialize_report_governance()
+        initialize_endpoint_telemetry()
+        initialize_defensive_integrations()
+        initialize_simulations()
+        initialize_universal_controls()
+        initialize_capability_removal()
+        initialize_threat_register()
+        initialize_abuse_protection()
+        initialize_adapter_control(main.permissions.keys())
+        initialize_observability()
+        initialize_enterprise_identity()
+        initialize_security_exports()
+        initialize_audit_integrity()
+        initialize_notification_delivery()
+        initialize_incident_integrations()
+        initialize_execution_isolation()
+        initialize_isolation_operations()
 
     yield
 

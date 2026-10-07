@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import sqlite3 as _sqlite
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -65,12 +66,74 @@ class Cursor:
             if value is None:break
             yield value
 
+# PostgreSQL advisory-lock keys. They must differ: the extension lock is taken
+# on ordinary connections while a worker may already hold the startup lock.
+STARTUP_LOCK_KEY = 4747110001
+EXTENSION_LOCK_KEY = 4747110002
+_extensions_ready = False
+_extensions_guard = threading.Lock()
+
+
+def _postgres_url():
+    url = os.environ.get("GREYGUARD_DATABASE_URL", "").strip()
+    if url.startswith(("postgresql://", "postgresql+psycopg://")):
+        return url.replace("postgresql+psycopg://", "postgresql://")
+    return None
+
+
+def _ensure_extensions(connection, psycopg):
+    """Create required extensions once per process, safely across concurrent workers."""
+    global _extensions_ready
+    if _extensions_ready:
+        return
+    with _extensions_guard:
+        if _extensions_ready:
+            return
+        try:
+            connection.execute("SELECT pg_advisory_xact_lock(%s)", (EXTENSION_LOCK_KEY,))
+            connection.execute("CREATE EXTENSION IF NOT EXISTS citext")
+            connection.commit()
+        except psycopg.errors.UniqueViolation:
+            # Another process created it between the check and the insert.
+            connection.rollback()
+        _extensions_ready = True
+
+
+class initialization_lock:
+    """Serialize schema initialization across all backend workers.
+
+    PostgreSQL does not make concurrent CREATE ... IF NOT EXISTS statements safe,
+    so each worker waits for a session-level advisory lock before initializing.
+    SQLite runs in a single process per file and needs no lock.
+    """
+
+    def __init__(self):
+        self._connection = None
+
+    def __enter__(self):
+        url = _postgres_url()
+        if url:
+            import psycopg
+            self._connection = psycopg.connect(url, autocommit=True)
+            self._connection.execute("SELECT pg_advisory_lock(%s)", (STARTUP_LOCK_KEY,))
+        return self
+
+    def __exit__(self, *_exc):
+        if self._connection is not None:
+            try:
+                self._connection.execute("SELECT pg_advisory_unlock(%s)", (STARTUP_LOCK_KEY,))
+            finally:
+                self._connection.close()
+                self._connection = None
+        return False
+
+
 class PostgresConnection:
     def __init__(self,url: str):
         try:import psycopg
         except ImportError as error:raise RuntimeError("Install psycopg to use PostgreSQL.") from error
         self._psycopg=psycopg;self._connection=psycopg.connect(url.replace("postgresql+psycopg://","postgresql://"));self.row_factory=None
-        self._connection.execute("CREATE EXTENSION IF NOT EXISTS citext");self._connection.commit()
+        _ensure_extensions(self._connection,psycopg)
     def __enter__(self):return self
     def __exit__(self,error_type,error,_trace):
         if error_type:self._connection.rollback()
