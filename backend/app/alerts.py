@@ -19,9 +19,9 @@ def current_timestamp() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
-def initialize_alert_database() -> None:
+def initialize_alert_database(database=None) -> None:
     """Create alert and investigation-note tables."""
-    with sqlite3.connect(database_path) as connection:
+    with sqlite3.connect(database or database_path) as connection:
         connection.execute("""
             CREATE TABLE IF NOT EXISTS security_alerts (
                 alert_id TEXT PRIMARY KEY,
@@ -68,16 +68,16 @@ def _alert_title(event: dict[str, Any]) -> str:
     return f"{outcome} detected for {agent}"
 
 
-def sync_alerts_from_events(events: list[dict[str, Any]] | None = None) -> int:
+def sync_alerts_from_events(events: list[dict[str, Any]] | None = None, database=None) -> int:
     """Create deduplicated alerts from high and critical evidence."""
-    initialize_alert_database()
+    initialize_alert_database(database)
     if events is None:
         from .database import get_administrator_audit_events
         response = get_administrator_audit_events(limit=500)
         events = response["events"]
 
     created = 0
-    with sqlite3.connect(database_path) as connection:
+    with sqlite3.connect(database or database_path) as connection:
         for event in events:
             severity = str(event.get("severity", "INFO")).upper()
             event_id = str(event.get("event_id", "")).strip()

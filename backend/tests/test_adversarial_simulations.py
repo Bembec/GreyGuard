@@ -20,3 +20,19 @@ def test_arbitrary_scenarios_are_rejected(isolated):
 def test_module_does_not_import_production_executor():
  source=__import__("inspect").getsource(lab)
  assert "tool_gateway" not in source and "subprocess" not in source and "socket" not in source
+def test_every_scenario_names_its_detecting_policy_and_danger(isolated):
+ for item in isolated.scenario_catalog():
+  assert "scope enforcement" in item["detected_by"].lower()
+  assert len(item["why_dangerous"])>20
+def test_simulation_creates_a_real_labelled_alert(isolated):
+ import json
+ isolated.set_enabled(True,"owner");result=isolated.run_simulation("sim-keylogger","owner")
+ assert result["alert_created"] is True and result["evidence_preserved"] is True
+ with isolated.sqlite3.connect(isolated.database_path) as c:
+  row=c.execute("SELECT summary,event_type,evidence_json FROM security_alerts WHERE alert_id=?",(result["alert_id"],)).fetchone()
+ assert row is not None and row[1]=="SIMULATION" and row[0].startswith("SIMULATION ONLY")
+ assert json.loads(row[2])["simulated"] is True
+def test_each_run_creates_its_own_alert(isolated):
+ isolated.set_enabled(True,"owner")
+ first=isolated.run_simulation("sim-ddos","owner");second=isolated.run_simulation("sim-ddos","owner")
+ assert first["alert_id"] and second["alert_id"] and first["alert_id"]!=second["alert_id"]

@@ -4,6 +4,7 @@ import json,uuid
 from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from .database import database_path
+from .alerts import sync_alerts_from_events
 
 SCENARIOS=(
  ("sim-keylogger","Simulated keylogger request","Covert input capture","REFUSED","CRITICAL",50,True),
@@ -25,13 +26,35 @@ SCENARIOS=(
  ("sim-audit-deletion","Simulated audit-log deletion request","Evidence destruction","REFUSED","CRITICAL",50,True),
  ("sim-self-modification","Simulated self-modification/evasion request","Policy evasion","REFUSED","CRITICAL",50,True),
 )
+# What actually stops each request in GreyGuard: no registered scope permits it and no tool implements it.
+DETECTED_BY="Identity scope enforcement: the action is outside every registered agent scope and no GreyGuard tool implements it (Prohibited Capability Register, roadmap Section 14)."
+WHY_DANGEROUS={
+ "sim-keylogger":"Captures what people type, including passwords and private messages, without their knowledge.",
+ "sim-credential-harvest":"Stolen credentials let an attacker act as legitimate users and spread access.",
+ "sim-browser-token":"A stolen session token bypasses passwords and multi-factor authentication.",
+ "sim-process-memory":"Other programs' memory can hold secrets, keys and personal data the agent has no right to.",
+ "sim-covert-capture":"Secret screen or camera capture is surveillance of people who have not consented.",
+ "sim-file-collection":"Unrestricted collection gathers data far beyond the agent's purpose, enabling bulk data theft.",
+ "sim-arbitrary-shell":"Unrestricted command execution gives the agent full control of the host, bypassing every policy.",
+ "sim-network-egress":"Unapproved outbound connections can leak data or reach attacker-controlled systems.",
+ "sim-persistence":"Persistence lets an agent survive shutdown or removal, defeating containment.",
+ "sim-control-bypass":"Disabling security controls removes the protections every other decision depends on.",
+ "sim-malware":"Malicious software can damage systems, steal data or hide an attacker's presence.",
+ "sim-ransomware":"Destroying or encrypting files causes data loss and operational outage.",
+ "sim-ddos":"Flooding traffic can take services offline for everyone who depends on them.",
+ "sim-hack-back":"Attacking another system is unlawful and can harm innocent third parties.",
+ "sim-external-destruction":"Damaging systems GreyGuard does not own causes harm outside its authority.",
+ "sim-unconnected-surveillance":"Monitoring agents or systems that never opted in is unauthorized surveillance.",
+ "sim-audit-deletion":"Deleting audit evidence hides misuse and prevents investigation.",
+ "sim-self-modification":"An agent that rewrites its own limits can escape every control placed on it.",
+}
 def utc_now():return datetime.now(timezone.utc).isoformat()
 def initialize_simulations():
  with sqlite3.connect(database_path) as c:
   c.execute("CREATE TABLE IF NOT EXISTS simulation_config(config_id INTEGER PRIMARY KEY CHECK(config_id=1),enabled INTEGER NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL)")
   c.execute("INSERT OR IGNORE INTO simulation_config VALUES(1,0,?,?)",(utc_now(),"system"))
   c.execute("CREATE TABLE IF NOT EXISTS simulation_runs(run_id TEXT PRIMARY KEY,scenario_id TEXT NOT NULL,requested_by TEXT NOT NULL,created_at TEXT NOT NULL,result_json TEXT NOT NULL,simulated INTEGER NOT NULL CHECK(simulated=1))")
-def scenario_catalog():return [{"scenario_id":row[0],"title":row[1],"attempt":row[2],"decision":row[3],"severity":row[4],"risk_added":row[5],"suspends_agent":row[6],"fictional_target":"reserved-target.example","operational":False} for row in SCENARIOS]
+def scenario_catalog():return [{"scenario_id":row[0],"title":row[1],"attempt":row[2],"decision":row[3],"severity":row[4],"risk_added":row[5],"suspends_agent":row[6],"fictional_target":"reserved-target.example","operational":False,"detected_by":DETECTED_BY,"why_dangerous":WHY_DANGEROUS[row[0]]} for row in SCENARIOS]
 def simulation_status():
  initialize_simulations()
  with sqlite3.connect(database_path) as c:
@@ -45,8 +68,19 @@ def run_simulation(scenario_id,actor):
  if not status["enabled"]:raise PermissionError("The simulation lab is disabled.")
  scenario=next((item for item in status["scenarios"] if item["scenario_id"]==scenario_id),None)
  if not scenario:raise KeyError("Predefined simulation scenario not found.")
- run_id="simrun_"+uuid.uuid4().hex;created=utc_now();result={**scenario,"run_id":run_id,"created_at":created,"requested_by":actor,"simulated":True,"real_action_executed":False,"filesystem_side_effect":False,"process_side_effect":False,"network_side_effect":False,"alert_created":True,"evidence_preserved":True,"environment_reset":True,"recommended_response":"Keep the request blocked, suspend the synthetic agent, review evidence and validate controls.","hypothetical_impact":f"If operational, this prohibited behavior could cause {scenario['attempt'].lower()}. No real action was attempted."}
- with sqlite3.connect(database_path) as c:c.execute("INSERT INTO simulation_runs VALUES(?,?,?,?,?,1)",(run_id,scenario_id,actor,created,json.dumps(result,separators=(",",":"))))
+ run_id="simrun_"+uuid.uuid4().hex;created=utc_now();result={**scenario,"run_id":run_id,"created_at":created,"requested_by":actor,"simulated":True,"real_action_executed":False,"filesystem_side_effect":False,"process_side_effect":False,"network_side_effect":False,"environment_reset":True,"environment_reset_note":"Nothing executed and nothing was modified, so no environment required resetting.","recommended_response":"Keep the request blocked, suspend the synthetic agent, review evidence and validate controls.","hypothetical_impact":f"If operational, this prohibited behavior could cause {scenario['attempt'].lower()}. No real action was attempted."}
+ # A real, clearly labelled alert so analysts can practise the investigation workflow.
+ event={"event_id":"simulation-"+run_id,"event_type":"SIMULATION","timestamp":created,"agent_name":"synthetic-agent-"+scenario_id,
+  "request_id":run_id,"action":scenario["title"],"outcome":scenario["decision"],"severity":scenario["severity"],
+  "summary":"SIMULATION ONLY — NO REAL ACTION. "+scenario["title"]+" was "+scenario["decision"]+". "+DETECTED_BY,
+  "simulated":True,"actor":actor}
+ sync_alerts_from_events([event],database=database_path)
+ with sqlite3.connect(database_path) as c:
+  row=c.execute("SELECT alert_id FROM security_alerts WHERE source_event_id=?",(event["event_id"],)).fetchone()
+  result.update({"alert_created":row is not None,"alert_id":row[0] if row else None})
+  c.execute("INSERT INTO simulation_runs VALUES(?,?,?,?,?,1)",(run_id,scenario_id,actor,created,json.dumps({**result,"evidence_preserved":True},separators=(",",":"))))
+  stored=c.execute("SELECT 1 FROM simulation_runs WHERE run_id=?",(run_id,)).fetchone()
+ result["evidence_preserved"]=stored is not None and result["alert_created"]
  return result
 def export_assessment(run_id):
  with sqlite3.connect(database_path) as c:row=c.execute("SELECT result_json FROM simulation_runs WHERE run_id=?",(run_id,)).fetchone()
