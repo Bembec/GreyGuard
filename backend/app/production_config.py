@@ -24,4 +24,5 @@ def load_production_config(environ=None):
         if missing: raise RuntimeError("Missing required production settings: " + ", ".join(missing))
         if "*" in origins or "*" in hosts: raise RuntimeError("Wildcard origins and hosts are forbidden in production.")
         if len(env["GREYGUARD_BOOTSTRAP_PASSWORD"]) < 16: raise RuntimeError("Production bootstrap password must contain at least 16 characters.")
+        if env.get("GREYGUARD_ADMIN_PIN", "").strip(): raise RuntimeError("GREYGUARD_ADMIN_PIN is a development-only shared login and is forbidden in production; use named administrator accounts with MFA.")
     return ProductionConfig(environment, origins, hosts, data_directory, env.get("GREYGUARD_BEHIND_PROXY", "false").lower() == "true")

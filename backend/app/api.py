@@ -939,7 +939,9 @@ def require_admin(x_admin_pin: str | None):
         except ValueError as error:
             raise HTTPException(status_code=401, detail=str(error)) from error
     configured_pin = os.getenv("GREYGUARD_ADMIN_PIN")
-    if configured_pin and x_admin_pin and hmac.compare_digest(x_admin_pin, configured_pin):
+    # The shared PIN bypasses named accounts and MFA, so it is never honoured in production.
+    legacy_pin_allowed = os.getenv("GREYGUARD_ENV", "development").strip().lower() != "production"
+    if legacy_pin_allowed and configured_pin and x_admin_pin and hmac.compare_digest(x_admin_pin, configured_pin):
         return {"admin_id": "legacy", "email": "legacy", "display_name": "Legacy Administrator", "role": "PLATFORM_ADMIN", "permissions": ["admin:manage", "approval:manage", "identity:manage", "incident:manage", "read"]}
     raise HTTPException(status_code=401, detail="Administrator authentication failed.")
 
