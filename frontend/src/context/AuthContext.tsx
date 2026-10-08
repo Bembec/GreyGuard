@@ -40,16 +40,20 @@ interface AuthContextValue {
   administrator: Administrator | null
   agents: Agent[]
   isAuthenticated: boolean
+  isResumingSession: boolean
   login: (
     email: string,
     password: string,
     mfaCode?: string,
   ) => Promise<void>
   completeSso: (state: string, code: string) => Promise<void>
+  completeSetup: (result: AdministratorLoginResponse) => Promise<void>
   logout: () => Promise<void>
 }
 
-const AuthContext =
+// Exported for test wrappers that need to provide a crafted context value directly
+// (see usePermission.test.tsx) without mounting the full AuthProvider.
+export const AuthContext =
   createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({
@@ -64,6 +68,9 @@ export function AuthProvider({
   const [administrator, setAdministrator] =
     useState<Administrator | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
+  const [isResumingSession, setIsResumingSession] = useState(() =>
+    Boolean(sessionStorage.getItem(SESSION_KEY)),
+  )
 
   const clearSession = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY)
@@ -71,6 +78,7 @@ export function AuthProvider({
     setSessionToken(null)
     setAdministrator(null)
     setAgents([])
+    setIsResumingSession(false)
   }, [])
 
   useEffect(() => {
@@ -88,12 +96,13 @@ export function AuthProvider({
         if (active) {
           setAdministrator(currentAdministrator)
           setAgents(agentList)
+          setIsResumingSession(false)
         }
       })
       .catch(async () => {
         const refreshToken=sessionStorage.getItem(REFRESH_KEY)
         if(!active||!refreshToken){if(active)clearSession();return}
-        try{const refreshed=await refreshAdministrator(refreshToken);sessionStorage.setItem(SESSION_KEY,refreshed.access_token);sessionStorage.setItem(REFRESH_KEY,refreshed.refresh_token);setSessionToken(refreshed.access_token);setAdministrator(refreshed.administrator)}catch{if(active)clearSession()}
+        try{const refreshed=await refreshAdministrator(refreshToken);sessionStorage.setItem(SESSION_KEY,refreshed.access_token);sessionStorage.setItem(REFRESH_KEY,refreshed.refresh_token);setSessionToken(refreshed.access_token);setAdministrator(refreshed.administrator);if(active)setIsResumingSession(false)}catch{if(active)clearSession()}
       })
 
     return () => {
@@ -145,6 +154,13 @@ export function AuthProvider({
     [applySession],
   )
 
+  const completeSetup = useCallback(
+    async (result: AdministratorLoginResponse) => {
+      await applySession(result)
+    },
+    [applySession],
+  )
+
   const logout = useCallback(async () => {
     if (sessionToken) {
       await logoutAdministrator(sessionToken).catch(
@@ -162,16 +178,20 @@ export function AuthProvider({
       isAuthenticated: Boolean(
         sessionToken && administrator,
       ),
+      isResumingSession,
       login,
       completeSso,
+      completeSetup,
       logout,
     }),
     [
       sessionToken,
       administrator,
       agents,
+      isResumingSession,
       login,
       completeSso,
+      completeSetup,
       logout,
     ],
   )
