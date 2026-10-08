@@ -10,6 +10,8 @@ human approval decisions, dry runs, replay protection, and evidence.
 
 from contextlib import asynccontextmanager
 
+import base64
+import binascii
 import hashlib
 import hmac
 import os
@@ -272,8 +274,11 @@ from .isolation_operations import (
     get_operations as get_isolation_operations,
     initialize_isolation_operations,
     kubernetes_job_manifest,
+    scan_artifact,
     update_operations as update_isolation_operations,
+    write_and_quarantine_artifact,
 )
+from . import malware_scanner
 from .global_search import search_control_plane
 from .agent_investigation import build_agent_investigation
 from .request_investigation import build_request_investigation
@@ -761,6 +766,11 @@ class WorkspaceCreateRequest(BaseModel):
 class KubernetesJobRequest(BaseModel):
     agent_name: str = Field(min_length=1,max_length=64)
     job_id: str = Field(min_length=1,max_length=64)
+
+
+class ArtifactQuarantineRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=128)
+    content_base64: str = Field(min_length=1, max_length=2_000_000)
 
 
 class ServiceAccountRotateRequest(BaseModel):
@@ -2077,6 +2087,31 @@ def create_isolated_agent_workspace(payload: WorkspaceCreateRequest,x_admin_pin:
 def destroy_isolated_agent_workspace(workspace_id: str,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
     try:return destroy_workspace(workspace_id,policy_actor(administrator))
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+
+
+@app.post("/isolation-operations/workspaces/{workspace_id}/artifacts",status_code=201)
+def quarantine_workspace_artifact(workspace_id: str,payload: ArtifactQuarantineRequest,x_admin_pin: str | None = Header(default=None)):
+    """Write the supplied bytes into the workspace and immediately quarantine them. The content
+    is never opened, parsed, executed, or rendered - only hashed and stored."""
+    require_platform_admin(x_admin_pin)
+    try:
+        content=base64.b64decode(payload.content_base64,validate=True)
+    except (ValueError,binascii.Error) as error:
+        raise HTTPException(status_code=400,detail="Artifact content must be valid base64.") from error
+    try:return write_and_quarantine_artifact(workspace_id,payload.filename,content)
+    except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
+    except (ValueError,PermissionError) as error:raise HTTPException(status_code=400,detail=str(error)) from error
+
+
+@app.post("/isolation-operations/artifacts/{artifact_id}/scan")
+def scan_quarantined_artifact(artifact_id: str,x_admin_pin: str | None = Header(default=None)):
+    """Scan a quarantined artifact. Disabled by default: GREYGUARD_MALWARE_SCANNING_ENABLED
+    must be explicitly set before this will ever contact a scanner."""
+    require_platform_admin(x_admin_pin)
+    if not malware_scanner.scanning_enabled():
+        raise HTTPException(status_code=403,detail="Malware scanning is not enabled on this deployment.")
+    try:return scan_artifact(artifact_id,malware_scanner.real_scanner)
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
