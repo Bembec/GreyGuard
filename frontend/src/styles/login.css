@@ -88,16 +88,33 @@
   opacity: 0.12;
 }
 
-.login-visual__symbol img {
+.login-visual__symbol .gg-logo {
   width: 54%;
   height: 54%;
-  object-fit: contain;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.login-visual__symbol img {
   filter:
     saturate(0.8)
     drop-shadow(
       0 0 42px rgba(34, 211, 238, 0.3)
     );
   animation: login-symbol-breathe 6s ease-in-out infinite;
+}
+
+.sso-callback__logo {
+  margin-bottom: var(--gg-space-6);
+}
+
+.login-visual__primary-logo {
+  width: min(280px, 60%);
+  padding: 0;
+  margin-bottom: var(--gg-space-6);
+  background: transparent;
+  border-radius: 0;
 }
 
 .login-visual__ring {

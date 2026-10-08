@@ -1,6 +1,7 @@
 import { Eye, EyeOff, Fingerprint, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react"
 import { useEffect, useState, type FormEvent } from "react"
 import { ApiError, beginSSOLogin, listSSOProviders, type SSOProvider } from "../api/client"
+import { Logo } from "../components/brand/Logo"
 import { useAuth } from "../context/AuthContext"
 import "../styles/login.css"
 
@@ -53,16 +54,18 @@ export function LoginPage() {
         <span className="login-visual__ring login-visual__ring--one" />
         <span className="login-visual__ring login-visual__ring--two" />
         <span className="login-visual__ring login-visual__ring--three" />
-        <img src="/brand/greyguard-symbol.png" alt="GreyGuard security symbol" />
+        <Logo variant="symbol" />
       </div>
-      <div className="login-visual__copy"><p className="login-eyebrow">Agent Security Command</p>
+      <div className="login-visual__copy">
+        <Logo variant="primary" className="login-visual__primary-logo" />
+        <p className="login-eyebrow">Agent Security Command</p>
         <h1>Every action passes<span> through the guard.</span></h1>
         <p>Authenticate with your individual operator identity to enforce policy, investigate risk and preserve accountable evidence.</p>
       </div>
       <div className="login-visual__signals"><span><ShieldCheck size={16}/>Policy online</span><span><Fingerprint size={16}/>Identity enforced</span><span><LockKeyhole size={16}/>RBAC active</span></div>
     </section>
     <section className="login-panel">
-      <div className="login-panel__header"><div className="login-wordmark"><ShieldCheck size={24}/><strong>GREYGUARD</strong></div><span className="login-version">CONTROL PLANE V11</span></div>
+      <div className="login-panel__header"><Logo variant="horizontal" /><span className="login-version">CONTROL PLANE V11</span></div>
       <div className="login-form-wrap">
         <div className="login-form-heading"><span className="login-form-heading__icon"><KeyRound size={22}/></span><div><p>Protected access</p><h2>Operator sign in</h2></div></div>
         <p className="login-description">Use the administrator identity assigned to you. Every privileged action is tied to an accountable role.</p>
