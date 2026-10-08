@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
 import { ApiError } from "../api/client"
+import { Logo } from "../components/brand/Logo"
 import { useAuth } from "../context/AuthContext"
 import "../styles/login.css"
 
@@ -43,6 +44,7 @@ export function SsoCallbackPage() {
       <div className="login-page__grid" />
       <section className="login-panel" style={{ margin: "auto" }}>
         <div className="login-form-wrap">
+          <Logo variant="horizontal" className="sso-callback__logo" />
           <div className="login-form-heading">
             <span className="login-form-heading__icon">
               {error ? <ShieldAlert size={22} /> : <ShieldCheck size={22} />}

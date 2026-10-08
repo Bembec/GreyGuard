@@ -19,6 +19,7 @@ import {
   useState,
 } from "react"
 
+import { useAuth } from "../context/AuthContext"
 import "../styles/settings.css"
 
 
@@ -121,6 +122,7 @@ function SettingSwitch({
 }
 
 export default function SettingsPage() {
+  const { logout } = useAuth()
   const [settings, setSettings] =
     useState<SettingsState>(loadSettings)
 
@@ -179,13 +181,6 @@ export default function SettingsPage() {
     setSaved(false)
   }
 
-  function endAdministratorSession() {
-    sessionStorage.removeItem(
-      "greyguard_admin_pin",
-    )
-
-    window.location.reload()
-  }
 
   return (
     <main className="settings-page">
@@ -491,7 +486,7 @@ export default function SettingsPage() {
           <button
             type="button"
             className="settings-danger-button"
-            onClick={endAdministratorSession}
+            onClick={() => void logout()}
           >
             <LogOut size={17} />
             End administrator session

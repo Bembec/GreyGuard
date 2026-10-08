@@ -17,7 +17,7 @@
       rgba(47, 210, 255, 0.08),
       transparent 67%
     ),
-    url("/brand/greyguard-symbol.png")
+    url("/brand/logos/symbol/greyguard-symbol-dark.png")
       center / 68% no-repeat;
   filter: grayscale(1) contrast(1.15);
   opacity: 0.065;
