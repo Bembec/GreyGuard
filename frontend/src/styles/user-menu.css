@@ -1,0 +1,119 @@
+.user-menu {
+  position: relative;
+  margin-left: 0.35rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--gg-border);
+}
+
+.user-menu__trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--gg-transition-fast), border-color var(--gg-transition-fast);
+}
+
+.user-menu__trigger:hover,
+.user-menu__trigger[aria-expanded="true"] {
+  border-color: var(--gg-border);
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.user-menu__avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 11px;
+  place-items: center;
+  color: var(--gg-cyan);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.user-menu__identity {
+  display: grid;
+  gap: 0.18rem;
+  text-align: left;
+}
+
+.user-menu__identity strong {
+  font-size: 0.73rem;
+}
+
+.user-menu__identity small {
+  color: var(--gg-text-muted);
+  font-size: 0.6rem;
+}
+
+.user-menu__trigger > svg:last-child {
+  color: var(--gg-text-muted);
+}
+
+.user-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  right: 0;
+  z-index: 60;
+  display: grid;
+  width: 260px;
+  padding: 0.5rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-md);
+  background: var(--gg-panel-solid);
+  box-shadow: var(--gg-shadow-md);
+}
+
+.user-menu__panel-header {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.6rem 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--gg-border);
+  margin-bottom: 0.4rem;
+}
+
+.user-menu__panel-header strong {
+  font-size: 0.82rem;
+}
+
+.user-menu__panel-header small {
+  overflow: hidden;
+  color: var(--gg-text-muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu__panel button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.6rem 0.65rem;
+  border: none;
+  border-radius: 9px;
+  color: var(--gg-text-secondary);
+  background: transparent;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-menu__panel button:hover {
+  color: var(--gg-text-primary);
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.user-menu__divider {
+  height: 1px;
+  margin: 0.4rem 0.2rem;
+  background: var(--gg-border);
+}
+
+.user-menu__signout:hover {
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.07);
+}

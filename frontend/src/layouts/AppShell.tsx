@@ -1,30 +1,12 @@
 import {
-  Activity,
   Bell,
-  Bot,
-  Boxes,
-  CheckSquare,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
-  Command,
-  FileSearch,
-  FileCheck2,
-  Fingerprint,
-  KeyRound,
   LogOut,
   Menu,
   Moon,
-  Radar,
-  RadioTower,
   Search,
-  Settings,
-  ShieldAlert,
-  ShieldEllipsis,
-  ShieldCheck,
-  SlidersHorizontal,
   Sun,
-  UsersRound,
   X,
 } from "lucide-react"
 import {
@@ -39,30 +21,21 @@ import {
   useNavigate,
 } from "react-router-dom"
 
+import { Logo } from "../components/brand/Logo"
 import { GlobalSearchDialog } from "../components/GlobalSearchDialog"
+import { NavFlyout } from "../components/navigation/NavFlyout"
+import { SidebarNavGroup } from "../components/navigation/SidebarNavGroup"
+import { UserMenu } from "../components/navigation/UserMenu"
 import { navigationItems } from "../config/navigation"
+import { navigationGroups } from "../config/navigationGroups"
 import { useAuth } from "../context/AuthContext"
 import "../styles/shell.css"
 
-const iconMap = {
-  "/dashboard": Command,
-  "/live": RadioTower,
-  "/agents": Bot,
-  "/requests": Boxes,
-  "/approvals": CheckSquare,
-  "/policies": SlidersHorizontal,
-  "/risk": Radar,
-  "/incidents": ShieldAlert,
-  "/notifications": Bell,
-  "/service-accounts": KeyRound,
-  "/abuse-protection": ShieldEllipsis,
-  "/audit": FileSearch,
-  "/compliance": FileCheck2,
-  "/authentication": Fingerprint,
-  "/sandbox": ClipboardList,
-  "/team": UsersRound,
-  "/settings": Settings,
-}
+const pinnedItem = navigationItems.find((item) => !item.group)
+const groupedItems = navigationGroups.map((group) => ({
+  group,
+  items: navigationItems.filter((item) => item.group === group.id),
+}))
 
 function getPageInformation(pathname: string) {
   if (pathname.startsWith("/agents/")) {
@@ -81,7 +54,7 @@ function getPageInformation(pathname: string) {
 export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { logout, administrator } = useAuth()
+  const { logout } = useAuth()
 
   const [collapsed, setCollapsed] =
     useState(false)
@@ -147,14 +120,7 @@ export function AppShell() {
         ].join(" ")}
       >
         <div className="sidebar__brand">
-          <span className="sidebar__brand-icon">
-            <ShieldCheck size={25} />
-          </span>
-
-          <div className="sidebar__brand-copy">
-            <strong>GREYGUARD</strong>
-            <span>CONTROL PLANE</span>
-          </div>
+          <Logo variant={collapsed ? "symbol" : "horizontal"} />
 
           <button
             type="button"
@@ -179,45 +145,35 @@ export function AppShell() {
           className="sidebar__nav gg-scrollbar"
           aria-label="Primary navigation"
         >
-          <p className="sidebar__section-label">
-            Security operations
-          </p>
+          {pinnedItem && (
+            <NavLink
+              to={pinnedItem.path}
+              className={({ isActive }) =>
+                ["sidebar__link", isActive ? "sidebar__link--active" : ""].join(" ")
+              }
+            >
+              <span className="sidebar__link-icon">
+                <pinnedItem.icon size={19} />
+              </span>
+              {!collapsed && (
+                <>
+                  <span className="sidebar__link-copy">
+                    <strong>{pinnedItem.label}</strong>
+                    <small>{pinnedItem.description}</small>
+                  </span>
+                  <ChevronRight className="sidebar__link-arrow" size={16} />
+                </>
+              )}
+            </NavLink>
+          )}
 
-          {navigationItems.filter((item) => !item.requiredRole || item.requiredRole === administrator?.role).map((item) => {
-            const Icon =
-              iconMap[
-                item.path as keyof typeof iconMap
-              ] ?? Activity
-
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  [
-                    "sidebar__link",
-                    isActive
-                      ? "sidebar__link--active"
-                      : "",
-                  ].join(" ")
-                }
-              >
-                <span className="sidebar__link-icon">
-                  <Icon size={19} />
-                </span>
-
-                <span className="sidebar__link-copy">
-                  <strong>{item.label}</strong>
-                  <small>{item.description}</small>
-                </span>
-
-                <ChevronRight
-                  className="sidebar__link-arrow"
-                  size={16}
-                />
-              </NavLink>
-            )
-          })}
+          {collapsed
+            ? groupedItems.map(({ group, items }) => (
+                <NavFlyout key={group.id} group={group} items={items} />
+              ))
+            : groupedItems.map(({ group, items }) => (
+                <SidebarNavGroup key={group.id} group={group} items={items} />
+              ))}
         </nav>
 
         <div className="sidebar__footer">
@@ -318,16 +274,7 @@ export function AppShell() {
               <span className="topbar__notification" />
             </button>
 
-            <div className="topbar__operator">
-              <span>
-                <ShieldCheck size={17} />
-              </span>
-
-              <div>
-                <strong>Administrator</strong>
-                <small>Verified session</small>
-              </div>
-            </div>
+            <UserMenu />
           </div>
         </header>
 
@@ -344,12 +291,7 @@ export function AppShell() {
             <div className="workspace__orb workspace__orb--two" />
 
             {location.pathname === "/dashboard" ? (
-              <img
-                className="workspace__watermark"
-                src="/brand/greyguard-symbol.png"
-                alt=""
-                aria-hidden="true"
-              />
+              <Logo variant="symbol" className="workspace__watermark" />
             ) : null}
           </div>
 
