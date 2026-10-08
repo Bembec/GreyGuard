@@ -18,6 +18,7 @@ on alongside the matching nginx configuration.
 from __future__ import annotations
 
 import os
+import urllib.parse
 
 from .enterprise_identity import (
     certificate_thumbprint,
@@ -77,6 +78,14 @@ def authenticate_agent_by_certificate(verify_header, client_cert_pem, claimed_ag
 
     if not verify_header or verify_header.strip().upper() != VERIFIED_STATUS:
         _fail(claimed_agent_name, action, f"Reverse proxy did not report a verified client certificate (status: {verify_header or 'none'}).")
+
+    # nginx forwards the certificate as $ssl_client_escaped_cert (RFC 3986 percent-escaped,
+    # because raw PEM contains newlines that cannot appear in an HTTP header value) - unescape it
+    # back to the exact PEM text create_workload_identity() hashed at registration time, before
+    # any check or the thumbprint computation touches it. Without this, a legitimately presented
+    # certificate can never match its registered fingerprint.
+    if client_cert_pem:
+        client_cert_pem = urllib.parse.unquote(client_cert_pem)
 
     if not client_cert_pem or "BEGIN CERTIFICATE" not in client_cert_pem:
         _fail(claimed_agent_name, action, "Reverse proxy reported a verified certificate but forwarded no certificate text.")
