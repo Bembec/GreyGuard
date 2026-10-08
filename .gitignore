@@ -12,6 +12,10 @@ greyguard.db
 greyguard_greyguard_security.log
 greyguard_security.log
 sandbox_data/
+# Local runtime data directory (GREYGUARD_DATA_DIR default) - the per-filename rules above
+# didn't cover every file it can hold (e.g. the initialization lock file, isolated
+# workspaces, quarantine), so ignore the whole directory instead of enumerating pieces.
+backend/data/
 # Detailed reports written by the security gate on every run (summaries are committed)
 artifacts/*-scan.txt
 artifacts/pip-audit.txt
