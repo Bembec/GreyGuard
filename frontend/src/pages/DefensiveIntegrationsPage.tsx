@@ -34,7 +34,7 @@ export default function DefensiveIntegrationsPage(){
   {!loading&&loadError&&<ErrorState message={loadError} onRetry={()=>void load()}/>}
   {!loading&&!loadError&&data&&
   <section className="defensive-grid">
-   <article><h2><GlobeLock/>Browser connectors</h2>{data.browser_connectors.map(item=><div className="defensive-row" key={item.connector_id}><span><strong>{item.name}</strong><small>{item.domains.join(", ")} · visible indicator</small></span><b>{item.enabled?"CONNECTED":"DISCONNECTED"}</b><button onClick={()=>confirm("Change this connector state?")&&void toggle(item)}><Power size={14}/></button></div>)}</article>
+   <article><h2><GlobeLock/>Browser connectors</h2>{data.browser_connectors.map(item=><div className="defensive-row" key={item.connector_id}><span><strong>{item.name}</strong><small>{item.domains.join(", ")} · visible indicator</small></span><b>{item.enabled?"CONNECTED":"DISCONNECTED"}</b><button aria-label={`${item.enabled?"Disconnect":"Connect"} ${item.name}`} onClick={()=>confirm("Change this connector state?")&&void toggle(item)}><Power size={14}/></button></div>)}</article>
    <article><h2><ShieldCheck/>Defensive responses</h2>{data.responses.map(item=><div className="response-card" key={item.response_id}><header><strong>{item.action.replaceAll("_"," ")}</strong><b className={responseTone(item.status)}>{item.status.replaceAll("_"," ")}</b></header><span>{item.target} · expires {new Date(item.expires_at).toLocaleString()}</span><p>{item.reason}</p>{item.status==="PENDING_APPROVAL"&&<button onClick={()=>confirm("Approve this expiring defensive response?")&&void approve(item)}>Approve response</button>}</div>)}</article>
   </section>}
  </main>

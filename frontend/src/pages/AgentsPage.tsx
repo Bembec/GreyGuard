@@ -16,6 +16,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -26,6 +27,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useDismissableLayer } from "../hooks/useDismissableLayer";
 import { usePermission } from "../hooks/usePermission";
 import "../styles/agents.css";
 
@@ -242,6 +244,17 @@ export default function AgentsPage() {
     useState<string | null>(null);
   const [confirmation, setConfirmation] =
     useState<AgentConfirmation>(null);
+  const credentialCloseRef = useRef<HTMLButtonElement>(null);
+  const credentialDialogRef = useDismissableLayer<HTMLElement>({
+    open: revealedCredential !== null,
+    onClose: () => {
+      setRevealedCredential(null);
+      setCredentialCopied(false);
+    },
+    trapFocus: true,
+    initialFocusRef: credentialCloseRef,
+    lockBodyScroll: true,
+  });
 
   const agentsQuery = useQuery({
     queryKey: ["agents"],
@@ -976,6 +989,7 @@ export default function AgentsPage() {
           role="presentation"
         >
           <section
+            ref={credentialDialogRef}
             className="credential-modal"
             role="dialog"
             aria-modal="true"
@@ -1013,6 +1027,7 @@ export default function AgentsPage() {
             </div>
 
             <button
+              ref={credentialCloseRef}
               type="button"
               className="credential-close-button"
               onClick={() => {

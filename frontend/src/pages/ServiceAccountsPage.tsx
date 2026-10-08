@@ -8,12 +8,13 @@ import {
   ShieldOff,
   X,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { useDismissableLayer } from "../hooks/useDismissableLayer"
 import { usePermission } from "../hooks/usePermission"
 import "../styles/service-accounts.css"
 
@@ -71,6 +72,8 @@ export default function ServiceAccountsPage() {
   const [loadError, setLoadError] = useState("")
   const [confirmAccount, setConfirmAccount] = useState<ServiceAccount | null>(null)
   const [busy, setBusy] = useState(false)
+  const createCloseRef = useRef<HTMLButtonElement>(null)
+  const createDialogRef = useDismissableLayer<HTMLDivElement>({ open: showCreate, onClose: () => setShowCreate(false), trapFocus: true, initialFocusRef: createCloseRef, lockBodyScroll: true })
   const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionToken ?? "" }
 
   const load = async () => {
@@ -155,8 +158,8 @@ export default function ServiceAccountsPage() {
       </article>)}
     </section>
 
-    {showCreate && <div className="service-modal" role="dialog" aria-modal="true"><button className="backdrop" onClick={() => setShowCreate(false)} aria-label="Close"/><section>
-      <header><div><h2>Create service account</h2><p>Use the minimum scopes required by the integration.</p></div><button onClick={() => setShowCreate(false)} aria-label="Close"><X /></button></header>
+    {showCreate && <div ref={createDialogRef} className="service-modal" role="dialog" aria-modal="true"><button className="backdrop" onClick={() => setShowCreate(false)} aria-label="Close"/><section>
+      <header><div><h2>Create service account</h2><p>Use the minimum scopes required by the integration.</p></div><button ref={createCloseRef} onClick={() => setShowCreate(false)} aria-label="Close"><X /></button></header>
       <label>Name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Deployment Bot" /></label>
       <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Used by the controlled CI deployment workflow" /></label>
       <label>Key lifetime<select value={days} onChange={(event) => setDays(Number(event.target.value))}><option value={30}>30 days</option><option value={60}>60 days</option><option value={90}>90 days</option><option value={180}>180 days</option><option value={365}>1 year</option></select></label>

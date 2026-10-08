@@ -12,11 +12,12 @@ import {
   UserRound,
   X,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import { useToast } from "../context/ToastContext"
+import { useDismissableLayer } from "../hooks/useDismissableLayer"
 import { usePermission } from "../hooks/usePermission"
 import "../styles/incidents.css"
 
@@ -132,6 +133,8 @@ export default function IncidentCenterPage() {
   const [nextStatus, setNextStatus] = useState<AlertStatus>("INVESTIGATING")
   const [assignee, setAssignee] = useState("")
   const [note, setNote] = useState("")
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useDismissableLayer<HTMLDivElement>({ open: !!selected, onClose: () => setSelected(null), trapFocus: true, initialFocusRef: closeRef, lockBodyScroll: true })
 
   const summary = useQuery({
     queryKey: ["alert-summary"],
@@ -254,10 +257,10 @@ export default function IncidentCenterPage() {
         </div>
       </section>
 
-      {selected && <div className="incident-modal" role="dialog" aria-modal="true" aria-label="Incident details">
+      {selected && <div ref={dialogRef} className="incident-modal" role="dialog" aria-modal="true" aria-label="Incident details">
         <button className="incident-modal__backdrop" type="button" onClick={() => setSelected(null)} aria-label="Close incident" />
         <section className="incident-drawer">
-          <header><div><span className={`incident-severity incident-severity--${selected.severity.toLowerCase()}`}>{selected.severity}</span><h2>{selected.title}</h2><p>{selected.alert_id}</p></div><button type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={20} /></button></header>
+          <header><div><span className={`incident-severity incident-severity--${selected.severity.toLowerCase()}`}>{selected.severity}</span><h2>{selected.title}</h2><p>{selected.alert_id}</p></div><button ref={closeRef} type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={20} /></button></header>
           <div className="incident-drawer__body">
             <article className="incident-evidence"><h3>Evidence summary</h3><p>{selected.summary}</p><dl>
               <div><dt>Agent</dt><dd>{selected.agent_name ?? "System"}</dd></div><div><dt>Action</dt><dd>{selected.action ?? "—"}</dd></div><div><dt>Outcome</dt><dd>{selected.outcome ?? "—"}</dd></div><div><dt>Source event</dt><dd>{selected.source_event_id}</dd></div>
