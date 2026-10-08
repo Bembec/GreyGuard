@@ -55,7 +55,14 @@ def test_startup_and_extension_locks_never_share_a_key():
     assert db_compat.STARTUP_LOCK_KEY != db_compat.EXTENSION_LOCK_KEY
 
 
-def test_initialization_lock_is_a_no_op_without_postgresql(monkeypatch):
+def test_initialization_lock_still_serializes_without_postgresql(tmp_path, monkeypatch):
+    # Previously a no-op without PostgreSQL - that let two SQLite worker processes race
+    # initialize_*()'s check-then-ALTER-TABLE-ADD-COLUMN pattern (see
+    # test_initialization_lock.py for the reproduction and fix). It must still hold a
+    # real, file-backed lock for SQLite, not silently skip locking.
     monkeypatch.delenv("GREYGUARD_DATABASE_URL", raising=False)
+    monkeypatch.setattr("backend.app.paths.data_directory", lambda: tmp_path)
     with db_compat.initialization_lock() as lock:
-        assert lock._connection is None
+        assert lock._connection is not None
+        assert lock._is_postgres is False
+    assert (tmp_path / ".initialization.lock").exists()

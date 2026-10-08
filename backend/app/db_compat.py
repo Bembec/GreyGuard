@@ -102,13 +102,27 @@ def _ensure_extensions(connection, psycopg):
 class initialization_lock:
     """Serialize schema initialization across all backend workers.
 
-    PostgreSQL does not make concurrent CREATE ... IF NOT EXISTS statements safe,
-    so each worker waits for a session-level advisory lock before initializing.
-    SQLite runs in a single process per file and needs no lock.
+    Every `initialize_*()` function across backend/app runs inside this lock (see
+    api.py's lifespan()). Several of them check a column's presence via
+    PRAGMA table_info before an ALTER TABLE ADD COLUMN - a check-then-act race if
+    two worker processes run it concurrently against the same database: both see
+    the column missing, both issue the ALTER, and the second raises "duplicate
+    column name", crashing that worker's startup (and, since uvicorn treats a
+    worker startup failure as fatal to the whole process group, the entire
+    container - reproduced directly against deployment/backend.Dockerfile's own
+    `--workers 2` default with a SQLite backend).
+
+    PostgreSQL gets real protection via a session-level advisory lock. SQLite has
+    no equivalent primitive, so this uses SQLite's own cross-platform file
+    locking instead: a dedicated lock file, held under a BEGIN EXCLUSIVE
+    transaction for the duration of initialization, so a second worker's same
+    attempt blocks (up to `timeout`) until the first one finishes rather than
+    racing it.
     """
 
     def __init__(self):
         self._connection = None
+        self._is_postgres = False
 
     def __enter__(self):
         url = _postgres_url()
@@ -116,12 +130,22 @@ class initialization_lock:
             import psycopg
             self._connection = psycopg.connect(url, autocommit=True)
             self._connection.execute("SELECT pg_advisory_lock(%s)", (STARTUP_LOCK_KEY,))
+            self._is_postgres = True
+        else:
+            from .paths import data_directory
+            lock_path = data_directory() / ".initialization.lock"
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            self._connection = _sqlite.connect(lock_path, timeout=60)
+            self._connection.execute("BEGIN EXCLUSIVE")
         return self
 
     def __exit__(self, *_exc):
         if self._connection is not None:
             try:
-                self._connection.execute("SELECT pg_advisory_unlock(%s)", (STARTUP_LOCK_KEY,))
+                if self._is_postgres:
+                    self._connection.execute("SELECT pg_advisory_unlock(%s)", (STARTUP_LOCK_KEY,))
+                else:
+                    self._connection.commit()
             finally:
                 self._connection.close()
                 self._connection = None
