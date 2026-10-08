@@ -22,7 +22,13 @@ Docker hosts should load `deployment/apparmor/greyguard-sandbox` and assign it t
 
 ## Malware scanning
 
-The scanning interface accepts an injected scanner adapter so production deployments can connect ClamAV or an enterprise malware service. Treat scanner errors as failed scans, retain the artifact in quarantine, and record the engine, result, and timestamp. Release workflows should require a separate authorized action.
+`POST /isolation-operations/workspaces/{workspace_id}/artifacts` writes the given bytes into that agent's isolated workspace and immediately quarantines them (`isolation_operations.write_and_quarantine_artifact`) - the content is never opened, parsed, executed, or rendered at any point, only hashed and stored. Content is capped at 1,000,000 bytes at the API layer, independent of quarantine's own 10,000,000 byte cap.
+
+`POST /isolation-operations/artifacts/{artifact_id}/scan` scans a quarantined artifact. Both endpoints require Platform Administrator permission.
+
+Scanning is **disabled by default** (`GREYGUARD_MALWARE_SCANNING_ENABLED` must be set to `true`); the scan endpoint fails closed with 403 before ever attempting to reach a scanner if it is not. `backend/app/malware_scanner.py` is a clearly isolated adapter: it speaks ClamAV's `clamd` `INSTREAM` wire protocol directly over a TCP socket (`GREYGUARD_CLAMD_HOST`/`GREYGUARD_CLAMD_PORT`, default `127.0.0.1:3310`) with bounded connect/total timeouts and its own size cap, matching quarantine's 10 MB limit. `isolation_operations.py` has no ClamAV-specific code at all - `scan_artifact` accepts any callable shaped `Path -> {"engine","clean","detail"}`, which is also how its tests exercise the quarantine/evidence logic without a live scanner.
+
+A scanner that cannot be reached, times out, or returns a response this adapter cannot confidently interpret raises rather than returning a result - `scan_artifact` catches that and records the artifact as `SCAN_FAILED`, never `CLEAN`. An artifact is only ever `CLEAN` after an explicit "no threat found" response from a scanner that was actually reached. Release workflows should require a separate authorized action; nothing here automatically returns a `CLEAN` artifact to active use.
 
 ## Emergency response
 
