@@ -2488,7 +2488,7 @@ def register_agent_identity(
 ):
     """Register an agent and issue a credential."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     try:
         return main.issue_agent_credential(
@@ -2496,6 +2496,7 @@ def register_agent_identity(
                 registration.agent_name
             ),
             scopes=registration.scopes,
+            actor=policy_actor(administrator),
         )
 
     except ValueError as error:
@@ -2586,11 +2587,12 @@ def rotate_credential(
 ):
     """Rotate an agent credential."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     try:
         return main.rotate_agent_credential(
-            agent_name
+            agent_name,
+            actor=policy_actor(administrator),
         )
 
     except KeyError as error:
@@ -2611,11 +2613,37 @@ def revoke_credential(
 ):
     """Revoke an agent credential."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     try:
         return main.revoke_agent_credential(
-            agent_name
+            agent_name,
+            actor=policy_actor(administrator),
+        )
+
+    except KeyError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+
+
+@app.get("/agents/{agent_name}/credential-history")
+def agent_credential_history(
+    agent_name: str,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Return one page of an agent's credential issue/rotate/revoke evidence."""
+
+    require_admin(x_admin_pin)
+
+    try:
+        return main.get_agent_credential_history(
+            agent_name,
+            limit=limit,
+            offset=offset,
         )
 
     except KeyError as error:
