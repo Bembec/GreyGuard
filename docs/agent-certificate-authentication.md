@@ -29,7 +29,15 @@ The backend trusts nginx's verdict through two headers nginx sets on every proxi
    client cannot set its own `X-SSL-Client-Verify: SUCCESS` and have it reach the backend
    unless it goes directly through property 1's violation. The `proxy_set_header` lines for
    these two headers in `deployment/nginx-tls.conf` are placed directly in each location block
-   (never inside a conditional), specifically so they always run.
+   (never inside a conditional), specifically so they always run. **This must also hold for
+   `deployment/nginx.conf`** — the config `deployment/frontend.Dockerfile` actually bakes into
+   the production image when mTLS is not enabled — even though it never terminates mTLS: it
+   forces both headers to a fixed, safe value (`X-SSL-Client-Verify: "NONE"`, an empty
+   `X-SSL-Client-Cert`) in every backend-proxying location block, so a client cannot forge a
+   verified-certificate verdict through it either.
+   `backend/tests/test_container_hardening.py::test_shipped_nginx_config_never_trusts_a_client_supplied_certificate_header`
+   enforces this against whichever config `frontend.Dockerfile` actually ships, not just against
+   `nginx-tls.conf` in isolation.
 
 Given both properties, the backend's only remaining job is to require **exact equality**
 (`X-SSL-Client-Verify == "SUCCESS"`) and treat every other value — `NONE`, any `FAILED:...`,
@@ -61,7 +69,10 @@ to trust these headers until an operator has deliberately turned the feature on.
    by a second method, it does not create a new kind of identity). The registration computes
    the certificate's SHA-256 thumbprint (of its PEM text, not the parsed DER bytes — see
    `enterprise_identity.certificate_thumbprint`) and stores only that thumbprint, never the
-   certificate material itself.
+   certificate material itself. Paste the plain PEM here exactly as issued (real newlines) — at
+   authentication time, `agent_certificate_auth.py` automatically un-escapes nginx's
+   `$ssl_client_escaped_cert` (RFC 3986 percent-escaping) before computing the same thumbprint,
+   so both sides hash identical bytes.
 5. The agent now authenticates by presenting that certificate during the TLS handshake instead
    of (or alongside — the header is simply not sent) `X-Agent-Key`.
 
