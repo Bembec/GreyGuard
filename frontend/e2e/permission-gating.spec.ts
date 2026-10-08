@@ -57,11 +57,12 @@ test("AUDITOR does not see service account mutation controls", async ({ page }) 
   await expect(page.getByRole("button", { name: /New service account/i })).toHaveCount(0)
 })
 
-test("AUDITOR does not see abuse protection save controls", async ({ page }) => {
+test("AUDITOR is redirected away from abuse protection (PLATFORM_ADMIN-only resource)", async ({ page }) => {
+  // GET /abuse-protection itself calls require_platform_admin() server-side - this is not a
+  // mutation-only restriction, so the frontend redirects instead of rendering a read-only view.
   await signInAsAuditor(page)
   await page.goto("/abuse-protection")
-  await expect(page.getByText(/read-only access to protection policies/i)).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole("button", { name: /Save policy/i })).toHaveCount(0)
+  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 })
 })
 
 test("AUDITOR sees agent scope/credential controls as read-only", async ({ page }) => {
