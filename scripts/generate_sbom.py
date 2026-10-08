@@ -9,7 +9,7 @@ def python_components():
   for raw in file.read_text(encoding="utf-8").splitlines():
    line=raw.strip()
    if not line or line.startswith("#") or line.startswith("-"):continue
-   match=re.match(r"([A-Za-z0-9_.-]+)(?:==|>=|~=|<=|>|<)?([^;\s]*)",line)
+   match=re.match(r"([A-Za-z0-9_.-]+)(?:\[[^\]]*\])?(?:==|>=|~=|<=|>|<)?([^;\s]*)",line)
    if match:result.append({"type":"library","name":match.group(1),"version":match.group(2) or "unspecified","purl":f"pkg:pypi/{match.group(1).lower()}"})
  return result
 def javascript_components():

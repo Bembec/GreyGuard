@@ -55,13 +55,13 @@
     {
       "type": "library",
       "name": "fastapi",
-      "version": "unspecified",
+      "version": "0.141.1",
       "purl": "pkg:pypi/fastapi"
     },
     {
       "type": "library",
       "name": "uvicorn",
-      "version": "[standard]",
+      "version": "0.53.0",
       "purl": "pkg:pypi/uvicorn"
     },
     {
@@ -79,7 +79,7 @@
     {
       "type": "library",
       "name": "psycopg",
-      "version": "[binary]>=3.2,<4",
+      "version": "3.2,<4",
       "purl": "pkg:pypi/psycopg"
     },
     {
@@ -91,7 +91,7 @@
     {
       "type": "library",
       "name": "PyJWT",
-      "version": "[crypto]==2.15.1",
+      "version": "2.15.1",
       "purl": "pkg:pypi/pyjwt"
     },
     {
