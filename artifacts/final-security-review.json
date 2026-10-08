@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-07T20:37:18.442746+00:00",
+  "generated_at": "2026-10-08T08:41:01.079792+00:00",
   "passed": true,
   "policy": "Fixable Critical/High findings fail; upstream-unfixed findings receive a 30-day review exception.",
   "checks": [
@@ -13,8 +13,8 @@
         "backend/requirements.txt"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:32:39.354392+00:00",
-      "completed_at": "2026-10-07T20:36:04.574118+00:00",
+      "started_at": "2026-10-08T08:34:53.551166+00:00",
+      "completed_at": "2026-10-08T08:37:38.117019+00:00",
       "report": "artifacts\\pip-audit.txt"
     },
     {
@@ -30,8 +30,8 @@
         "-lll"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:36:04.574376+00:00",
-      "completed_at": "2026-10-07T20:36:14.460299+00:00",
+      "started_at": "2026-10-08T08:37:38.117261+00:00",
+      "completed_at": "2026-10-08T08:37:45.464537+00:00",
       "report": "artifacts\\bandit-high.txt"
     },
     {
@@ -42,8 +42,8 @@
         "--audit-level=high"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:36:14.460482+00:00",
-      "completed_at": "2026-10-07T20:37:01.772394+00:00",
+      "started_at": "2026-10-08T08:37:45.465088+00:00",
+      "completed_at": "2026-10-08T08:37:57.330063+00:00",
       "report": "artifacts\\npm-audit.txt"
     },
     {
@@ -53,8 +53,8 @@
         "scripts/scan_repository_secrets.py"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:37:01.772755+00:00",
-      "completed_at": "2026-10-07T20:37:11.959475+00:00",
+      "started_at": "2026-10-08T08:37:57.330251+00:00",
+      "completed_at": "2026-10-08T08:37:58.810582+00:00",
       "report": null
     },
     {
@@ -64,8 +64,8 @@
         "scripts/generate_sbom.py"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:37:11.959497+00:00",
-      "completed_at": "2026-10-07T20:37:12.107611+00:00",
+      "started_at": "2026-10-08T08:37:58.810600+00:00",
+      "completed_at": "2026-10-08T08:37:58.974009+00:00",
       "report": null
     },
     {
@@ -75,8 +75,8 @@
         "scripts/verify_sbom.py"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:37:12.107627+00:00",
-      "completed_at": "2026-10-07T20:37:12.320803+00:00",
+      "started_at": "2026-10-08T08:37:58.974025+00:00",
+      "completed_at": "2026-10-08T08:37:59.291907+00:00",
       "report": null
     },
     {
@@ -90,8 +90,8 @@
         "local://greyguard-clean-rehearsal-backend:latest"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:37:18.442776+00:00",
-      "completed_at": "2026-10-07T20:45:32.850480+00:00",
+      "started_at": "2026-10-08T08:41:01.079877+00:00",
+      "completed_at": "2026-10-08T08:41:42.484403+00:00",
       "report": "artifacts\\backend-container-scan.txt"
     },
     {
@@ -106,8 +106,8 @@
         "local://greyguard-clean-rehearsal-backend:latest"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:45:33.029911+00:00",
-      "completed_at": "2026-10-07T20:45:41.875811+00:00",
+      "started_at": "2026-10-08T08:41:42.665211+00:00",
+      "completed_at": "2026-10-08T08:42:09.761486+00:00",
       "report": "artifacts\\backend-container-fixable-scan.txt"
     },
     {
@@ -121,8 +121,8 @@
         "local://greyguard-clean-rehearsal-frontend:latest"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:45:41.875934+00:00",
-      "completed_at": "2026-10-07T20:46:36.819448+00:00",
+      "started_at": "2026-10-08T08:42:09.761624+00:00",
+      "completed_at": "2026-10-08T08:42:34.624437+00:00",
       "report": "artifacts\\frontend-container-scan.txt"
     },
     {
@@ -137,27 +137,12 @@
         "local://greyguard-clean-rehearsal-frontend:latest"
       ],
       "return_code": 0,
-      "started_at": "2026-10-07T20:46:36.944403+00:00",
-      "completed_at": "2026-10-07T20:46:51.688879+00:00",
+      "started_at": "2026-10-08T08:42:34.719164+00:00",
+      "completed_at": "2026-10-08T08:42:40.877984+00:00",
       "report": "artifacts\\frontend-container-fixable-scan.txt"
     }
   ],
   "accepted_risks": [
-    {
-      "cve": "CVE-2026-95619",
-      "severity": "HIGH",
-      "image": "greyguard-clean-rehearsal-backend:latest",
-      "status": "temporarily-accepted-upstream-no-fix",
-      "owner": "Platform Security",
-      "approved_by": "GreyGuard no-fix exception policy",
-      "review_due": "2026-11-06",
-      "compensating_controls": [
-        "minimal production image",
-        "non-root application process where supported",
-        "read-only and least-privilege runtime controls",
-        "monthly rebuild and vulnerability review"
-      ]
-    },
     {
       "cve": "CVE-2026-85091",
       "severity": "HIGH",
@@ -165,7 +150,7 @@
       "status": "temporarily-accepted-upstream-no-fix",
       "owner": "Platform Security",
       "approved_by": "GreyGuard no-fix exception policy",
-      "review_due": "2026-11-06",
+      "review_due": "2026-11-07",
       "compensating_controls": [
         "minimal production image",
         "non-root application process where supported",
