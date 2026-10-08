@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { usePermission } from "../hooks/usePermission"
 import "../styles/service-accounts.css"
 
 type ServiceKey = {
@@ -52,6 +53,10 @@ export function serviceKeyDisplay(prefix: string) {
 
 export default function ServiceAccountsPage() {
   const { sessionToken } = useAuth()
+  // Every /service-accounts mutation requires admin:manage server-side (admin_auth.py's
+  // required_permission) - only PLATFORM_ADMIN holds it. This page previously had no
+  // permission check of any kind - administrator was never even destructured from useAuth().
+  const canManageServiceAccounts = usePermission({ permission: "admin:manage" })
   const { pushToast } = useToast()
   const [accounts, setAccounts] = useState<ServiceAccount[]>([])
   const [availableScopes, setAvailableScopes] = useState<string[]>([])
@@ -121,8 +126,9 @@ export default function ServiceAccountsPage() {
   return <main className="service-page">
     <section className="service-hero">
       <div><p><Bot size={15} /> Machine identity governance</p><h1>API Keys &amp; Service Accounts</h1><span>Issue scoped, expiring credentials for automation without sharing administrator sessions.</span></div>
-      <button type="button" onClick={() => setShowCreate(true)}><Plus size={17} /> New service account</button>
+      {canManageServiceAccounts && <button type="button" onClick={() => setShowCreate(true)}><Plus size={17} /> New service account</button>}
     </section>
+    {!canManageServiceAccounts && <p className="gg-readonly-note">Your role has read-only access to service accounts. Platform Administrator access is required to create, rotate or revoke them.</p>}
 
     <section className="service-assurance">
       <KeyRound size={20} /><div><strong>Keys are revealed once</strong><span>GreyGuard stores a one-way hash and visible prefix only. Plaintext credentials cannot be recovered.</span></div>
@@ -145,7 +151,7 @@ export default function ServiceAccountsPage() {
         <div className="service-scopes">{account.scopes.map((scope) => <span key={scope}>{scope}</span>)}</div>
         <dl><div><dt>Usage</dt><dd>{account.use_count}</dd></div><div><dt>Last used</dt><dd>{account.last_used_at ? new Date(account.last_used_at).toLocaleString() : "Never"}</dd></div><div><dt>Expires</dt><dd>{account.expires_at ? new Date(account.expires_at).toLocaleDateString() : "Never"}</dd></div></dl>
         <section className="service-keys"><strong>Key history</strong>{account.keys.map((key) => <div key={key.key_id}><code>{serviceKeyDisplay(key.key_prefix)}</code><span className={key.status.toLowerCase()}>{key.status}</span></div>)}</section>
-        {account.status === "ACTIVE" && <footer><button disabled={busy} onClick={() => void lifecycle(account, "rotate")}><RefreshCw size={15} /> Rotate key</button><button disabled={busy} className="danger" onClick={() => setConfirmAccount(account)}><ShieldOff size={15} /> Revoke</button></footer>}
+        {account.status === "ACTIVE" && canManageServiceAccounts && <footer><button disabled={busy} onClick={() => void lifecycle(account, "rotate")}><RefreshCw size={15} /> Rotate key</button><button disabled={busy} className="danger" onClick={() => setConfirmAccount(account)}><ShieldOff size={15} /> Revoke</button></footer>}
       </article>)}
     </section>
 

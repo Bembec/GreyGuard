@@ -17,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import { useToast } from "../context/ToastContext"
+import { usePermission } from "../hooks/usePermission"
 import "../styles/incidents.css"
 
 export type AlertStatus =
@@ -120,6 +121,10 @@ function formatDate(value: string | null) {
 export default function IncidentCenterPage() {
   const queryClient = useQueryClient()
   const { pushToast } = useToast()
+  // PUT /alerts/{id} requires incident:manage server-side (admin_auth.py's
+  // required_permission) - PLATFORM_ADMIN and SECURITY_ANALYST hold it, AUDITOR does not.
+  // This page had no useAuth import at all - status/assignment updates were fully unguarded.
+  const canManageIncidents = usePermission({ permission: "incident:manage" })
   const [search, setSearch] = useState("")
   const [status, setStatus] = useState("ALL")
   const [severity, setSeverity] = useState("ALL")
@@ -258,10 +263,14 @@ export default function IncidentCenterPage() {
               <div><dt>Agent</dt><dd>{selected.agent_name ?? "System"}</dd></div><div><dt>Action</dt><dd>{selected.action ?? "—"}</dd></div><div><dt>Outcome</dt><dd>{selected.outcome ?? "—"}</dd></div><div><dt>Source event</dt><dd>{selected.source_event_id}</dd></div>
             </dl></article>
             <article className="incident-workflow"><h3>Response workflow</h3>
-              <label>Status<select value={nextStatus} onChange={(event) => setNextStatus(event.target.value as AlertStatus)}>{incidentStatuses.map((item) => <option key={item} value={item}>{formatIncidentStatus(item)}</option>)}</select></label>
-              <label>Assigned investigator<div className="incident-input"><UserRound size={16} /><input value={assignee} onChange={(event) => setAssignee(event.target.value)} placeholder="e.g. security-team" /></div></label>
-              <label>Investigation note<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Record the reason, findings or response decision." rows={4} /></label>
-              <button type="button" disabled={update.isPending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save incident update"}</button>
+              <label>Status<select value={nextStatus} disabled={!canManageIncidents} onChange={(event) => setNextStatus(event.target.value as AlertStatus)}>{incidentStatuses.map((item) => <option key={item} value={item}>{formatIncidentStatus(item)}</option>)}</select></label>
+              <label>Assigned investigator<div className="incident-input"><UserRound size={16} /><input value={assignee} disabled={!canManageIncidents} onChange={(event) => setAssignee(event.target.value)} placeholder="e.g. security-team" /></div></label>
+              <label>Investigation note<textarea value={note} disabled={!canManageIncidents} onChange={(event) => setNote(event.target.value)} placeholder="Record the reason, findings or response decision." rows={4} /></label>
+              {canManageIncidents ? (
+                <button type="button" disabled={update.isPending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save incident update"}</button>
+              ) : (
+                <p className="gg-readonly-note">Your role has read-only access to incidents. Security Analyst or Platform Administrator access is required to update status or assignment.</p>
+              )}
             </article>
             <article className="incident-notes"><h3>Investigation history</h3>{selected.notes.length === 0 ? <p>No notes recorded yet.</p> : selected.notes.map((entry) => <div key={entry.id}><span>{entry.actor} · {formatDate(entry.timestamp)}</span><p>{entry.note}</p></div>)}</article>
           </div>

@@ -26,6 +26,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { usePermission } from "../hooks/usePermission";
 import "../styles/agents.css";
 
 
@@ -220,6 +221,10 @@ function formatDate(value?: string | null) {
 export default function AgentsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  // Every /agents mutation route requires identity:manage server-side (admin_auth.py's
+  // required_permission), which only PLATFORM_ADMIN holds - gate the controls to match,
+  // rather than letting a SECURITY_ANALYST or AUDITOR click them and get a raw 403.
+  const canManageIdentity = usePermission({ permission: "identity:manage" });
 
   const [searchText, setSearchText] =
     useState("");
@@ -826,6 +831,7 @@ export default function AgentsPage() {
                                 ? "selected"
                                 : ""
                             }
+                            disabled={!canManageIdentity}
                             onClick={() =>
                               toggleScope(scope)
                             }
@@ -839,24 +845,31 @@ export default function AgentsPage() {
                       })}
                     </div>
 
-                    <button
-                      type="button"
-                      className="detail-primary-button"
-                      disabled={
-                        scopesMutation.isPending
-                      }
-                      onClick={() =>
-                        scopesMutation.mutate({
-                          agentName:
-                            selectedAgent.agent_name,
-                          scopes: selectedScopes,
-                        })
-                      }
-                    >
-                      {scopesMutation.isPending
-                        ? "Saving boundaries..."
-                        : "Save scope boundaries"}
-                    </button>
+                    {canManageIdentity ? (
+                      <button
+                        type="button"
+                        className="detail-primary-button"
+                        disabled={
+                          scopesMutation.isPending
+                        }
+                        onClick={() =>
+                          scopesMutation.mutate({
+                            agentName:
+                              selectedAgent.agent_name,
+                            scopes: selectedScopes,
+                          })
+                        }
+                      >
+                        {scopesMutation.isPending
+                          ? "Saving boundaries..."
+                          : "Save scope boundaries"}
+                      </button>
+                    ) : (
+                      <p className="gg-readonly-note">
+                        Your role has read-only access to scope boundaries.
+                        Platform Administrator access is required to change them.
+                      </p>
+                    )}
                   </>
                 ) : (
                   <div className="identity-warning">
@@ -893,37 +906,44 @@ export default function AgentsPage() {
                     </span>
                   </div>
 
-                  <div className="detail-action-row">
-                    <button
-                      type="button"
-                      className="detail-secondary-button"
-                      disabled={
-                        rotateMutation.isPending
-                      }
-                      onClick={() => setConfirmation("rotate")}
-                    >
-                      <KeyRound size={16} />
-                      Rotate credential
-                    </button>
+                  {canManageIdentity ? (
+                    <div className="detail-action-row">
+                      <button
+                        type="button"
+                        className="detail-secondary-button"
+                        disabled={
+                          rotateMutation.isPending
+                        }
+                        onClick={() => setConfirmation("rotate")}
+                      >
+                        <KeyRound size={16} />
+                        Rotate credential
+                      </button>
 
-                    <button
-                      type="button"
-                      className="detail-danger-button"
-                      disabled={
-                        revokeMutation.isPending
-                        || selectedAgent.identity
-                          .credential_status
-                          === "REVOKED"
-                      }
-                      onClick={() => setConfirmation("revoke")}
-                    >
-                      <UserRoundX size={16} />
-                      Revoke
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        className="detail-danger-button"
+                        disabled={
+                          revokeMutation.isPending
+                          || selectedAgent.identity
+                            .credential_status
+                            === "REVOKED"
+                        }
+                        onClick={() => setConfirmation("revoke")}
+                      >
+                        <UserRoundX size={16} />
+                        Revoke
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="gg-readonly-note">
+                      Platform Administrator access is required to rotate or revoke credentials.
+                    </p>
+                  )}
                 </div>
               )}
 
+              {canManageIdentity && (
               <div className="detail-section containment">
                 <h3>Containment recovery</h3>
 
@@ -944,6 +964,7 @@ export default function AgentsPage() {
                   Reset security state
                 </button>
               </div>
+              )}
             </>
           )}
         </aside>

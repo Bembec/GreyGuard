@@ -119,6 +119,19 @@ pre,
     transparent;
 }
 
+/* Replaces a mutation control hidden by a usePermission() check - explains why, rather
+   than just disappearing. Shared across pages rather than duplicated per stylesheet. */
+.gg-readonly-note {
+  margin-top: 0.65rem;
+  padding: 0.65rem;
+  border: 1px solid var(--gg-border);
+  border-radius: 0.6rem;
+  background: rgba(148, 163, 184, 0.05);
+  color: var(--gg-text-muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
 .gg-scrollbar::-webkit-scrollbar {
   width: 8px;
   height: 8px;
