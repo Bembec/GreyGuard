@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -25,6 +26,7 @@ import {
 } from "@tanstack/react-query";
 
 import { ErrorState, LoadingState } from "../components/AsyncState";
+import { useDismissableLayer } from "../hooks/useDismissableLayer";
 import { usePermission } from "../hooks/usePermission";
 import "../styles/approvals.css";
 
@@ -332,6 +334,16 @@ export default function ApprovalsPage() {
     setReviewDecision(null);
     setReviewNote("");
   }
+
+  const reviewCancelRef = useRef<HTMLButtonElement>(null);
+  const reviewDialogRef = useDismissableLayer<HTMLElement>({
+    open: reviewDecision !== null && !!selectedRequest,
+    onClose: closeReview,
+    trapFocus: true,
+    initialFocusRef: reviewCancelRef,
+    disabled: decisionMutation.isPending,
+    lockBodyScroll: true,
+  });
 
   function submitReview() {
     if (
@@ -918,6 +930,7 @@ export default function ApprovalsPage() {
       {reviewDecision && selectedRequest && (
         <div className="review-modal-backdrop">
           <section
+            ref={reviewDialogRef}
             className={
               `review-modal ${
                 reviewDecision.toLowerCase()
@@ -994,6 +1007,7 @@ export default function ApprovalsPage() {
 
             <div className="review-modal-actions">
               <button
+                ref={reviewCancelRef}
                 type="button"
                 className="cancel-review"
                 onClick={closeReview}

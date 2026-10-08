@@ -2,12 +2,13 @@ import {
   Ban, KeyRound, Plus, RefreshCw, Search, ShieldCheck,
   ShieldEllipsis, UserCog, UsersRound, X,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { useDismissableLayer } from "../hooks/useDismissableLayer"
 import "../styles/team-access.css"
 
 export type AdminRole = "PLATFORM_ADMIN" | "SECURITY_ANALYST" | "AUDITOR"
@@ -50,6 +51,14 @@ export default function TeamAccessPage() {
   const [confirmAdmin, setConfirmAdmin] = useState<Administrator | null>(null)
   const [form, setForm] = useState({ email: "", display_name: "", role: "SECURITY_ANALYST" as AdminRole, password: "" })
   const [edit, setEdit] = useState({ display_name: "", role: "AUDITOR" as AdminRole, status: "ACTIVE" as AdminStatus, password: "" })
+  const drawerCloseRef = useRef<HTMLButtonElement>(null)
+  const drawerRef = useDismissableLayer<HTMLDivElement>({
+    open: creating || !!selected,
+    onClose: () => { setCreating(false); setSelected(null) },
+    trapFocus: true,
+    initialFocusRef: drawerCloseRef,
+    lockBodyScroll: true,
+  })
 
   const team = useQuery({ queryKey: ["administrators"], queryFn: () => request<ListResponse>("/administrators") })
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["administrators"] })
@@ -91,7 +100,7 @@ export default function TeamAccessPage() {
       <div className="team-grid">{entries.map(item=><button type="button" className="team-card" key={item.admin_id} onClick={()=>open(item)}><span className={`team-avatar team-avatar--${item.status.toLowerCase()}`}>{item.display_name.slice(0,2).toUpperCase()}</span><div><strong>{item.display_name}</strong><small>{item.email}</small></div><span className="team-role">{formatRole(item.role)}</span><span className={`team-status team-status--${item.status.toLowerCase()}`}>{item.status}</span></button>)}</div>
     </section>
 
-    {(creating || selected) && <div className="team-modal"><button type="button" className="team-backdrop" onClick={()=>{setCreating(false);setSelected(null)}} aria-label="Close"/><section className="team-drawer"><header><div><p>Role-based control</p><h2>{creating?"Add administrator":"Manage administrator"}</h2></div><button type="button" onClick={()=>{setCreating(false);setSelected(null)}}><X/></button></header>
+    {(creating || selected) && <div className="team-modal"><button type="button" className="team-backdrop" onClick={()=>{setCreating(false);setSelected(null)}} aria-label="Close"/><section ref={drawerRef} className="team-drawer" role="dialog" aria-modal="true" aria-label={creating?"Add administrator":"Manage administrator"}><header><div><p>Role-based control</p><h2>{creating?"Add administrator":"Manage administrator"}</h2></div><button ref={drawerCloseRef} type="button" onClick={()=>{setCreating(false);setSelected(null)}} aria-label="Close"><X/></button></header>
       {creating ? <form onSubmit={e=>{e.preventDefault();create.mutate()}}><label>Display name<input required value={form.display_name} onChange={e=>setForm({...form,display_name:e.target.value})}/></label><label>Email<input required type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label><label>Role<select value={form.role} onChange={e=>setForm({...form,role:e.target.value as AdminRole})}>{Object.keys(roleDescriptions).map(role=><option key={role} value={role}>{formatRole(role as AdminRole)}</option>)}</select><small>{roleDescriptions[form.role]}</small></label><label>Temporary password<input required type="password" minLength={12} value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label><button disabled={create.isPending}>{create.isPending?"Creating…":"Create accountable operator"}</button>{create.isError&&<p className="team-error">{create.error.message}</p>}</form>
       : selected && <div className="team-edit"><label>Display name<input value={edit.display_name} onChange={e=>setEdit({...edit,display_name:e.target.value})}/></label><label>Role<select value={edit.role} onChange={e=>setEdit({...edit,role:e.target.value as AdminRole})}>{Object.keys(roleDescriptions).map(role=><option key={role} value={role}>{formatRole(role as AdminRole)}</option>)}</select><small>{roleDescriptions[edit.role]}</small></label><label>Status<select value={edit.status} onChange={e=>setEdit({...edit,status:e.target.value as AdminStatus})}><option>ACTIVE</option><option>DISABLED</option></select></label><button onClick={()=>update.mutate()} disabled={update.isPending}>Save access profile</button><hr/><label>New password<input type="password" minLength={12} value={edit.password} onChange={e=>setEdit({...edit,password:e.target.value})} placeholder="At least 12 characters"/></label><button className="team-secondary" disabled={edit.password.length<12||resetPassword.isPending} onClick={()=>resetPassword.mutate()}><KeyRound size={16}/>Reset password</button><button className="team-danger" onClick={()=>setConfirmAdmin(selected)}>Revoke active sessions</button>{(update.isError||resetPassword.isError||revoke.isError)&&<p className="team-error">{update.error?.message||resetPassword.error?.message||revoke.error?.message}</p>}</div>}
     </section></div>}

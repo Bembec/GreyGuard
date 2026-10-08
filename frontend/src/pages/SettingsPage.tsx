@@ -20,71 +20,15 @@ import {
 } from "react"
 
 import { useAuth } from "../context/AuthContext"
+import {
+  applySettings,
+  defaultSettings,
+  loadSettings,
+  storageKey,
+  type AccentChoice,
+  type SettingsState,
+} from "../lib/interfaceSettings"
 import "../styles/settings.css"
-
-
-type InterfaceDensity =
-  | "comfortable"
-  | "compact"
-
-type AccentChoice =
-  | "cyan"
-  | "violet"
-  | "emerald"
-
-type SettingsState = {
-  reducedMotion: boolean
-  interfaceDensity: InterfaceDensity
-  accentChoice: AccentChoice
-  liveRefresh: boolean
-  securityNotifications: boolean
-  refreshInterval: number
-}
-
-const storageKey = "greyguard_interface_settings"
-
-const defaultSettings: SettingsState = {
-  reducedMotion: false,
-  interfaceDensity: "comfortable",
-  accentChoice: "cyan",
-  liveRefresh: true,
-  securityNotifications: true,
-  refreshInterval: 30,
-}
-
-function loadSettings(): SettingsState {
-  const storedSettings =
-    localStorage.getItem(storageKey)
-
-  if (!storedSettings) {
-    return defaultSettings
-  }
-
-  try {
-    return {
-      ...defaultSettings,
-      ...JSON.parse(storedSettings),
-    } as SettingsState
-  } catch {
-    return defaultSettings
-  }
-}
-
-function applySettings(
-  settings: SettingsState,
-) {
-  const root = document.documentElement
-
-  root.dataset.motion = settings.reducedMotion
-    ? "reduced"
-    : "full"
-
-  root.dataset.density =
-    settings.interfaceDensity
-
-  root.dataset.accent =
-    settings.accentChoice
-}
 
 function SettingSwitch({
   checked,

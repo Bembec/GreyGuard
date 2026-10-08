@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import App from "./App"
+import { applySettings, loadSettings } from "./lib/interfaceSettings"
 import "@fontsource/inter/400.css"
 import "@fontsource/inter/500.css"
 import "@fontsource/inter/600.css"
@@ -21,6 +22,11 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Applied synchronously before the first render, not inside a React effect - otherwise a
+// saved reduced-motion/density/accent preference would only take effect once SettingsPage
+// itself mounted, reverting to defaults on every hard reload until the operator revisited it.
+applySettings(loadSettings())
 
 const rootElement = document.getElementById("root")
 

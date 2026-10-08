@@ -10,11 +10,12 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
+import { useDismissableLayer } from "../hooks/useDismissableLayer"
 import "../styles/compliance-reports.css"
 import ReportGovernancePanel from "./ReportGovernancePanel"
 
@@ -60,6 +61,10 @@ export default function ComplianceReportsPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [busy, setBusy] = useState(false)
+  const createCloseRef = useRef<HTMLButtonElement>(null)
+  const createDialogRef = useDismissableLayer<HTMLDivElement>({ open: showCreate, onClose: () => setShowCreate(false), trapFocus: true, initialFocusRef: createCloseRef, disabled: busy, lockBodyScroll: true })
+  const detailsCloseRef = useRef<HTMLButtonElement>(null)
+  const detailsDialogRef = useDismissableLayer<HTMLDivElement>({ open: !!selected, onClose: () => setSelected(null), trapFocus: true, initialFocusRef: detailsCloseRef, lockBodyScroll: true })
   const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionToken ?? "" }
 
   const load = async () => {
@@ -124,7 +129,7 @@ export default function ComplianceReportsPage() {
       </article>)}</div>}
     </section>
 
-    {showCreate && <div className="compliance-modal"><button className="backdrop" onClick={() => setShowCreate(false)} aria-label="Close"/><section><header><div><h2>Generate evidence report</h2><p>Blank filters include all available evidence.</p></div><button onClick={() => setShowCreate(false)}><X /></button></header>
+    {showCreate && <div className="compliance-modal"><button className="backdrop" onClick={() => setShowCreate(false)} aria-label="Close"/><section ref={createDialogRef} role="dialog" aria-modal="true" aria-label="Generate evidence report"><header><div><h2>Generate evidence report</h2><p>Blank filters include all available evidence.</p></div><button ref={createCloseRef} onClick={() => setShowCreate(false)} aria-label="Close"><X /></button></header>
       <label>Report title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
       <div className="date-fields"><label>From<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label><label>To<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label></div>
       <fieldset><legend>Severity</legend>{severities.map((item) => <label key={item}><input type="checkbox" checked={selectedSeverities.includes(item)} onChange={() => toggle(item, selectedSeverities, setSelectedSeverities)} />{item}</label>)}</fieldset>
@@ -132,7 +137,7 @@ export default function ComplianceReportsPage() {
       <footer><button className="secondary" onClick={() => setShowCreate(false)}>Cancel</button><button disabled={busy || title.trim().length < 3} onClick={() => void generate()}><CalendarRange size={16} /> Capture evidence</button></footer>
     </section></div>}
 
-    {selected && <div className="compliance-modal"><button className="backdrop" onClick={() => setSelected(null)} aria-label="Close"/><section className="report-details"><header><div><h2>{selected.title}</h2><p>{selected.report_id}</p></div><button onClick={() => setSelected(null)}><X /></button></header>
+    {selected && <div className="compliance-modal"><button className="backdrop" onClick={() => setSelected(null)} aria-label="Close"/><section ref={detailsDialogRef} className="report-details" role="dialog" aria-modal="true" aria-label={`${selected.title} evidence report`}><header><div><h2>{selected.title}</h2><p>{selected.report_id}</p></div><button ref={detailsCloseRef} onClick={() => setSelected(null)} aria-label="Close"><X /></button></header>
       <div className={`integrity ${selected.integrity_verified ? "verified" : "failed"}`}><CheckCircle2 /><div><strong>{selected.integrity_verified ? "Integrity verified" : "Integrity check failed"}</strong><code>{selected.evidence_hash}</code></div></div>
       <div className="detail-metrics">{Object.entries(selected.summary).map(([label, value]) => <div key={label}><strong>{value}</strong><span>{label.replaceAll("_", " ")}</span></div>)}</div>
       <footer><button onClick={() => void download(selected, "json")}><Download size={16} /> JSON</button><button onClick={() => void download(selected, "csv")}><Download size={16} /> CSV</button><button onClick={() => void download(selected, "html")}><Download size={16} /> Printable HTML</button><button onClick={() => void download(selected, "pdf")}><Download size={16} /> PDF</button></footer>

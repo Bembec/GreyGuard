@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import {
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -19,6 +20,7 @@ import {
 
 import { ErrorState, LoadingState } from "../components/AsyncState";
 import { useToast } from "../context/ToastContext";
+import { useDismissableLayer } from "../hooks/useDismissableLayer";
 import { usePermission } from "../hooks/usePermission";
 import "../styles/risk-center.css";
 
@@ -178,6 +180,16 @@ export default function RiskCenterPage() {
     onError: (error: Error) => {
       pushToast({ tone: "error", title: "Could not reset agent", message: error.message });
     },
+  });
+
+  const resetCancelRef = useRef<HTMLButtonElement>(null);
+  const resetDialogRef = useDismissableLayer<HTMLElement>({
+    open: !!selectedAgent,
+    onClose: () => setSelectedAgent(null),
+    trapFocus: true,
+    initialFocusRef: resetCancelRef,
+    disabled: resetMutation.isPending,
+    lockBodyScroll: true,
   });
 
   const agents = agentsQuery.data ?? [];
@@ -683,6 +695,7 @@ export default function RiskCenterPage() {
           }
         >
           <section
+            ref={resetDialogRef}
             className="risk-modal"
             role="dialog"
             aria-modal="true"
@@ -724,6 +737,7 @@ export default function RiskCenterPage() {
 
             <div className="risk-modal-actions">
               <button
+                ref={resetCancelRef}
                 type="button"
                 className="secondary"
                 onClick={() =>
