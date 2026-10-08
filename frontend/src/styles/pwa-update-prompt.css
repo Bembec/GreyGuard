@@ -1,0 +1,70 @@
+.gg-pwa-prompt {
+  position: fixed;
+  z-index: 190;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 32px));
+}
+
+.gg-pwa-prompt__banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 13px;
+  background: rgba(15, 23, 42, 0.97);
+  box-shadow: 0 18px 55px rgba(2, 6, 23, 0.45);
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  animation: gg-pwa-prompt-in 0.2s ease-out;
+}
+
+.gg-pwa-prompt__banner svg {
+  flex-shrink: 0;
+  color: var(--gg-brand-glow);
+}
+
+.gg-pwa-prompt__banner--info svg {
+  color: #94a3b8;
+}
+
+.gg-pwa-prompt__banner span {
+  flex: 1;
+}
+
+.gg-pwa-prompt__banner button {
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.07);
+  color: #bae6fd;
+  padding: 7px 11px;
+  font-weight: 650;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.gg-pwa-prompt__dismiss {
+  border: 0 !important;
+  background: transparent !important;
+  color: #64748b !important;
+}
+
+@keyframes gg-pwa-prompt-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gg-pwa-prompt__banner {
+    animation: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .gg-pwa-prompt__banner {
+    flex-wrap: wrap;
+  }
+}
