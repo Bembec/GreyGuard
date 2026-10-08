@@ -1,5 +1,17 @@
 \
-"""Credential-safe Python clients for the GreyGuard control plane."""
+"""Credential-safe Python clients for the GreyGuard control plane.
+
+This module intentionally covers both the agent and administrator surfaces
+for GreyGuard's own examples, docs, and internal scripts. The separately
+packaged, externally distributable agent-only SDK lives at
+`sdk/python/greyguard_sdk` (see its README) and adds retry/idempotency
+handling and scope validation that third-party agent integrators need;
+this module stays admin-capable and dependency-free for in-repo use. The
+two are not accidental duplicates of each other, but `GreyGuardAgentClient`
+here and `greyguard_sdk.GreyGuardClient` do overlap on the agent-only
+surface - keep safety-relevant behavior (such as honoring the server's
+`Idempotency-Key` header on `/tool-requests`) in sync between them.
+"""
 
 import json
 import time
@@ -84,6 +96,7 @@ class _BaseClient:
         path: str,
         payload: dict[str, Any] | None = None,
         query: dict[str, Any] | None = None,
+        extra_headers: dict[str, str] | None = None,
     ) -> JsonResponse:
         url = self.base_url + "/" + path.lstrip("/")
         if query:
@@ -94,6 +107,7 @@ class _BaseClient:
             "Accept": "application/json",
             "Content-Type": "application/json",
             **self._auth_headers(),
+            **(extra_headers or {}),
         }
         return self._transport(method.upper(), url, headers, payload, self.timeout)
 
@@ -164,15 +178,23 @@ class GreyGuardAgentClient(_BaseClient):
         target: str = "",
         payload: dict[str, Any] | None = None,
         dry_run: bool = False,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         if not str(action).strip():
             raise ValueError("Tool action is required.")
-        result = self._request("POST", "/tool-requests", {
-            "action": str(action).strip(),
-            "target": str(target),
-            "payload": payload or {},
-            "dry_run": bool(dry_run),
-        })
+        if idempotency_key is not None and not 8 <= len(idempotency_key) <= 128:
+            raise ValueError("idempotency_key must be between 8 and 128 characters.")
+        result = self._request(
+            "POST",
+            "/tool-requests",
+            {
+                "action": str(action).strip(),
+                "target": str(target),
+                "payload": payload or {},
+                "dry_run": bool(dry_run),
+            },
+            extra_headers={"Idempotency-Key": idempotency_key} if idempotency_key else None,
+        )
         if not isinstance(result, dict):
             raise GreyGuardClientError("Invalid tool-request response.")
         return result

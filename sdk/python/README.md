@@ -1,7 +1,11 @@
 # GreyGuard Python SDK
 
 The GreyGuard SDK gives Python agents a typed, dependency-free client for
-policy evaluation and controlled tool requests.
+policy evaluation and controlled tool requests. It is agent-only by design;
+GreyGuard administrators scripting against the admin API (registering
+agents, rotating credentials, deciding tool requests) use
+`backend.sdk.GreyGuardAdminClient` instead, which lives alongside the
+backend it administers rather than as a separately distributed package.
 
 ## Install for local development
 
