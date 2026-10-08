@@ -7,12 +7,14 @@ import {
   ShieldAlert,
   ShieldCheck,
 } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 
 import { useAuth } from "../context/AuthContext"
 import "../styles/pages.css"
 
 export function DashboardPage() {
   const { agents } = useAuth()
+  const navigate = useNavigate()
 
   const activeAgents = agents.filter(
     (agent) => agent.agent_status === "ACTIVE",
@@ -204,9 +206,13 @@ export function DashboardPage() {
             </div>
 
             {agents.slice(0, 6).map((agent) => (
-              <div
-                className="agent-table__row"
+              <button
+                type="button"
+                className="agent-table__row agent-table__row--link"
                 key={agent.agent_name}
+                onClick={() =>
+                  navigate(`/agents/${encodeURIComponent(agent.agent_name)}`)
+                }
               >
                 <span className="agent-name">
                   <span>
@@ -241,7 +247,7 @@ export function DashboardPage() {
                   />
                   {agent.risk_score}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </article>
