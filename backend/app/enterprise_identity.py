@@ -75,14 +75,29 @@ def list_providers():
     return [{**dict(row), "enabled": bool(row["enabled"]), "allowed_domains": json.loads(row["allowed_domains"])} for row in rows]
 
 
-def save_provider(actor_id, name, issuer, client_id, allowed_domains=(), enabled=True):
+def save_provider(actor_id, name, issuer, client_id, allowed_domains=(), enabled=True, allow_any_domain=False):
+    """Register or update an enterprise identity provider.
+
+    Fails closed on email-domain scope: a provider with no allowed_domains lets any email the
+    IdP will vouch for sign in, including the email of a pre-existing local-password
+    administrator (enterprise_sso/admin_auth silently takes over that account's role on first
+    successful SSO login for a matching email - see provision_sso_administrator). Requiring
+    either a real domain list or an explicit allow_any_domain=True forces that decision to be
+    conscious rather than an accidental default.
+    """
     issuer = str(issuer).strip().rstrip("/")
     if not issuer.startswith("https://") or not name.strip() or not client_id.strip():
         raise ValueError("Provider name, HTTPS issuer, and client ID are required.")
+    domains = sorted({str(item).strip().lower() for item in allowed_domains if str(item).strip()})
+    if not domains and not allow_any_domain:
+        raise ValueError(
+            "Provide at least one allowed email domain, or explicitly set allow_any_domain=true "
+            "to permit any email this identity provider vouches for (including emails that match "
+            "existing local administrator accounts)."
+        )
     provider_id = "idp_" + secrets.token_hex(10)
     now = _now().isoformat()
     discovery = issuer + "/.well-known/openid-configuration"
-    domains = sorted({str(item).strip().lower() for item in allowed_domains if str(item).strip()})
     with sqlite3.connect(database_path) as connection:
         existing = connection.execute("SELECT provider_id,created_at FROM identity_providers WHERE issuer=?", (issuer,)).fetchone()
         if existing:

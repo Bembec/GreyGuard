@@ -468,7 +468,7 @@ def test_discovery_issuer_mismatch_is_rejected(isolated, monkeypatch):
 
 
 def test_list_enabled_providers_for_login_excludes_disabled(isolated):
-    enterprise_identity.save_provider("owner@example.com", "Disabled IdP", "https://disabled.example", "client-x", enabled=False)
+    enterprise_identity.save_provider("owner@example.com", "Disabled IdP", "https://disabled.example", "client-x", enabled=False, allow_any_domain=True)
     names = {item["name"] for item in enterprise_sso.list_enabled_providers_for_login()}
     assert "Test IdP" in names
     assert "Disabled IdP" not in names

@@ -599,6 +599,7 @@ class IdentityProviderRequest(BaseModel):
     client_id: str = Field(min_length=1, max_length=250)
     allowed_domains: list[str] = Field(default_factory=list)
     enabled: bool = True
+    allow_any_domain: bool = False
 
 
 class IdentityRoleMappingRequest(BaseModel):
@@ -3434,7 +3435,7 @@ def configure_identity_provider(payload: IdentityProviderRequest, x_admin_pin: s
     actor = _platform_admin(x_admin_pin)
     try:
         return save_provider(actor["admin_id"], payload.name, payload.issuer, payload.client_id,
-                             payload.allowed_domains, payload.enabled)
+                             payload.allowed_domains, payload.enabled, payload.allow_any_domain)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
