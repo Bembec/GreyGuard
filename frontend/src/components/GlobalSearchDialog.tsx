@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { EmptyState, ErrorState, LoadingState } from "./AsyncState"
+import { useDismissableLayer } from "../hooks/useDismissableLayer"
 import "../styles/global-search.css"
 
 type SearchResult = { kind: "AGENT" | "REQUEST" | "APPROVAL" | "ALERT" | "AUDIT"; id: string; title: string; summary: string; path: string }
@@ -34,14 +35,7 @@ export function GlobalSearchDialog({ open, onClose }: { open: boolean; onClose: 
   const [error, setError] = useState("")
   const recent = useMemo(() => readRecentSearches(), [open, results])
 
-  useEffect(() => {
-    if (!open) return
-    const previous = document.activeElement as HTMLElement | null
-    window.setTimeout(() => inputRef.current?.focus(), 0)
-    const keydown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose() }
-    document.addEventListener("keydown", keydown)
-    return () => { document.removeEventListener("keydown", keydown); previous?.focus() }
-  }, [onClose, open])
+  useDismissableLayer<HTMLDivElement>({ open, onClose, initialFocusRef: inputRef })
 
   useEffect(() => {
     if (!open || query.trim().length < 2) { setResults([]); setError(""); return }
