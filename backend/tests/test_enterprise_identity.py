@@ -29,6 +29,22 @@ def test_provider_rejects_insecure_issuer(identity):
         enterprise_identity.save_provider(identity[0]["admin_id"], "Unsafe", "http://idp.example", "client")
 
 
+def test_provider_with_no_domain_restriction_requires_explicit_opt_in(identity):
+    # An empty allowed_domains list lets any email the IdP vouches for sign in, including the
+    # email of a pre-existing local-password administrator (see provision_sso_administrator) -
+    # this must never be the silent default.
+    with pytest.raises(ValueError, match="allow_any_domain"):
+        enterprise_identity.save_provider(identity[0]["admin_id"], "Unscoped", "https://idp.example", "client")
+
+
+def test_provider_with_explicit_allow_any_domain_is_permitted(identity):
+    provider = enterprise_identity.save_provider(
+        identity[0]["admin_id"], "Unscoped", "https://idp.example", "client",
+        allow_any_domain=True,
+    )
+    assert provider["allowed_domains"] == []
+
+
 def test_workload_certificate_is_fingerprinted_not_stored(identity):
     pem = "-----BEGIN CERTIFICATE-----\nTEST-CERTIFICATE-MATERIAL\n-----END CERTIFICATE-----"
     workload = enterprise_identity.create_workload_identity(identity[0]["admin_id"], "production-agent", "spiffe://greyguard/agent", pem, ["read_file"])
