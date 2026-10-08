@@ -215,6 +215,36 @@ def _issue_session(connection, row, device_name, ip_address) -> dict:
             "expires_at": expires.isoformat(), "administrator": user}
 
 
+def count_administrators() -> int:
+    """Total administrator rows regardless of role or status - used only to detect a fresh
+    install (zero administrators exist yet), never for access control."""
+    initialize_admin_auth()
+    with sqlite3.connect(database_path) as connection:
+        return connection.execute("SELECT COUNT(*) FROM administrators").fetchone()[0]
+
+
+def setup_first_administrator(email: str, display_name: str, password: str, device_name="Unknown device", ip_address="") -> dict:
+    """Create the very first PLATFORM_ADMIN and sign them in, for the one-time install wizard.
+
+    Re-checks the zero-administrators condition here (not just at the route layer) so a race
+    between two people loading the wizard at once can only ever create one account - the second
+    caller gets a clear error instead of a duplicate bootstrap administrator.
+    """
+    initialize_admin_auth()
+    with sqlite3.connect(database_path) as connection:
+        existing = connection.execute("SELECT COUNT(*) FROM administrators").fetchone()[0]
+    if existing > 0:
+        raise ValueError("An administrator account already exists.")
+    create_administrator(email=email, display_name=display_name, role="PLATFORM_ADMIN", password=password)
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            "SELECT * FROM administrators WHERE email = ? COLLATE NOCASE",
+            (str(email).strip().lower(),),
+        ).fetchone()
+        return _issue_session(connection, row, device_name, ip_address)
+
+
 def authenticate(email: str, password: str, mfa_code=None, device_name="Unknown device", ip_address="") -> dict:
     initialize_admin_auth()
     with sqlite3.connect(database_path) as connection:

@@ -38,10 +38,12 @@ from .admin_auth import (
     authenticate as authenticate_administrator,
     begin_mfa_enrollment,
     confirm_mfa,
+    count_administrators,
     create_administrator,
     get_administrator,
     reset_administrator_password,
     revoke_administrator_sessions,
+    setup_first_administrator,
     update_administrator,
     has_permission,
     initialize_admin_auth,
@@ -473,6 +475,13 @@ class AdministratorLogin(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1, max_length=256)
     mfa_code: str | None = Field(default=None, pattern=r"^\d{6}$")
+    device_name: str = Field(default="Browser", max_length=100)
+
+
+class FirstAdministratorSetup(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    display_name: str = Field(min_length=1, max_length=200)
+    password: str = Field(min_length=12, max_length=256)
     device_name: str = Field(default="Browser", max_length=100)
 
 
@@ -1152,6 +1161,24 @@ def administrator_login(credentials: AdministratorLogin, request: Request):
         raise HTTPException(status_code=428, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.get("/auth/setup-status")
+def setup_status():
+    """Public, pre-authentication check so the frontend knows whether to route a fresh
+    install into the one-time first-administrator setup wizard instead of the login page."""
+    return {"needs_setup": count_administrators() == 0}
+
+
+@app.post("/auth/setup", status_code=201)
+def complete_first_administrator_setup(payload: FirstAdministratorSetup, request: Request):
+    try:
+        return setup_first_administrator(
+            payload.email, payload.display_name, payload.password,
+            payload.device_name, request.client.host if request.client else "",
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @app.get("/auth/sso/providers")

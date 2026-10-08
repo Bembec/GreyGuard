@@ -137,3 +137,17 @@ export function completeSSOLogin(state: string, code: string) {
     body: JSON.stringify({ state, code, device_name: navigator.userAgent.slice(0, 100) }),
   })
 }
+
+export function fetchSetupStatus() {
+  return apiRequest<{ needs_setup: boolean }>("/auth/setup-status")
+}
+
+export function submitFirstAdministratorSetup(email: string, displayName: string, password: string) {
+  return apiRequest<AdministratorLoginResponse>("/auth/setup", {
+    method: "POST",
+    body: JSON.stringify({
+      email, display_name: displayName, password,
+      device_name: navigator.userAgent.slice(0, 100),
+    }),
+  })
+}

@@ -181,3 +181,29 @@ def test_unknown_action_defaults_to_block():
         )
         == "BLOCK"
     )
+
+
+def test_setup_status_is_public_and_structurally_valid(client):
+    response = client.get("/auth/setup-status")
+    assert response.status_code == 200
+    assert isinstance(response.json()["needs_setup"], bool)
+
+
+def test_setup_rejects_when_an_administrator_already_exists(client):
+    # This runs against the shared dev database (not isolated), so don't assume its starting
+    # state - admin_auth.setup_first_administrator's own fresh-install logic is covered in
+    # isolation by test_admin_auth.py; this just confirms the route wiring is deterministic
+    # regardless of whether an administrator already existed before this test ran.
+    if client.get("/auth/setup-status").json()["needs_setup"]:
+        first = client.post("/auth/setup", json={
+            "email": "setup-wiring-check@example.com",
+            "display_name": "Setup Wiring Check",
+            "password": "SecureSetup!12345",
+        })
+        assert first.status_code == 201
+    response = client.post("/auth/setup", json={
+        "email": "second-setup-attempt@example.com",
+        "display_name": "Second Attempt",
+        "password": "SecureSetup!12345",
+    })
+    assert response.status_code == 409
