@@ -11,7 +11,7 @@ GreyGuard now routes application persistence through `db_compat`. SQLite remains
 5. Initialize the approved target with `python scripts/initialize_database_backend.py` while the PostgreSQL URL is configured.
 6. Run `python scripts/migrate_sqlite_to_postgresql.py --source PATH_TO_DB --confirm` in the controlled migration environment.
 7. Retain the generated per-table row-count and source-checksum evidence.
-8. Run application smoke, authentication, policy, isolation, audit-integrity, backup, and rollback checks.
+8. Run application smoke, authentication, policy, isolation, audit-integrity, backup, and rollback checks. Backup/restore checks against the PostgreSQL target use `backend/app/postgres_backup_ops.py` (see `docs/production-deployment.md`), not the SQLite-only `database_ops.py`.
 9. Change production only after documented approval.
 
 Rollback means stopping writes, pointing GreyGuard back to the preserved SQLite database and known-good release, verifying readiness and authentication, and investigating every write accepted by PostgreSQL after cutover. Do not attempt automatic bidirectional synchronization.
