@@ -19,6 +19,7 @@ import {
 
 import { ErrorState, LoadingState } from "../components/AsyncState";
 import { useToast } from "../context/ToastContext";
+import { usePermission } from "../hooks/usePermission";
 import "../styles/risk-center.css";
 
 
@@ -141,6 +142,11 @@ function riskColor(level: string) {
 export default function RiskCenterPage() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
+  // POST /agents/{name}/reset requires identity:manage server-side (admin_auth.py's
+  // required_permission) - only PLATFORM_ADMIN holds it. This page had no useAuth import at
+  // all - the reset action (clears risk + reactivates a suspended agent) was gated only by
+  // whether the agent was currently suspended, never by who was clicking it.
+  const canResetAgents = usePermission({ permission: "identity:manage" });
 
   const [selectedAgent, setSelectedAgent] =
     useState<Agent | null>(null);
@@ -472,20 +478,22 @@ export default function RiskCenterPage() {
                       </td>
 
                       <td>
-                        <button
-                          className="risk-row-action"
-                          type="button"
-                          disabled={
-                            agent.agent_status
-                            !== "SUSPENDED"
-                          }
-                          onClick={() =>
-                            setSelectedAgent(agent)
-                          }
-                        >
-                          <RotateCcw />
-                          Reset
-                        </button>
+                        {canResetAgents && (
+                          <button
+                            className="risk-row-action"
+                            type="button"
+                            disabled={
+                              agent.agent_status
+                              !== "SUSPENDED"
+                            }
+                            onClick={() =>
+                              setSelectedAgent(agent)
+                            }
+                          >
+                            <RotateCcw />
+                            Reset
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

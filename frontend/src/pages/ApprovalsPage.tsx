@@ -25,6 +25,7 @@ import {
 } from "@tanstack/react-query";
 
 import { ErrorState, LoadingState } from "../components/AsyncState";
+import { usePermission } from "../hooks/usePermission";
 import "../styles/approvals.css";
 
 
@@ -184,6 +185,10 @@ function riskLevel(score: number) {
 
 export default function ApprovalsPage() {
   const queryClient = useQueryClient();
+  // POST /tool-requests/{id}/decision requires approval:manage server-side
+  // (admin_auth.py's required_permission) - PLATFORM_ADMIN and SECURITY_ANALYST hold it,
+  // AUDITOR (read-only) does not.
+  const canDecide = usePermission({ permission: "approval:manage" });
 
   const [viewMode, setViewMode] =
     useState<ViewMode>("PENDING");
@@ -654,7 +659,8 @@ export default function ApprovalsPage() {
                         </button>
 
                         {request.approval_status
-                          === "PENDING" && (
+                          === "PENDING"
+                          && canDecide && (
                           <>
                             <button
                               type="button"
@@ -866,35 +872,43 @@ export default function ApprovalsPage() {
 
               {selectedRequest.approval_status
                 === "PENDING" && (
-                <div className="detail-review-actions">
-                  <button
-                    type="button"
-                    className="deny-approval"
-                    onClick={() =>
-                      beginReview(
-                        selectedRequest,
-                        "DENIED",
-                      )
-                    }
-                  >
-                    <ShieldX size={16} />
-                    Deny request
-                  </button>
+                canDecide ? (
+                  <div className="detail-review-actions">
+                    <button
+                      type="button"
+                      className="deny-approval"
+                      onClick={() =>
+                        beginReview(
+                          selectedRequest,
+                          "DENIED",
+                        )
+                      }
+                    >
+                      <ShieldX size={16} />
+                      Deny request
+                    </button>
 
-                  <button
-                    type="button"
-                    className="approve-approval"
-                    onClick={() =>
-                      beginReview(
-                        selectedRequest,
-                        "APPROVED",
-                      )
-                    }
-                  >
-                    <Check size={16} />
-                    Approve request
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      className="approve-approval"
+                      onClick={() =>
+                        beginReview(
+                          selectedRequest,
+                          "APPROVED",
+                        )
+                      }
+                    >
+                      <Check size={16} />
+                      Approve request
+                    </button>
+                  </div>
+                ) : (
+                  <p className="gg-readonly-note">
+                    Your role has read-only access to this queue. Approval or
+                    denial requires the Security Analyst or Platform
+                    Administrator role.
+                  </p>
+                )
               )}
             </>
           )}
