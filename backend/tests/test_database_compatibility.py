@@ -24,3 +24,30 @@ def test_observability_upsert_translation_is_explicit():
 def test_unbounded_offset_translation_is_postgresql_compatible():
  sql=db_compat._translate("SELECT span_id FROM observability_spans ORDER BY timestamp DESC LIMIT -1 OFFSET ?")
  assert "LIMIT -1" not in sql and "OFFSET %s" in sql
+
+def test_alter_table_add_column_translation_used_by_workload_identities():
+ # enterprise_identity.py migrates workload_identities with ALTER TABLE ... ADD COLUMN,
+ # which is valid, unmodified PostgreSQL syntax - no special-casing should touch it.
+ sql=db_compat._translate("ALTER TABLE workload_identities ADD COLUMN agent_name TEXT")
+ assert sql=="ALTER TABLE workload_identities ADD COLUMN agent_name TEXT"
+
+def test_foreign_key_clause_translation_used_by_identity_role_mappings():
+ ddl=db_compat._translate(
+  "CREATE TABLE identity_role_mappings (mapping_id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, "
+  "FOREIGN KEY(provider_id) REFERENCES identity_providers(provider_id))"
+ )
+ assert "FOREIGN KEY(provider_id) REFERENCES identity_providers(provider_id)" in ddl
+
+def test_executescript_style_multi_statement_block_translates_every_statement():
+ # Mirrors enterprise_identity.py's initialize_enterprise_identity(), which runs several
+ # CREATE TABLE statements (one with AUTOINCREMENT) through one executescript() call.
+ # PostgresConnection.executescript splits on ';' and translates each piece independently -
+ # confirm AUTOINCREMENT still translates correctly when it is not the first statement.
+ script = """
+ CREATE TABLE IF NOT EXISTS identity_providers (provider_id TEXT PRIMARY KEY);
+ CREATE TABLE IF NOT EXISTS enterprise_identity_events (
+   event_id INTEGER PRIMARY KEY AUTOINCREMENT, detail TEXT NOT NULL);
+ """
+ translated = [db_compat._translate(statement) for statement in script.split(";") if statement.strip()]
+ assert any("BIGSERIAL PRIMARY KEY" in statement for statement in translated)
+ assert all("AUTOINCREMENT" not in statement for statement in translated)
