@@ -14,10 +14,10 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 
-import { useAuth } from "../context/AuthContext"
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import { ConfirmDialog } from "../components/ConfirmDialog"
 import { useToast } from "../context/ToastContext"
+import { usePermission } from "../hooks/usePermission"
 import "../styles/notifications.css"
 
 export type SecurityNotification = {
@@ -75,10 +75,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export default function NotificationsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { administrator } = useAuth()
   const { pushToast } = useToast()
-  const canManage = administrator?.permissions.includes("incident:manage") ?? false
-  const canManageRetention = administrator?.permissions.includes("admin:manage") ?? false
+  const canManage = usePermission({ permission: "incident:manage" })
+  const canManageRetention = usePermission({ permission: "admin:manage" })
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [severity, setSeverity] = useState("ALL")
   const [retentionDays, setRetentionDays] = useState(90)
