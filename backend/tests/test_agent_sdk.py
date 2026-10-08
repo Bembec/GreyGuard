@@ -83,3 +83,29 @@ def test_invalid_approval_decision_is_rejected():
 def test_empty_agent_credential_is_rejected():
     with pytest.raises(ValueError, match="credential"):
         GreyGuardAgentClient("http://localhost:8000", "agent", "")
+
+
+def test_request_tool_sends_idempotency_key_header():
+    transport = RecordingTransport({"request_id": "request-1"})
+    client = GreyGuardAgentClient(
+        "http://localhost:8000", "notes_agent", "agent-key", transport=transport
+    )
+    client.request_tool("write_note", idempotency_key="a-stable-key-123")
+    assert transport.calls[0]["headers"]["Idempotency-Key"] == "a-stable-key-123"
+
+
+def test_request_tool_without_idempotency_key_omits_header():
+    transport = RecordingTransport({"request_id": "request-1"})
+    client = GreyGuardAgentClient(
+        "http://localhost:8000", "notes_agent", "agent-key", transport=transport
+    )
+    client.request_tool("write_note")
+    assert "Idempotency-Key" not in transport.calls[0]["headers"]
+
+
+def test_request_tool_rejects_short_idempotency_key():
+    client = GreyGuardAgentClient(
+        "http://localhost:8000", "notes_agent", "agent-key", transport=RecordingTransport()
+    )
+    with pytest.raises(ValueError, match="idempotency_key"):
+        client.request_tool("write_note", idempotency_key="short")
