@@ -1,0 +1,34 @@
+.gg-splash {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gg-space-6);
+  background: var(--gg-brand-navy);
+  z-index: 200;
+}
+
+.gg-splash__logo {
+  animation: gg-splash-pulse 2.4s var(--gg-ease) infinite;
+}
+
+.gg-splash__status {
+  font-family: var(--gg-font-sans);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gg-brand-steel);
+}
+
+@keyframes gg-splash-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gg-splash__logo {
+    animation: none;
+  }
+}
