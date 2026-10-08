@@ -16,9 +16,14 @@ def initialize_isolation_operations():
   c.execute("INSERT OR IGNORE INTO isolation_operations_config VALUES(1,0,0,'[]','[]',?,?)",(utc_now(),"system"))
   c.execute("""CREATE TABLE IF NOT EXISTS isolated_workspaces(workspace_id TEXT PRIMARY KEY,agent_name TEXT NOT NULL UNIQUE,path TEXT NOT NULL,created_at TEXT NOT NULL,status TEXT NOT NULL,destroyed_at TEXT,destroyed_by TEXT)""")
   c.execute("""CREATE TABLE IF NOT EXISTS quarantined_artifacts(artifact_id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL,original_name TEXT NOT NULL,sha256 TEXT NOT NULL,size_bytes INTEGER NOT NULL,quarantine_path TEXT NOT NULL,status TEXT NOT NULL,scan_engine TEXT,scan_result TEXT,created_at TEXT NOT NULL,scanned_at TEXT)""")
+MAX_UPLOAD_BYTES=1_000_000
 def _safe_agent(agent_name):
  value=str(agent_name).strip()
  if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}",value):raise ValueError("Agent name is unsafe for workspace isolation.")
+ return value
+def _safe_filename(filename):
+ value=str(filename).strip()
+ if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}",value) or value in {".",".."}:raise ValueError("Artifact filename is unsafe.")
  return value
 def _inside(root,path):
  try:path.resolve().relative_to(root);return True
@@ -73,11 +78,30 @@ def quarantine_artifact(workspace_id,source_path):
  target.write_bytes(data);source.unlink()
  with sqlite3.connect(database_path) as c:c.execute("INSERT INTO quarantined_artifacts VALUES(?,?,?,?,?,?,?,?,?,?,?)",(aid,workspace_id,source.name,digest,len(data),str(target),"QUARANTINED",None,None,utc_now(),None))
  return {"artifact_id":aid,"sha256":digest,"size_bytes":len(data),"status":"QUARANTINED"}
+def write_and_quarantine_artifact(workspace_id,filename,content):
+ """Write admin-supplied bytes into the agent's isolated workspace and immediately quarantine
+ them, never opening, parsing, executing, or rendering the content at any point - it is treated
+ as an opaque byte string from upload through to the scanner adapter."""
+ initialize_isolation_operations();safe_name=_safe_filename(filename)
+ if len(content)>MAX_UPLOAD_BYTES:raise ValueError(f"Artifact exceeds the {MAX_UPLOAD_BYTES} byte upload limit.")
+ with sqlite3.connect(database_path) as c:row=c.execute("SELECT path FROM isolated_workspaces WHERE workspace_id=? AND status='ACTIVE'",(workspace_id,)).fetchone()
+ if not row:raise KeyError("Active isolated workspace not found.")
+ workspace=Path(row[0]).resolve();target=(workspace/safe_name).resolve()
+ if not _inside(workspace,target):raise PermissionError("Artifact path escaped its isolated workspace.")
+ target.write_bytes(content)
+ return quarantine_artifact(workspace_id,target)
 def scan_artifact(artifact_id,scanner):
  with sqlite3.connect(database_path) as c:
   row=c.execute("SELECT quarantine_path FROM quarantined_artifacts WHERE artifact_id=? AND status='QUARANTINED'",(artifact_id,)).fetchone()
   if not row:raise KeyError("Quarantined artifact not found.")
-  result=scanner(Path(row[0]));clean=bool(result.get("clean"));status="CLEAN" if clean else "MALICIOUS";c.execute("UPDATE quarantined_artifacts SET status=?,scan_engine=?,scan_result=?,scanned_at=? WHERE artifact_id=?",(status,str(result.get("engine","unknown")),str(result.get("detail",""))[:500],utc_now(),artifact_id))
+  try:
+   result=scanner(Path(row[0]));clean=bool(result.get("clean"));status="CLEAN" if clean else "MALICIOUS"
+   detail=str(result.get("detail",""))[:500];engine=str(result.get("engine","unknown"))
+  except Exception as error:
+   # A scanner that cannot be reached or times out must never be mistaken for a clean result:
+   # the artifact stays blocked, and the failure itself becomes the recorded evidence.
+   status="SCAN_FAILED";detail=str(error)[:500];engine="unknown"
+  c.execute("UPDATE quarantined_artifacts SET status=?,scan_engine=?,scan_result=?,scanned_at=? WHERE artifact_id=?",(status,engine,detail,utc_now(),artifact_id))
  return {"artifact_id":artifact_id,"status":status,"released":False}
 def kubernetes_job_manifest(agent_name,job_id,image="greyguard-sandbox:local"):
  agent=_safe_agent(agent_name);config=get_operations()["config"]
