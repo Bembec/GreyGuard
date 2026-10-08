@@ -1,5 +1,6 @@
 import { Activity, ArrowLeft, Bot, Clock3, FileSearch, Fingerprint, KeyRound, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
+import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
@@ -13,7 +14,13 @@ type Investigation = {
   summary: { risk_events: number; authentication_events: number; requests: number; denied_requests: number }
 }
 
+type CredentialHistory = {
+  events: Array<{ id: number; agent_name: string; timestamp: string; event_type: "ISSUED" | "ROTATED" | "REVOKED"; actor: string }>
+  total: number
+}
+
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api"
+const CREDENTIAL_HISTORY_PAGE_SIZE = 10
 
 export function formatAgentEvidenceDate(value?: string | null) {
   if (!value) return "Not recorded"
@@ -29,10 +36,24 @@ async function loadInvestigation(agentName: string): Promise<Investigation> {
   return body as Investigation
 }
 
+async function loadCredentialHistory(agentName: string, offset: number): Promise<CredentialHistory> {
+  const token = sessionStorage.getItem("greyguard_admin_pin")
+  const response = await fetch(`${API}/agents/${encodeURIComponent(agentName)}/credential-history?limit=${CREDENTIAL_HISTORY_PAGE_SIZE}&offset=${offset}`, { headers: { "X-Admin-Pin": token ?? "" } })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(body.detail ?? "Credential history could not be loaded.")
+  return body as CredentialHistory
+}
+
 export default function AgentDetailPage() {
   const { agentName = "" } = useParams()
   const navigate = useNavigate()
   const investigation = useQuery({ queryKey: ["agent-investigation", agentName], queryFn: () => loadInvestigation(agentName), enabled: Boolean(agentName) })
+  const [credentialHistoryOffset, setCredentialHistoryOffset] = useState(0)
+  const credentialHistory = useQuery({
+    queryKey: ["agent-credential-history", agentName, credentialHistoryOffset],
+    queryFn: () => loadCredentialHistory(agentName, credentialHistoryOffset),
+    enabled: Boolean(agentName),
+  })
 
   const agent = investigation.data?.agent
 
@@ -68,6 +89,29 @@ export default function AgentDetailPage() {
         <section className="agent-investigation__grid">
           <article className="investigation-card"><header><Fingerprint/><div><h2>Authentication history</h2><p>Credential and scope-verification evidence.</p></div></header>{authentication.length === 0 ? <EmptyState title="No authentication evidence" description="No authentication attempts are recorded."/> : <div className="evidence-feed">{authentication.map((event) => <div key={event.event_id}><span className={`evidence-dot evidence-dot--${event.severity.toLowerCase()}`}/><div><strong>{event.outcome}</strong><p>{event.summary}</p><small><Clock3 size={12}/>{formatAgentEvidenceDate(event.timestamp)}</small></div></div>)}</div>}</article>
           <article className="investigation-card"><header><FileSearch/><div><h2>Tool requests and decisions</h2><p>Sanitized request lifecycle evidence.</p></div></header>{requests.length === 0 ? <EmptyState title="No tool requests" description="This identity has not submitted a controlled-tool request."/> : <div className="request-evidence">{requests.map((request) => <button type="button" key={request.request_id} onClick={() => navigate(request.path)}><div><strong>{request.action}</strong><small>{request.target || "No target"}</small></div><span>{request.policy_decision}</span><small>{request.execution_status}</small></button>)}</div>}</article>
+        </section>
+
+        <section className="investigation-card">
+          <header><KeyRound/><div><h2>Credential history</h2><p>Issue, rotation, and revocation evidence &mdash; never the credential itself.</p></div></header>
+          {credentialHistory.isLoading && <LoadingState label="Loading credential history" rows={3}/>}
+          {credentialHistory.isError && <ErrorState message={credentialHistory.error.message} onRetry={() => void credentialHistory.refetch()}/>}
+          {credentialHistory.data && (credentialHistory.data.events.length === 0
+            ? <EmptyState title="No credential events" description="No issue, rotation, or revocation events are recorded for this agent."/>
+            : <>
+              <div className="evidence-table evidence-table--credential">
+                <div className="evidence-table__head"><span>Time</span><span>Event</span><span>Actor</span></div>
+                {credentialHistory.data.events.map((event) => <div key={event.id}>
+                  <span>{formatAgentEvidenceDate(event.timestamp)}</span>
+                  <strong className={`evidence-outcome evidence-outcome--${event.event_type === "REVOKED" ? "block" : event.event_type === "ROTATED" ? "ask" : "allow"}`}>{event.event_type}</strong>
+                  <span>{event.actor}</span>
+                </div>)}
+              </div>
+              <div className="credential-history__pager">
+                <button type="button" disabled={credentialHistoryOffset === 0} onClick={() => setCredentialHistoryOffset((offset) => Math.max(0, offset - CREDENTIAL_HISTORY_PAGE_SIZE))}>Newer</button>
+                <small>{Math.min(credentialHistoryOffset + 1, credentialHistory.data.total)}&ndash;{Math.min(credentialHistoryOffset + CREDENTIAL_HISTORY_PAGE_SIZE, credentialHistory.data.total)} of {credentialHistory.data.total}</small>
+                <button type="button" disabled={credentialHistoryOffset + CREDENTIAL_HISTORY_PAGE_SIZE >= credentialHistory.data.total} onClick={() => setCredentialHistoryOffset((offset) => offset + CREDENTIAL_HISTORY_PAGE_SIZE)}>Older</button>
+              </div>
+            </>)}
         </section>
       </>
     })()}
