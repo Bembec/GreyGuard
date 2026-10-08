@@ -54,3 +54,28 @@ def test_logout_revokes_session(isolated):
     assert admin_auth.revoke_session(token)
     with pytest.raises(ValueError):
         admin_auth.validate_session(token)
+
+
+# -- first-install setup wizard -----------------------------------------------
+
+def test_count_administrators_reflects_fresh_install(isolated):
+    assert admin_auth.count_administrators() == 0
+    create_admin()
+    assert admin_auth.count_administrators() == 1
+
+
+def test_setup_first_administrator_creates_platform_admin_and_signs_in(isolated):
+    result = admin_auth.setup_first_administrator(
+        "owner@greyguard.local", "First Owner", "SecureSetup!123",
+    )
+    assert result["administrator"]["role"] == "PLATFORM_ADMIN"
+    assert result["administrator"]["email"] == "owner@greyguard.local"
+    assert result["access_token"].startswith("gga_")
+    # The issued session is immediately valid, not a separate login round trip.
+    assert admin_auth.validate_session(result["access_token"])["email"] == "owner@greyguard.local"
+
+
+def test_setup_first_administrator_rejects_when_an_administrator_already_exists(isolated):
+    create_admin()
+    with pytest.raises(ValueError, match="already exists"):
+        admin_auth.setup_first_administrator("second@greyguard.local", "Second", "SecureSetup!123")

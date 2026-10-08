@@ -1,0 +1,113 @@
+.install-wizard {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background: var(--gg-obsidian);
+  padding: var(--gg-space-6);
+}
+
+.install-wizard__panel {
+  display: flex;
+  width: min(480px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gg-space-6);
+  padding: var(--gg-space-8);
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-panel-solid);
+  box-shadow: var(--gg-shadow-md);
+}
+
+.install-wizard__logo {
+  width: min(240px, 80%);
+  padding: var(--gg-space-4);
+}
+
+.install-wizard__step {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--gg-space-3);
+  text-align: center;
+}
+
+.install-wizard__step form,
+form.install-wizard__step {
+  text-align: left;
+}
+
+.install-wizard__step h1 {
+  font-size: 1.5rem;
+}
+
+.install-wizard__step p {
+  color: var(--gg-text-secondary);
+  line-height: 1.6;
+}
+
+.install-wizard__step label {
+  margin-top: var(--gg-space-2);
+  font-size: 0.82rem;
+  color: var(--gg-text-secondary);
+}
+
+.install-wizard__input {
+  display: flex;
+  align-items: center;
+  gap: var(--gg-space-2);
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-sm);
+  background: var(--gg-surface-900);
+  color: var(--gg-text-muted);
+}
+
+.install-wizard__input input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--gg-text-primary);
+  font: inherit;
+  outline: none;
+}
+
+.install-wizard__input button {
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--gg-text-muted);
+  cursor: pointer;
+}
+
+.install-wizard__error {
+  color: var(--gg-red);
+  font-size: 0.85rem;
+}
+
+.install-wizard__submit {
+  display: block;
+  margin-top: var(--gg-space-3);
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: var(--gg-radius-sm);
+  background: var(--gg-brand-blue);
+  color: #fff;
+  font-weight: 650;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--gg-transition-fast);
+}
+
+.install-wizard__submit:hover {
+  background: var(--gg-brand-glow);
+  color: var(--gg-brand-navy);
+}
+
+.install-wizard__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

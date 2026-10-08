@@ -4,11 +4,14 @@ import {
   Routes,
 } from "react-router-dom"
 
+import { SplashScreen } from "../components/brand/SplashScreen"
 import { useAuth } from "../context/AuthContext"
+import { useSetupStatus } from "../hooks/useSetupStatus"
 import { AppShell } from "../layouts/AppShell"
 import AgentsPage from "../pages/AgentsPage"
 import AgentDetailPage from "../pages/AgentDetailPage"
 import { DashboardPage } from "../pages/DashboardPage"
+import { InstallWizardPage } from "../pages/InstallWizardPage"
 import { LoginPage } from "../pages/LoginPage"
 import { SsoCallbackPage } from "../pages/SsoCallbackPage"
 import LiveOperationsPage from "../pages/LiveOperationsPage"
@@ -46,16 +49,30 @@ import UniversalControlsPage from "../pages/UniversalControlsPage"
 import CapabilityRemovalPage from "../pages/CapabilityRemovalPage"
 import ThreatRegisterPage from "../pages/ThreatRegisterPage"
 
+function UnauthenticatedRoutes() {
+  const setupStatus = useSetupStatus()
+
+  return (
+    <Routes>
+      <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
+      <Route path="/setup" element={<InstallWizardPage />} />
+      <Route
+        path="*"
+        element={setupStatus.data?.needs_setup ? <Navigate to="/setup" replace /> : <LoginPage />}
+      />
+    </Routes>
+  )
+}
+
 export function AppRoutes() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isResumingSession } = useAuth()
+
+  if (isResumingSession) {
+    return <SplashScreen />
+  }
 
   if (!isAuthenticated) {
-    return (
-      <Routes>
-        <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
-        <Route path="*" element={<LoginPage />} />
-      </Routes>
-    )
+    return <UnauthenticatedRoutes />
   }
 
   return (
