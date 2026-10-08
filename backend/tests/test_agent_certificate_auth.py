@@ -1,4 +1,5 @@
 import sqlite3
+import urllib.parse
 
 import pytest
 
@@ -77,6 +78,20 @@ def test_scope_denied_for_certificate_authenticated_agent(isolated):
     _register_workload()
     with pytest.raises(main.AgentScopeError):
         agent_certificate_auth.authenticate_and_authorize_agent_by_certificate("SUCCESS", FAKE_CERT_A, action="write_note")
+
+
+def test_positive_authentication_with_nginx_percent_escaped_certificate(isolated):
+    # nginx forwards the certificate via $ssl_client_escaped_cert, which RFC-3986 percent-escapes
+    # the PEM text (real newlines become literal "%0A" sequences) because raw PEM cannot appear
+    # in an HTTP header value. Registration (create_workload_identity) hashes the plain PEM an
+    # admin pastes in, with real newlines - so this is what a real mTLS deployment actually sends,
+    # not the same literal string used for registration like every other test in this file.
+    _register_agent()
+    _register_workload(pem=FAKE_CERT_A)
+    escaped = urllib.parse.quote(FAKE_CERT_A, safe="")
+    assert "%0A" in escaped
+    identity = agent_certificate_auth.authenticate_agent_by_certificate("SUCCESS", escaped, action="read_file")
+    assert identity["agent_name"] == "cert_agent"
 
 
 def test_last_authenticated_at_is_updated_on_success(isolated):
