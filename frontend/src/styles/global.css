@@ -70,6 +70,13 @@ p {
   margin-top: 0;
 }
 
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--gg-font-display);
+}
+
 code,
 pre,
 .gg-mono {
