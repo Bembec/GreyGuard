@@ -6,22 +6,43 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from .database import database_path
 from .secret_providers import resolve as resolve_provider_secret, validate_reference
+from . import organizations
 
 MASK = "[REDACTED]"
 
 def utc_now(): return datetime.now(timezone.utc).isoformat()
 
-def initialize_secret_manager():
+def initialize_secret_manager(org_id=organizations.DEFAULT_ORG_ID):
     with sqlite3.connect(database_path) as c:
+        existing=[row[1] for row in c.execute("PRAGMA table_info(secret_references)")]
+        if existing and "org_id" not in existing:
+            # secret_references.name was globally UNIQUE (case-insensitive) - two orgs would
+            # collide on the same human-chosen secret name, so this rebuilds the table with a
+            # composite (name, org_id) unique constraint, the same SQLite rename/rebuild dance
+            # used for service_accounts (batch 4) and isolated_workspaces (batch 7).
+            c.execute("ALTER TABLE secret_references RENAME TO secret_references_pre_org")
         c.execute("""CREATE TABLE IF NOT EXISTS secret_references (
-          secret_id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+          secret_id TEXT PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE,
           provider TEXT NOT NULL, reference TEXT NOT NULL, status TEXT NOT NULL,
           created_by TEXT NOT NULL, created_at TEXT NOT NULL, rotated_at TEXT,
-          revoked_at TEXT, last_accessed_at TEXT, access_count INTEGER NOT NULL DEFAULT 0)""")
+          revoked_at TEXT, last_accessed_at TEXT, access_count INTEGER NOT NULL DEFAULT 0,
+          rotation_interval_days INTEGER, next_rotation_at TEXT,
+          org_id TEXT NOT NULL DEFAULT 'org_default', UNIQUE(name,org_id))""")
+        if existing and "org_id" not in existing:
+            c.execute("""INSERT INTO secret_references
+              (secret_id,name,provider,reference,status,created_by,created_at,rotated_at,
+               revoked_at,last_accessed_at,access_count,rotation_interval_days,next_rotation_at,org_id)
+              SELECT secret_id,name,provider,reference,status,created_by,created_at,rotated_at,
+                     revoked_at,last_accessed_at,access_count,rotation_interval_days,next_rotation_at,'org_default'
+              FROM secret_references_pre_org""")
+            c.execute("DROP TABLE secret_references_pre_org")
         c.execute("""CREATE TABLE IF NOT EXISTS secret_events (
           event_id INTEGER PRIMARY KEY AUTOINCREMENT, secret_id TEXT NOT NULL,
           timestamp TEXT NOT NULL, actor TEXT NOT NULL, event_type TEXT NOT NULL,
-          detail TEXT, FOREIGN KEY(secret_id) REFERENCES secret_references(secret_id))""")
+          detail TEXT, org_id TEXT NOT NULL DEFAULT 'org_default',
+          FOREIGN KEY(secret_id) REFERENCES secret_references(secret_id))""")
+        event_columns={row[1] for row in c.execute("PRAGMA table_info(secret_events)")}
+        if "org_id" not in event_columns: c.execute("ALTER TABLE secret_events ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
         columns={row[1] for row in c.execute("PRAGMA table_info(secret_references)")}
         if "rotation_interval_days" not in columns: c.execute("ALTER TABLE secret_references ADD COLUMN rotation_interval_days INTEGER")
         if "next_rotation_at" not in columns: c.execute("ALTER TABLE secret_references ADD COLUMN next_rotation_at TEXT")
@@ -29,17 +50,17 @@ def initialize_secret_manager():
 def _public(row):
     return {k: row[k] for k in ("secret_id","name","provider","reference","status","created_by","created_at","rotated_at","revoked_at","last_accessed_at","access_count","rotation_interval_days","next_rotation_at")}
 
-def _event(c, secret_id, actor, kind, detail=""):
-    c.execute("INSERT INTO secret_events(secret_id,timestamp,actor,event_type,detail) VALUES(?,?,?,?,?)",(secret_id,utc_now(),actor,kind,redact(detail)))
+def _event(c, secret_id, actor, kind, org_id, detail=""):
+    c.execute("INSERT INTO secret_events(secret_id,timestamp,actor,event_type,detail,org_id) VALUES(?,?,?,?,?,?)",(secret_id,utc_now(),actor,kind,redact(detail),org_id))
 
-def list_secrets():
-    initialize_secret_manager()
+def list_secrets(org_id=organizations.DEFAULT_ORG_ID):
+    initialize_secret_manager(org_id)
     with sqlite3.connect(database_path) as c:
         c.row_factory=sqlite3.Row
-        return [_public(r) for r in c.execute("SELECT * FROM secret_references ORDER BY created_at DESC")]
+        return [_public(r) for r in c.execute("SELECT * FROM secret_references WHERE org_id=? ORDER BY created_at DESC",(org_id,))]
 
-def create_secret(name, reference, actor, provider="ENVIRONMENT", rotation_interval_days=None):
-    initialize_secret_manager(); name=name.strip(); reference=reference.strip()
+def create_secret(name, reference, actor, provider="ENVIRONMENT", rotation_interval_days=None, org_id=organizations.DEFAULT_ORG_ID):
+    initialize_secret_manager(org_id); name=name.strip(); reference=reference.strip()
     provider=provider.upper()
     if not name: raise ValueError("A secret name is required.")
     validate_reference(provider,reference)
@@ -50,58 +71,58 @@ def create_secret(name, reference, actor, provider="ENVIRONMENT", rotation_inter
     try:
         with sqlite3.connect(database_path) as c:
             c.execute("""INSERT INTO secret_references
-            (secret_id,name,provider,reference,status,created_by,created_at,rotated_at,revoked_at,last_accessed_at,access_count,rotation_interval_days,next_rotation_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",(secret_id,name,provider,reference,"ACTIVE",actor,now,None,None,None,0,rotation_interval_days,next_rotation))
-            _event(c,secret_id,actor,"SECRET_REFERENCE_CREATED","Metadata only; no secret value stored.")
+            (secret_id,name,provider,reference,status,created_by,created_at,rotated_at,revoked_at,last_accessed_at,access_count,rotation_interval_days,next_rotation_at,org_id)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(secret_id,name,provider,reference,"ACTIVE",actor,now,None,None,None,0,rotation_interval_days,next_rotation,org_id))
+            _event(c,secret_id,actor,"SECRET_REFERENCE_CREATED",org_id,"Metadata only; no secret value stored.")
     except sqlite3.IntegrityError as e: raise ValueError("A secret reference with this name already exists.") from e
-    return get_secret(secret_id)
+    return get_secret(secret_id,org_id)
 
-def get_secret(secret_id):
+def get_secret(secret_id, org_id=organizations.DEFAULT_ORG_ID):
     with sqlite3.connect(database_path) as c:
-        c.row_factory=sqlite3.Row; row=c.execute("SELECT * FROM secret_references WHERE secret_id=?",(secret_id,)).fetchone()
+        c.row_factory=sqlite3.Row; row=c.execute("SELECT * FROM secret_references WHERE secret_id=? AND org_id=?",(secret_id,org_id)).fetchone()
     if not row: raise KeyError("Secret reference not found.")
     return _public(row)
 
-def resolve_secret(secret_id, actor):
-    secret=get_secret(secret_id)
+def resolve_secret(secret_id, actor, org_id=organizations.DEFAULT_ORG_ID):
+    secret=get_secret(secret_id,org_id)
     if secret["status"]!="ACTIVE": raise ValueError("Secret reference is revoked.")
     value=resolve_provider_secret(secret["provider"],secret["reference"])
     with sqlite3.connect(database_path) as c:
-        c.execute("UPDATE secret_references SET last_accessed_at=?,access_count=access_count+1 WHERE secret_id=?",(utc_now(),secret_id)); _event(c,secret_id,actor,"SECRET_RESOLVED","Value retrieved just in time and not persisted.")
+        c.execute("UPDATE secret_references SET last_accessed_at=?,access_count=access_count+1 WHERE secret_id=? AND org_id=?",(utc_now(),secret_id,org_id)); _event(c,secret_id,actor,"SECRET_RESOLVED",org_id,"Value retrieved just in time and not persisted.")
     return value
 
-def rotate_secret(secret_id, reference, actor):
-    secret=get_secret(secret_id); validate_reference(secret["provider"],reference)
+def rotate_secret(secret_id, reference, actor, org_id=organizations.DEFAULT_ORG_ID):
+    secret=get_secret(secret_id,org_id); validate_reference(secret["provider"],reference)
     next_rotation=(datetime.now(timezone.utc)+timedelta(days=secret["rotation_interval_days"])).isoformat() if secret["rotation_interval_days"] else None
     with sqlite3.connect(database_path) as c:
-        c.execute("UPDATE secret_references SET reference=?,status='ACTIVE',rotated_at=?,revoked_at=NULL,next_rotation_at=? WHERE secret_id=?",(reference,utc_now(),next_rotation,secret_id)); _event(c,secret_id,actor,"SECRET_REFERENCE_ROTATED","Reference changed; value never entered GreyGuard storage.")
-    return get_secret(secret_id)
+        c.execute("UPDATE secret_references SET reference=?,status='ACTIVE',rotated_at=?,revoked_at=NULL,next_rotation_at=? WHERE secret_id=? AND org_id=?",(reference,utc_now(),next_rotation,secret_id,org_id)); _event(c,secret_id,actor,"SECRET_REFERENCE_ROTATED",org_id,"Reference changed; value never entered GreyGuard storage.")
+    return get_secret(secret_id,org_id)
 
-def revoke_secret(secret_id, actor):
-    get_secret(secret_id)
+def revoke_secret(secret_id, actor, org_id=organizations.DEFAULT_ORG_ID):
+    get_secret(secret_id,org_id)
     with sqlite3.connect(database_path) as c:
-        c.execute("UPDATE secret_references SET status='REVOKED',revoked_at=? WHERE secret_id=?",(utc_now(),secret_id)); _event(c,secret_id,actor,"SECRET_REVOKED","Emergency revocation completed.")
-    return get_secret(secret_id)
+        c.execute("UPDATE secret_references SET status='REVOKED',revoked_at=? WHERE secret_id=? AND org_id=?",(utc_now(),secret_id,org_id)); _event(c,secret_id,actor,"SECRET_REVOKED",org_id,"Emergency revocation completed.")
+    return get_secret(secret_id,org_id)
 
-def emergency_revoke_all(actor, provider=None):
-    initialize_secret_manager(); now=utc_now(); provider=provider.upper() if provider else None
+def emergency_revoke_all(actor, provider=None, org_id=organizations.DEFAULT_ORG_ID):
+    initialize_secret_manager(org_id); now=utc_now(); provider=provider.upper() if provider else None
     with sqlite3.connect(database_path) as c:
         c.row_factory=sqlite3.Row
-        query="SELECT secret_id FROM secret_references WHERE status='ACTIVE'"; params=[]
+        query="SELECT secret_id FROM secret_references WHERE status='ACTIVE' AND org_id=?"; params=[org_id]
         if provider: query+=" AND provider=?"; params.append(provider)
         rows=c.execute(query,params).fetchall()
         for row in rows:
-            c.execute("UPDATE secret_references SET status='REVOKED',revoked_at=? WHERE secret_id=?",(now,row["secret_id"])); _event(c,row["secret_id"],actor,"EMERGENCY_SECRET_REVOCATION","Provider scope revoked immediately.")
+            c.execute("UPDATE secret_references SET status='REVOKED',revoked_at=? WHERE secret_id=? AND org_id=?",(now,row["secret_id"],org_id)); _event(c,row["secret_id"],actor,"EMERGENCY_SECRET_REVOCATION",org_id,"Provider scope revoked immediately.")
     return {"revoked":len(rows),"provider":provider or "ALL","values_exposed":False}
 
-def secret_events(secret_id=None, limit=200):
-    initialize_secret_manager()
+def secret_events(secret_id=None, limit=200, org_id=organizations.DEFAULT_ORG_ID):
+    initialize_secret_manager(org_id)
     with sqlite3.connect(database_path) as c:
         c.row_factory=sqlite3.Row
         if secret_id:
-            rows=c.execute("SELECT * FROM secret_events WHERE secret_id=? ORDER BY event_id DESC LIMIT ?",(secret_id,limit)).fetchall()
+            rows=c.execute("SELECT * FROM secret_events WHERE secret_id=? AND org_id=? ORDER BY event_id DESC LIMIT ?",(secret_id,org_id,limit)).fetchall()
         else:
-            rows=c.execute("SELECT * FROM secret_events ORDER BY event_id DESC LIMIT ?",(limit,)).fetchall()
+            rows=c.execute("SELECT * FROM secret_events WHERE org_id=? ORDER BY event_id DESC LIMIT ?",(org_id,limit)).fetchall()
     return [dict(row) for row in rows]
 
 def redact(value):

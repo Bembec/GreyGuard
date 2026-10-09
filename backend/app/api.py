@@ -1788,21 +1788,21 @@ def policy_version_history(
 
 @app.get("/secrets")
 def secret_references(x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    return {"secrets": list_secrets(), "providers": provider_status(), "values_exposed": False}
+    administrator=require_admin(x_admin_pin)
+    return {"secrets": list_secrets(organizations.resolve_org_id(administrator)), "providers": provider_status(), "values_exposed": False}
 
 
 @app.post("/secrets", status_code=201)
 def create_secret_reference(payload: SecretCreateRequest, x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try: return create_secret(payload.name,payload.reference,policy_actor(administrator),payload.provider,payload.rotation_interval_days)
+    try: return create_secret(payload.name,payload.reference,policy_actor(administrator),payload.provider,payload.rotation_interval_days,organizations.resolve_org_id(administrator))
     except ValueError as error: raise HTTPException(status_code=400,detail=redact(error)) from error
 
 
 @app.post("/secrets/{secret_id}/rotate")
 def rotate_secret_reference(secret_id: str,payload: SecretRotateRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try: return rotate_secret(secret_id,payload.reference,policy_actor(administrator))
+    try: return rotate_secret(secret_id,payload.reference,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
     except ValueError as error: raise HTTPException(status_code=400,detail=redact(error)) from error
 
@@ -1810,20 +1810,20 @@ def rotate_secret_reference(secret_id: str,payload: SecretRotateRequest,x_admin_
 @app.post("/secrets/{secret_id}/revoke")
 def revoke_secret_reference(secret_id: str,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try: return revoke_secret(secret_id,policy_actor(administrator))
+    try: return revoke_secret(secret_id,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.get("/secret-events")
 def secret_access_evidence(secret_id: str | None = Query(default=None), x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    return {"events": secret_events(secret_id), "values_exposed": False}
+    administrator=require_admin(x_admin_pin)
+    return {"events": secret_events(secret_id,org_id=organizations.resolve_org_id(administrator)), "values_exposed": False}
 
 
 @app.post("/secrets/emergency-revoke")
 def emergency_secret_revocation(payload: EmergencySecretRevocationRequest, x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    return emergency_revoke_all(policy_actor(administrator),payload.provider)
+    return emergency_revoke_all(policy_actor(administrator),payload.provider,organizations.resolve_org_id(administrator))
 
 
 @app.get("/service-accounts")

@@ -110,6 +110,16 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "isolated_workspaces",
     "quarantined_artifacts",
     "simulation_config",
+    # P2.2 batch 11: secret_references had the same uniqueness problem as service_accounts
+    # (batch 4) and isolated_workspaces (batch 7) - `name` was globally UNIQUE
+    # (case-insensitive), which would let two orgs collide on the same human-chosen secret
+    # name. Reshaped to UNIQUE(name, org_id). emergency_revoke_all() originally revoked every
+    # ACTIVE secret on the install for a given provider regardless of org - scoped it by org_id
+    # so one org's emergency revocation can never revoke another org's secret (the same
+    # cross-tenant availability risk already fixed for emergency_terminate() in batch 6).
+    # secret_events needed only a plain ADD COLUMN.
+    "secret_references",
+    "secret_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -205,8 +215,8 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_emergency_controls",  # *
     "policy_emergency_events", "policy_integration_events", "policy_rollouts",
     "policy_test_cases", "policy_versions", "privilege_elevations",
-    "report_schedules", "secret_events",
-    "secret_references", "security_alerts", "security_notifications",
+    "report_schedules",
+    "security_alerts", "security_notifications",
     "tool_requests", "workload_identities",
 })
 

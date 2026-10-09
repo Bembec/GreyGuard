@@ -62,3 +62,23 @@ def test_evidence_catalog_covers_required_assessments(isolated_reports):
     report = compliance_reports.create_compliance_report("Evidence catalog", {}, "admin")
     keys = {item["key"] for item in compliance_reports.evidence_catalog(report["report_id"])}
     assert {"agent_security_assessment", "risk_timeline", "approval_evidence", "containment_evidence", "authentication_evidence", "policy_version_evidence"} <= keys
+
+
+def test_privileged_activity_does_not_crash_once_its_source_tables_are_tenant_scoped(isolated_reports):
+    # Regression test: service_account_events and secret_events both gained an org_id column
+    # in earlier P2.2 batches. _privileged_activity() queried them with no org_id predicate at
+    # all, which the tenant_guard correctly refused once both tables actually existed in the
+    # same database - a real crash in any deployment that had ever created a service account or
+    # secret reference, not caught by the other tests here because their isolated database
+    # never creates those tables.
+    from backend.app import service_accounts, secret_manager
+    service_accounts.database_path = isolated_reports
+    secret_manager.database_path = isolated_reports
+    service_accounts.initialize_service_accounts()
+    service_accounts.create_service_account("Deploy Bot", "CI", ["tools:execute"], 30, "admin")
+    secret_manager.initialize_secret_manager()
+    secret_manager.create_secret("Demo", "ENV_VAR_NAME", "admin")
+    evidence = compliance_reports.build_evidence({})
+    sources = {item["source"] for item in evidence["privileged_activity"]}
+    assert "service_account_events" in sources
+    assert "secret_events" in sources
