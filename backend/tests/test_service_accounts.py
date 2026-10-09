@@ -59,3 +59,19 @@ def test_revocation_blocks_all_usage(isolated_database):
 def test_unsupported_scope_is_rejected(isolated_database):
     with pytest.raises(ValueError, match="Unsupported"):
         service_accounts.create_service_account("Bad Bot", "", ["admin:all"], 30, "admin")
+
+
+def test_service_accounts_are_isolated_per_organization(isolated_database):
+    default_account = create_account()
+    other = service_accounts.create_service_account(
+        "Deployment Bot", "Other org's identical name is allowed", ["tools:execute"], 30, "admin",
+        org_id="org_other",
+    )
+    assert [a["account_id"] for a in service_accounts.list_service_accounts("org_default")] == [default_account["account_id"]]
+    assert [a["account_id"] for a in service_accounts.list_service_accounts("org_other")] == [other["account_id"]]
+    with pytest.raises(KeyError):
+        service_accounts.get_service_account(other["account_id"], org_id="org_default")
+    with pytest.raises(KeyError):
+        service_accounts.revoke_service_account(default_account["account_id"], "admin", org_id="org_other")
+    identity = service_accounts.authenticate_service_key(other["issued_key"]["api_key"])
+    assert identity["org_id"] == "org_other"
