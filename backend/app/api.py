@@ -2366,21 +2366,21 @@ def compliance_evidence_catalog(report_id: str,x_admin_pin: str | None = Header(
 
 @app.get("/report-governance")
 def report_governance_overview(x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    return {"schedules":list_schedules(),"control_mapping":compliance_mapping(),"retention":retention_report()}
+    administrator=require_admin(x_admin_pin);org_id=organizations.resolve_org_id(administrator)
+    return {"schedules":list_schedules(org_id),"control_mapping":compliance_mapping(),"retention":retention_report(org_id)}
 
 
 @app.post("/report-governance/schedules",status_code=201)
 def schedule_security_report(payload: ReportScheduleRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return create_schedule(payload.title,payload.frequency,payload.next_run_at,policy_actor(administrator))
+    try:return create_schedule(payload.title,payload.frequency,payload.next_run_at,policy_actor(administrator),org_id=organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.delete("/report-governance/schedules/{schedule_id}")
 def remove_report_schedule(schedule_id: str,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return disable_schedule(schedule_id,policy_actor(administrator))
+    try:return disable_schedule(schedule_id,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
@@ -2403,7 +2403,7 @@ def governance_administrator_actions(x_admin_pin: str | None = Header(default=No
 @app.post("/report-governance/postmortems",status_code=201)
 def generate_postmortem_template(payload: PostmortemRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_admin(x_admin_pin)
-    try:return create_postmortem(payload.incident_id,payload.title,policy_actor(administrator))
+    try:return create_postmortem(payload.incident_id,payload.title,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 

@@ -120,6 +120,16 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # secret_events needed only a plain ADD COLUMN.
     "secret_references",
     "secret_events",
+    # P2.2 batch 12: report_schedules and incident_postmortems both use UUID-generated primary
+    # keys, so a plain ADD COLUMN sufficed - no composite-key or uniqueness reshape this batch.
+    # run_due_schedules() (report_governance.py) is a background worker with no HTTP/admin
+    # context, the same shape as the outbound-delivery-style workers - its claim query is
+    # deliberately cross-org (one process services every org's due schedules in a single pass,
+    # documented with an explanatory SQL comment so the guard sees why no org_id predicate
+    # belongs there), but every subsequent read/update of a claimed row is scoped by that row's
+    # own org_id, and the generated report itself is built with that org's org_id.
+    "report_schedules",
+    "incident_postmortems",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -206,7 +216,7 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "enterprise_identity_events",
     "execution_events", "expiring_approval_links", "export_destinations", "export_queue",
     "external_incident_records", "identity_providers", "identity_role_mappings",
-    "incident_destinations", "incident_postmortems",
+    "incident_destinations",
     "notification_deliveries", "notification_destinations", "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones", "notification_templates",
@@ -215,7 +225,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_emergency_controls",  # *
     "policy_emergency_events", "policy_integration_events", "policy_rollouts",
     "policy_test_cases", "policy_versions", "privilege_elevations",
-    "report_schedules",
     "security_alerts", "security_notifications",
     "tool_requests", "workload_identities",
 })
