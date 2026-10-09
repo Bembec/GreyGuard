@@ -80,6 +80,13 @@ import re
 # matches database isolation. quarantined_artifacts needed only a plain ADD COLUMN - its
 # artifact_id is a UUID, so no on-disk collision risk (quarantine_root/<artifact_id>.bin stays
 # flat and collision-free regardless of org).
+#
+# P2.2 batch 8 (simulation_config): the third singleton to land, same composite-key reshape -
+# and the one explicitly deferred back in batch 1 when simulation_runs was scoped (see that
+# commit's note: "set_enabled() unchanged (operates on the still-global simulation_config
+# singleton, deliberately deferred)"). update_simulation_lab() in api.py was the one remaining
+# call site anywhere in the codebase that still called a simulations function without an
+# org_id - fixed in the same commit as this table's migration.
 ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "simulation_runs",
     "capability_removals",
@@ -102,6 +109,7 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "isolation_operations_config",
     "isolated_workspaces",
     "quarantined_artifacts",
+    "simulation_config",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -173,7 +181,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_test_cases", "policy_versions", "privilege_elevations",
     "report_schedules", "secret_events",
     "secret_references", "security_alerts", "security_notifications",
-    "simulation_config",  # *
     "tool_requests", "workload_identities",
 })
 

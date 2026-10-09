@@ -37,8 +37,14 @@ def test_each_run_creates_its_own_alert(isolated):
  first=isolated.run_simulation("sim-ddos","owner","org_default");second=isolated.run_simulation("sim-ddos","owner","org_default")
  assert first["alert_id"] and second["alert_id"] and first["alert_id"]!=second["alert_id"]
 def test_runs_are_scoped_to_their_organization(isolated):
- isolated.set_enabled(True,"owner")
+ isolated.set_enabled(True,"owner",org_id="org_a");isolated.set_enabled(True,"owner",org_id="org_b")
  isolated.run_simulation("sim-ddos","owner","org_a")
  isolated.run_simulation("sim-ddos","owner","org_b")
  assert len(isolated.simulation_status("org_a")["runs"])==1
  assert len(isolated.simulation_status("org_b")["runs"])==1
+def test_enablement_is_isolated_per_organization(isolated):
+ isolated.set_enabled(True,"owner",org_id="org_other")
+ assert isolated.simulation_status("org_default")["enabled"] is False
+ assert isolated.simulation_status("org_other")["enabled"] is True
+ with pytest.raises(PermissionError,match="disabled"):isolated.run_simulation("sim-keylogger","owner","org_default")
+ assert isolated.run_simulation("sim-keylogger","owner","org_other")["simulated"] is True
