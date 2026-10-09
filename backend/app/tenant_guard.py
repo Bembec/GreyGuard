@@ -52,6 +52,12 @@ import re
 # no org_id parameter: it looks a key up by its globally-unique random `key_prefix` before any
 # org is knowable, then reads org_id back off the resolved row - the same "identify first, scope
 # second" shape as admin_auth's own session-token lookups.
+#
+# P2.2 batch 5 (threat_register, threat_register_history): threat_register has the same
+# fixed-row-set shape as universal_capability_controls/adapter_configs in batches 1-2 - 30 fixed
+# threat_id rows seeded from the THREATS tuple, keyed by threat_id alone - so it got the same
+# composite (threat_id, org_id) primary-key reshape. threat_register_history needed only a plain
+# ADD COLUMN (AUTOINCREMENT surrogate key, no fixed-row problem).
 ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "simulation_runs",
     "capability_removals",
@@ -67,6 +73,8 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "service_accounts",
     "service_account_keys",
     "service_account_events",
+    "threat_register",
+    "threat_register_history",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -142,7 +150,7 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "report_schedules", "secret_events",
     "secret_references", "security_alerts", "security_notifications",
     "simulation_config",  # *
-    "threat_register", "threat_register_history", "tool_requests", "workload_identities",
+    "tool_requests", "workload_identities",
 })
 
 _STATEMENT_TABLE = re.compile(

@@ -2554,20 +2554,20 @@ def capability_removal_details(removal_id: str,x_admin_pin: str | None = Header(
 
 @app.get("/threat-register")
 def threat_register_overview(status: str | None = None,severity: str | None = None,x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin);return {"summary":threat_summary(),"threats":list_threats(status,severity)}
+    administrator=require_admin(x_admin_pin);org_id=organizations.resolve_org_id(administrator);return {"summary":threat_summary(org_id),"threats":list_threats(status,severity,org_id)}
 
 
 @app.get("/threat-register/{threat_id}")
 def threat_register_record(threat_id: str,x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    try:return {"threat":get_threat(threat_id),"history":threat_history(threat_id)}
+    administrator=require_admin(x_admin_pin);org_id=organizations.resolve_org_id(administrator)
+    try:return {"threat":get_threat(threat_id,org_id),"history":threat_history(threat_id,org_id)}
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.put("/threat-register/{threat_id}")
 def revise_threat_register_record(threat_id: str,payload: ThreatRegisterRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return update_threat(threat_id,payload.model_dump(),policy_actor(administrator))
+    try:return update_threat(threat_id,payload.model_dump(),policy_actor(administrator),organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 

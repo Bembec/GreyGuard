@@ -32,7 +32,7 @@ def test_every_threat_has_a_real_assessment_with_existing_test_evidence(isolated
 
 def test_existing_placeholder_rows_are_upgraded(isolated):
     with register.sqlite3.connect(isolated) as connection:
-        connection.execute("UPDATE threat_register SET attack_path=?, test_evidence_json='[]' WHERE threat_id='PATH_TRAVERSAL'", (register.DEFAULTS["attack_path"],))
+        connection.execute("UPDATE threat_register SET attack_path=?, test_evidence_json='[]' WHERE threat_id='PATH_TRAVERSAL' AND org_id='org_default'", (register.DEFAULTS["attack_path"],))
     register.initialize_threat_register()
     item = next(i for i in register.list_threats() if i["threat_id"] == "PATH_TRAVERSAL")
     assert item["attack_path"] != register.DEFAULTS["attack_path"] and item["test_evidence"]
@@ -42,3 +42,14 @@ def test_reviewer_edits_are_never_overwritten(isolated):
     register.initialize_threat_register()
     item = next(i for i in register.list_threats() if i["threat_id"] == "CREDENTIAL_THEFT")
     assert item["attack_path"] == "Reviewed path"
+
+def test_threats_are_isolated_per_organization(isolated):
+    register.initialize_threat_register("org_other")
+    register.update_threat("CREDENTIAL_THEFT", complete_payload(attack_path="Default org edit"), "owner", org_id="org_default")
+    register.update_threat("CREDENTIAL_THEFT", complete_payload(attack_path="Other org edit"), "owner", org_id="org_other")
+    assert register.get_threat("CREDENTIAL_THEFT", org_id="org_default")["attack_path"] == "Default org edit"
+    assert register.get_threat("CREDENTIAL_THEFT", org_id="org_other")["attack_path"] == "Other org edit"
+    assert len(register.list_threats(org_id="org_default")) == 30
+    assert len(register.list_threats(org_id="org_other")) == 30
+    with pytest.raises(KeyError):
+        register.get_threat("DOES_NOT_EXIST", org_id="org_default")
