@@ -2477,7 +2477,7 @@ def simulation_lab_overview(x_admin_pin: str | None = Header(default=None)):
 
 @app.put("/simulations")
 def update_simulation_lab(payload: SimulationStateRequest,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin);return set_simulations_enabled(payload.enabled,policy_actor(administrator))
+    administrator=require_platform_admin(x_admin_pin);return set_simulations_enabled(payload.enabled,policy_actor(administrator),organizations.resolve_org_id(administrator))
 
 
 @app.post("/simulations/run",status_code=201)

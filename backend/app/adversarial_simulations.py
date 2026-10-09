@@ -5,6 +5,7 @@ from . import db_compat as sqlite3
 from datetime import datetime,timezone
 from .database import database_path
 from .alerts import sync_alerts_from_events
+from . import organizations
 
 SCENARIOS=(
  ("sim-keylogger","Simulated keylogger request","Covert input capture","REFUSED","CRITICAL",50,True),
@@ -49,22 +50,33 @@ WHY_DANGEROUS={
  "sim-self-modification":"An agent that rewrites its own limits can escape every control placed on it.",
 }
 def utc_now():return datetime.now(timezone.utc).isoformat()
-def initialize_simulations():
+def initialize_simulations(org_id=organizations.DEFAULT_ORG_ID):
  with sqlite3.connect(database_path) as c:
-  c.execute("CREATE TABLE IF NOT EXISTS simulation_config(config_id INTEGER PRIMARY KEY CHECK(config_id=1),enabled INTEGER NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL)")
-  c.execute("INSERT OR IGNORE INTO simulation_config VALUES(1,0,?,?)",(utc_now(),"system"))
+  config_columns={row[1] for row in c.execute("PRAGMA table_info(simulation_config)")}
+  if config_columns and "org_id" not in config_columns:
+   # SQLite cannot ALTER a PRIMARY KEY in place - the old PK (config_id=1 singleton) would let
+   # two orgs collide on the one global row, so this rebuilds the table with a composite
+   # (config_id, org_id) key, carrying the pre-existing row into the default org.
+   c.execute("ALTER TABLE simulation_config RENAME TO simulation_config_pre_org")
+  c.execute("CREATE TABLE IF NOT EXISTS simulation_config(config_id INTEGER NOT NULL CHECK(config_id=1),org_id TEXT NOT NULL DEFAULT 'org_default',enabled INTEGER NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL,PRIMARY KEY(config_id,org_id))")
+  if config_columns and "org_id" not in config_columns:
+   c.execute("""INSERT INTO simulation_config (config_id,org_id,enabled,updated_at,updated_by)
+     SELECT config_id,'org_default',enabled,updated_at,updated_by FROM simulation_config_pre_org""")
+   c.execute("DROP TABLE simulation_config_pre_org")
+  c.execute("INSERT OR IGNORE INTO simulation_config (config_id,org_id,enabled,updated_at,updated_by) VALUES(1,?,0,?,?)",(org_id,utc_now(),"system"))
   c.execute("CREATE TABLE IF NOT EXISTS simulation_runs(run_id TEXT PRIMARY KEY,scenario_id TEXT NOT NULL,requested_by TEXT NOT NULL,created_at TEXT NOT NULL,result_json TEXT NOT NULL,simulated INTEGER NOT NULL CHECK(simulated=1),org_id TEXT NOT NULL DEFAULT 'org_default')")
   columns={row[1] for row in c.execute("PRAGMA table_info(simulation_runs)")}
   if "org_id" not in columns:
    c.execute("ALTER TABLE simulation_runs ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
 def scenario_catalog():return [{"scenario_id":row[0],"title":row[1],"attempt":row[2],"decision":row[3],"severity":row[4],"risk_added":row[5],"suspends_agent":row[6],"fictional_target":"reserved-target.example","operational":False,"detected_by":DETECTED_BY,"why_dangerous":WHY_DANGEROUS[row[0]]} for row in SCENARIOS]
 def simulation_status(org_id):
- initialize_simulations()
+ initialize_simulations(org_id)
  with sqlite3.connect(database_path) as c:
-  enabled=bool(c.execute("SELECT enabled FROM simulation_config WHERE config_id=1").fetchone()[0]);runs=[json.loads(r[0]) for r in c.execute("SELECT result_json FROM simulation_runs WHERE org_id=? ORDER BY created_at DESC LIMIT 100",(org_id,))]
+  enabled=bool(c.execute("SELECT enabled FROM simulation_config WHERE config_id=1 AND org_id=?",(org_id,)).fetchone()[0]);runs=[json.loads(r[0]) for r in c.execute("SELECT result_json FROM simulation_runs WHERE org_id=? ORDER BY created_at DESC LIMIT 100",(org_id,))]
  return {"enabled":enabled,"simulation_only":True,"network_access":False,"production_executor_imported":False,"scenarios":scenario_catalog(),"runs":runs}
-def set_enabled(enabled,actor):
- with sqlite3.connect(database_path) as c:c.execute("UPDATE simulation_config SET enabled=?,updated_at=?,updated_by=? WHERE config_id=1",(int(enabled),utc_now(),actor))
+def set_enabled(enabled,actor,org_id=organizations.DEFAULT_ORG_ID):
+ initialize_simulations(org_id)
+ with sqlite3.connect(database_path) as c:c.execute("UPDATE simulation_config SET enabled=?,updated_at=?,updated_by=? WHERE config_id=1 AND org_id=?",(int(enabled),utc_now(),actor,org_id))
  return {"enabled":bool(enabled),"actor":actor}
 def run_simulation(scenario_id,actor,org_id):
  status=simulation_status(org_id)
