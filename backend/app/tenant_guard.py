@@ -68,6 +68,18 @@ import re
 # stop can never terminate another org's container (that would have been a cross-tenant denial
 # of service, not just a tenancy gap), including the in-memory `_running` fallback registry,
 # which now carries org_id alongside each entry.
+#
+# P2.2 batch 7 (isolation_operations_config, isolated_workspaces, quarantined_artifacts):
+# isolation_operations_config is the second singleton to land - same composite-key reshape.
+# isolated_workspaces had its own uniqueness problem, like service_accounts in batch 4:
+# `agent_name` was globally UNIQUE, which would let two orgs collide on an agent of the same
+# name - reshaped to UNIQUE(agent_name, org_id). This one had a filesystem consequence too, not
+# just a database one: workspace paths were `workspace_root/<agent_name>`, so two orgs with the
+# same agent name would have shared the same directory on disk. Fixed by nesting workspace paths
+# under an org_id subdirectory (`workspace_root/<org_id>/<agent_name>`) so filesystem isolation
+# matches database isolation. quarantined_artifacts needed only a plain ADD COLUMN - its
+# artifact_id is a UUID, so no on-disk collision risk (quarantine_root/<artifact_id>.bin stays
+# flat and collision-free regardless of org).
 ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "simulation_runs",
     "capability_removals",
@@ -87,6 +99,9 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "threat_register_history",
     "isolation_config",
     "isolation_executions",
+    "isolation_operations_config",
+    "isolated_workspaces",
+    "quarantined_artifacts",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -144,8 +159,7 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "enterprise_identity_events",
     "execution_events", "expiring_approval_links", "export_destinations", "export_queue",
     "external_incident_records", "identity_providers", "identity_role_mappings",
-    "incident_destinations", "incident_postmortems", "isolated_workspaces",
-    "isolation_operations_config",  # *
+    "incident_destinations", "incident_postmortems",
     "notification_deliveries", "notification_destinations", "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones", "notification_templates",
@@ -156,7 +170,7 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_change_events",
     "policy_emergency_controls",  # *
     "policy_emergency_events", "policy_integration_events", "policy_rollouts",
-    "policy_test_cases", "policy_versions", "privilege_elevations", "quarantined_artifacts",
+    "policy_test_cases", "policy_versions", "privilege_elevations",
     "report_schedules", "secret_events",
     "secret_references", "security_alerts", "security_notifications",
     "simulation_config",  # *

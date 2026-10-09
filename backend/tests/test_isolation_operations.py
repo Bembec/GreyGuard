@@ -50,3 +50,22 @@ def test_write_and_quarantine_rejects_oversized_content(isolated,monkeypatch):
  with pytest.raises(ValueError,match="exceeds"):isolated.write_and_quarantine_artifact(workspace["workspace_id"],"payload.bin",b"this content is definitely too long")
 def test_write_and_quarantine_requires_active_workspace(isolated):
  with pytest.raises(KeyError):isolated.write_and_quarantine_artifact("ws_does_not_exist","payload.bin",b"data")
+def test_workspaces_can_share_an_agent_name_across_organizations(isolated):
+ default_workspace=isolated.create_workspace("shared-agent",org_id="org_default")
+ other_workspace=isolated.create_workspace("shared-agent",org_id="org_other")
+ assert default_workspace["workspace_id"]!=other_workspace["workspace_id"]
+ assert Path(default_workspace["path"])!=Path(other_workspace["path"])
+ assert "org_default" in Path(default_workspace["path"]).parts
+ assert "org_other" in Path(other_workspace["path"]).parts
+ assert [w["workspace_id"] for w in isolated.get_operations("org_default")["workspaces"]]==[default_workspace["workspace_id"]]
+ with pytest.raises(KeyError):isolated.destroy_workspace(other_workspace["workspace_id"],"owner",org_id="org_default")
+def test_config_and_artifacts_are_isolated_per_organization(isolated):
+ isolated.update_operations(True,False,[],[],"owner",org_id="org_other")
+ assert isolated.get_operations("org_default")["config"]["global_kill_switch"] is False
+ assert isolated.get_operations("org_other")["config"]["global_kill_switch"] is True
+ workspace=isolated.create_workspace("agent",org_id="org_default")
+ source=Path(workspace["path"])/"result.txt";source.write_text("safe evidence",encoding="utf-8")
+ artifact=isolated.quarantine_artifact(workspace["workspace_id"],source,org_id="org_default")
+ assert len(isolated.get_operations("org_default")["artifacts"])==1
+ assert isolated.get_operations("org_other")["artifacts"]==[]
+ with pytest.raises(KeyError):isolated.scan_artifact(artifact["artifact_id"],lambda path:{"clean":True},org_id="org_other")

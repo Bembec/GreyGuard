@@ -2231,27 +2231,27 @@ def terminate_isolated_jobs(x_admin_pin: str | None = Header(default=None)):
 
 @app.get("/isolation-operations")
 def isolation_operations_control(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return get_isolation_operations()
+    administrator=require_platform_admin(x_admin_pin);return get_isolation_operations(organizations.resolve_org_id(administrator))
 
 
 @app.put("/isolation-operations")
 def configure_isolation_operations(payload: IsolationOperationsRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return update_isolation_operations(payload.global_kill_switch,payload.network_enabled,payload.destination_allowlist,payload.dns_allowlist,policy_actor(administrator))
+    try:return update_isolation_operations(payload.global_kill_switch,payload.network_enabled,payload.destination_allowlist,payload.dns_allowlist,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/isolation-operations/workspaces",status_code=201)
 def create_isolated_agent_workspace(payload: WorkspaceCreateRequest,x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
-    try:return create_workspace(payload.agent_name)
+    administrator=require_platform_admin(x_admin_pin)
+    try:return create_workspace(payload.agent_name,organizations.resolve_org_id(administrator))
     except (ValueError,PermissionError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.delete("/isolation-operations/workspaces/{workspace_id}")
 def destroy_isolated_agent_workspace(workspace_id: str,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return destroy_workspace(workspace_id,policy_actor(administrator))
+    try:return destroy_workspace(workspace_id,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
@@ -2259,12 +2259,12 @@ def destroy_isolated_agent_workspace(workspace_id: str,x_admin_pin: str | None =
 def quarantine_workspace_artifact(workspace_id: str,payload: ArtifactQuarantineRequest,x_admin_pin: str | None = Header(default=None)):
     """Write the supplied bytes into the workspace and immediately quarantine them. The content
     is never opened, parsed, executed, or rendered - only hashed and stored."""
-    require_platform_admin(x_admin_pin)
+    administrator=require_platform_admin(x_admin_pin)
     try:
         content=base64.b64decode(payload.content_base64,validate=True)
     except (ValueError,binascii.Error) as error:
         raise HTTPException(status_code=400,detail="Artifact content must be valid base64.") from error
-    try:return write_and_quarantine_artifact(workspace_id,payload.filename,content)
+    try:return write_and_quarantine_artifact(workspace_id,payload.filename,content,organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except (ValueError,PermissionError) as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
@@ -2273,17 +2273,17 @@ def quarantine_workspace_artifact(workspace_id: str,payload: ArtifactQuarantineR
 def scan_quarantined_artifact(artifact_id: str,x_admin_pin: str | None = Header(default=None)):
     """Scan a quarantined artifact. Disabled by default: GREYGUARD_MALWARE_SCANNING_ENABLED
     must be explicitly set before this will ever contact a scanner."""
-    require_platform_admin(x_admin_pin)
+    administrator=require_platform_admin(x_admin_pin)
     if not malware_scanner.scanning_enabled():
         raise HTTPException(status_code=403,detail="Malware scanning is not enabled on this deployment.")
-    try:return scan_artifact(artifact_id,malware_scanner.real_scanner)
+    try:return scan_artifact(artifact_id,malware_scanner.real_scanner,organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.post("/isolation-operations/kubernetes-manifest")
 def create_kubernetes_isolated_job(payload: KubernetesJobRequest,x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
-    try:return kubernetes_job_manifest(payload.agent_name,payload.job_id)
+    administrator=require_platform_admin(x_admin_pin)
+    try:return kubernetes_job_manifest(payload.agent_name,payload.job_id,org_id=organizations.resolve_org_id(administrator))
     except (ValueError,PermissionError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
