@@ -27,12 +27,21 @@ import re
 # rows) - adding a column without reshaping the key would let two orgs collide on the same
 # capability name, so that one table was rebuilt with a composite (capability, org_id) key
 # instead (see universal_controls.py's initialize_universal_controls()).
+#
+# P2.2 batch 2 (adapter_configs, adapter_events): same composite-key reshape for
+# adapter_configs, whose primary key was `adapter_id` alone (seven fixed named rows) - the same
+# shape of fix as universal_capability_controls, for the same reason (see
+# adapter_control.py's initialize_adapter_control()). adapter_events needed only a plain ADD
+# COLUMN. abuse_protection's three tables were also considered this batch and reclassified as
+# GLOBAL_TABLES instead - see the comment there for why.
 ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "simulation_runs",
     "capability_removals",
     "capability_removal_steps",
     "universal_capability_controls",
     "universal_control_events",
+    "adapter_configs",
+    "adapter_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -49,23 +58,43 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     "org_memberships",
     "org_invitations",
     "greyguard_migration_control",
+    # Shared request-throttling infrastructure (abuse_protection.py), reclassified out of
+    # PENDING_TENANT_SCOPING during P2.2 batch 2 after tracing its real call sites: it is read
+    # and written from enforce_administrator_rbac(), a global HTTP middleware that runs on
+    # EVERY request - including /auth/login itself, before any session or org is resolved.
+    # The identifier it throttles by is an IP address or agent name, never an org. Scoping
+    # these by org_id would be a real security regression. not a tenancy gap: an attacker
+    # hammering the login endpoint could bypass the limit entirely by spreading requests
+    # across different org contexts, and there is no org to attribute an anonymous pre-auth
+    # attacker to in the first place. This is shared install-wide security infrastructure, the
+    # same category as the identity tables above, not per-resource tenant data.
+    "rate_limit_policies",
+    "rate_limit_counters",
+    "abuse_events",
 })
 
 # Tables that exist today but have not yet had a tenant-scoping decision made - not a silent
 # gap, an explicit, honest "not yet" so the coverage check can tell the difference between
-# "deliberately global" and "nobody has looked at this table yet." Every table here is a
-# per-resource table that will eventually move into ORG_SCOPED_TABLES as its own P2.2 batch
-# lands (removed from this set in the same commit, mirroring how entries are added to
-# ORG_SCOPED_TABLES). The seven marked (*) are singleton config tables (one global row today,
-# PK a CHECK(col=1) constraint) that need the same composite-key reshape
-# universal_capability_controls just got, not a plain ADD COLUMN - flagged now so whichever
-# batch tackles them doesn't rediscover that the hard way.
+# "deliberately global" and "nobody has looked at this table yet." Every table here is expected
+# to move into ORG_SCOPED_TABLES as its own P2.2 batch lands (removed from this set in the same
+# commit, mirroring how entries are added to ORG_SCOPED_TABLES) - except that this is an
+# expectation, not a guarantee: abuse_protection's three tables started in this set too, until
+# tracing their actual call sites in P2.2 batch 2 showed they are genuinely global
+# infrastructure, not per-resource data (see GLOBAL_TABLES above). Two more tables below are
+# flagged for the same scrutiny when their batch comes up, for the same reason (pre-auth,
+# request-level security tracking with no org to attribute to yet).
+#
+# The seven marked (*) are singleton config tables (one global row today, PK a CHECK(col=1)
+# constraint) that need the same composite-key reshape universal_capability_controls and
+# adapter_configs got, not a plain ADD COLUMN - flagged now so whichever batch tackles them
+# doesn't rediscover that the hard way.
 PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
-    "abuse_events", "adapter_configs", "adapter_events", "agent_credential_events",
+    "agent_credential_events",
     "agent_identities", "alert_notes", "approval_events", "audit_events",
     "audit_integrity_chain", "audit_integrity_checks", "audit_legal_holds",
     "audit_retention_config",  # *
-    "authentication_events", "break_glass_activations", "browser_connectors",
+    "authentication_events",  # check whether this is genuinely global like abuse_protection's tables - trace its call sites first
+    "break_glass_activations", "browser_connectors",
     "callback_evidence", "compliance_reports", "defensive_response_plans",
     "endpoint_collectors", "endpoint_telemetry_events", "enterprise_identity_events",
     "execution_events", "expiring_approval_links", "export_destinations", "export_queue",
@@ -78,13 +107,14 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "notification_retention_policy",  # *
     "notification_retention_tombstones", "notification_templates",
     "observability_config",  # *
-    "observability_correlations", "observability_spans", "oidc_login_attempts",
+    "observability_correlations", "observability_spans",
+    "oidc_login_attempts",  # check whether this is genuinely global like abuse_protection's tables - trace its call sites first
     "outbound_allowed_private_hosts", "outbound_delivery_evidence", "policy_adapters",
     "policy_change_events",
     "policy_emergency_controls",  # *
     "policy_emergency_events", "policy_integration_events", "policy_rollouts",
     "policy_test_cases", "policy_versions", "privilege_elevations", "quarantined_artifacts",
-    "rate_limit_counters", "rate_limit_policies", "report_schedules", "secret_events",
+    "report_schedules", "secret_events",
     "secret_references", "security_alerts", "security_notifications",
     "service_account_events", "service_account_keys", "service_accounts",
     "simulation_config",  # *
