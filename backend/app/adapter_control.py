@@ -54,27 +54,47 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def initialize_adapter_control(available_actions):
+def initialize_adapter_control(available_actions, org_id="org_default"):
     global AVAILABLE_ACTIONS
     actions = sorted({str(action) for action in available_actions})
     if actions:
         AVAILABLE_ACTIONS = set(actions)
     with sqlite3.connect(database_path) as connection:
+        existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(adapter_configs)")}
+        if existing_columns and "org_id" not in existing_columns:
+            # SQLite cannot ALTER a PRIMARY KEY in place - the old PK (adapter_id alone) would
+            # let two orgs collide on the same adapter name, so this rebuilds the table with a
+            # composite (adapter_id, org_id) key, carrying every pre-existing row into the
+            # default org (same approach as universal_controls.py's reshape).
+            connection.execute("ALTER TABLE adapter_configs RENAME TO adapter_configs_pre_org")
         connection.execute("""CREATE TABLE IF NOT EXISTS adapter_configs (
-            adapter_id TEXT PRIMARY KEY, name TEXT NOT NULL, protocol TEXT NOT NULL,
+            adapter_id TEXT NOT NULL, org_id TEXT NOT NULL DEFAULT 'org_default',
+            name TEXT NOT NULL, protocol TEXT NOT NULL,
             description TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0,
             owner TEXT, purpose TEXT, allowed_actions_json TEXT NOT NULL,
-            updated_at TEXT NOT NULL, updated_by TEXT NOT NULL)""")
+            updated_at TEXT NOT NULL, updated_by TEXT NOT NULL,
+            PRIMARY KEY(adapter_id,org_id))""")
+        if existing_columns and "org_id" not in existing_columns:
+            connection.execute("""INSERT INTO adapter_configs
+                (adapter_id,org_id,name,protocol,description,enabled,owner,purpose,
+                 allowed_actions_json,updated_at,updated_by)
+                SELECT adapter_id,'org_default',name,protocol,description,enabled,owner,purpose,
+                       allowed_actions_json,updated_at,updated_by
+                FROM adapter_configs_pre_org""")
+            connection.execute("DROP TABLE adapter_configs_pre_org")
         connection.execute("""CREATE TABLE IF NOT EXISTS adapter_events (
             event_id INTEGER PRIMARY KEY AUTOINCREMENT, adapter_id TEXT NOT NULL,
             timestamp TEXT NOT NULL, actor TEXT NOT NULL, event_type TEXT NOT NULL,
-            detail TEXT NOT NULL)""")
+            detail TEXT NOT NULL, org_id TEXT NOT NULL DEFAULT 'org_default')""")
+        event_columns = {row[1] for row in connection.execute("PRAGMA table_info(adapter_events)")}
+        if "org_id" not in event_columns:
+            connection.execute("ALTER TABLE adapter_events ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
         for adapter_id, definition in ADAPTER_DEFINITIONS.items():
             connection.execute("""INSERT OR IGNORE INTO adapter_configs
-                (adapter_id,name,protocol,description,enabled,owner,purpose,
+                (adapter_id,org_id,name,protocol,description,enabled,owner,purpose,
                  allowed_actions_json,updated_at,updated_by)
-                VALUES(?,?,?,?,0,NULL,NULL,?,?,?)""", (
-                adapter_id, definition["name"], definition["protocol"],
+                VALUES(?,?,?,?,?,0,NULL,NULL,?,?,?)""", (
+                adapter_id, org_id, definition["name"], definition["protocol"],
                 definition["description"], json.dumps(actions), utc_now(), "system",
             ))
 
@@ -96,30 +116,30 @@ def _public(row):
     return value
 
 
-def list_adapters():
-    initialize_adapter_control([])
+def list_adapters(org_id):
+    initialize_adapter_control([], org_id)
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
-            "SELECT * FROM adapter_configs ORDER BY name"
+            "SELECT * FROM adapter_configs WHERE org_id=? ORDER BY name", (org_id,)
         ).fetchall()
         return [_public(row) for row in rows]
 
 
-def get_adapter(adapter_id):
-    initialize_adapter_control([])
+def get_adapter(adapter_id, org_id):
+    initialize_adapter_control([], org_id)
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
-            "SELECT * FROM adapter_configs WHERE adapter_id=?", (adapter_id,)
+            "SELECT * FROM adapter_configs WHERE adapter_id=? AND org_id=?", (adapter_id, org_id)
         ).fetchone()
     if row is None:
         raise KeyError("Adapter not found.")
     return _public(row)
 
 
-def configure_adapter(adapter_id, enabled, owner, purpose, allowed_actions, actor):
-    current = get_adapter(adapter_id)
+def configure_adapter(adapter_id, enabled, owner, purpose, allowed_actions, actor, org_id):
+    current = get_adapter(adapter_id, org_id)
     normalized_owner = str(owner or "").strip()
     normalized_purpose = str(purpose or "").strip()
     normalized_actions = sorted({str(action).strip() for action in allowed_actions if str(action).strip()})
@@ -131,17 +151,17 @@ def configure_adapter(adapter_id, enabled, owner, purpose, allowed_actions, acto
     timestamp = utc_now()
     with sqlite3.connect(database_path) as connection:
         connection.execute("""UPDATE adapter_configs SET enabled=?,owner=?,purpose=?,
-            allowed_actions_json=?,updated_at=?,updated_by=? WHERE adapter_id=?""", (
+            allowed_actions_json=?,updated_at=?,updated_by=? WHERE adapter_id=? AND org_id=?""", (
             int(bool(enabled)), normalized_owner or None, normalized_purpose or None,
-            json.dumps(normalized_actions), timestamp, actor, adapter_id,
+            json.dumps(normalized_actions), timestamp, actor, adapter_id, org_id,
         ))
         connection.execute("""INSERT INTO adapter_events
-            (adapter_id,timestamp,actor,event_type,detail) VALUES(?,?,?,?,?)""", (
+            (adapter_id,timestamp,actor,event_type,detail,org_id) VALUES(?,?,?,?,?,?)""", (
             adapter_id, timestamp, actor,
             "ADAPTER_ENABLED" if enabled else "ADAPTER_DISABLED",
-            "Configuration updated; no credentials stored.",
+            "Configuration updated; no credentials stored.", org_id,
         ))
-    return get_adapter(adapter_id)
+    return get_adapter(adapter_id, org_id)
 
 
 def _redact(value: Any):
@@ -172,8 +192,8 @@ def extract_action(adapter_id, payload):
     return payload.get("action", payload.get("permission", ""))
 
 
-def translate_request(adapter_id, payload, require_enabled=True):
-    adapter = get_adapter(adapter_id)
+def translate_request(adapter_id, payload, org_id, require_enabled=True):
+    adapter = get_adapter(adapter_id, org_id)
     if require_enabled and not adapter["enabled"]:
         raise PermissionError("Adapter kill switch is active.")
     if not isinstance(payload, dict):
@@ -235,8 +255,8 @@ def translate_request(adapter_id, payload, require_enabled=True):
     }
 
 
-def test_adapter(adapter_id):
-    action = get_adapter(adapter_id)["allowed_actions"][0]
+def test_adapter(adapter_id, org_id):
+    action = get_adapter(adapter_id, org_id)["allowed_actions"][0]
     samples = {
         "mcp_gateway": {"name": action, "arguments": {}, "dry_run": True},
         "langchain": {"tool": action, "input": {}, "dry_run": True},
@@ -250,6 +270,7 @@ def test_adapter(adapter_id):
     translated = translate_request(
         adapter_id,
         samples.get(adapter_id, {"action": action, "dry_run": True}),
+        org_id,
         require_enabled=False,
     )
     return {

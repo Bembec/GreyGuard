@@ -1910,9 +1910,9 @@ def verify_service_account_key(
 
 @app.get("/adapters")
 def administrator_adapters(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
+    administrator = require_platform_admin(x_admin_pin)
     return {
-        "adapters": list_adapters(),
+        "adapters": list_adapters(organizations.resolve_org_id(administrator)),
         "disabled_by_default": True,
         "network_egress": False,
     }
@@ -1929,6 +1929,7 @@ def administrator_configure_adapter(
         return configure_adapter(
             adapter_id, payload.enabled, payload.owner, payload.purpose,
             payload.allowed_actions, policy_actor(administrator),
+            organizations.resolve_org_id(administrator),
         )
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -1941,9 +1942,9 @@ def administrator_test_adapter(
     adapter_id: str,
     x_admin_pin: str | None = Header(default=None),
 ):
-    require_platform_admin(x_admin_pin)
+    administrator = require_platform_admin(x_admin_pin)
     try:
-        return test_adapter(adapter_id)
+        return test_adapter(adapter_id, organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -1967,7 +1968,11 @@ def create_adapter_request(
         x_ssl_client_cert=x_ssl_client_cert,
     )
     try:
-        translated = translate_request(adapter_id, payload)
+        # Agents have no org concept yet (agent_identities is not tenant-scoped until a later
+        # P2.2 batch) - every agent-facing adapter request is provisionally attributed to the
+        # default org until that lands, the same documented fallback used for the legacy admin
+        # PIN identity (see organizations.resolve_org_id()).
+        translated = translate_request(adapter_id, payload, organizations.DEFAULT_ORG_ID)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except PermissionError as error:
