@@ -53,18 +53,21 @@ def initialize_simulations():
  with sqlite3.connect(database_path) as c:
   c.execute("CREATE TABLE IF NOT EXISTS simulation_config(config_id INTEGER PRIMARY KEY CHECK(config_id=1),enabled INTEGER NOT NULL,updated_at TEXT NOT NULL,updated_by TEXT NOT NULL)")
   c.execute("INSERT OR IGNORE INTO simulation_config VALUES(1,0,?,?)",(utc_now(),"system"))
-  c.execute("CREATE TABLE IF NOT EXISTS simulation_runs(run_id TEXT PRIMARY KEY,scenario_id TEXT NOT NULL,requested_by TEXT NOT NULL,created_at TEXT NOT NULL,result_json TEXT NOT NULL,simulated INTEGER NOT NULL CHECK(simulated=1))")
+  c.execute("CREATE TABLE IF NOT EXISTS simulation_runs(run_id TEXT PRIMARY KEY,scenario_id TEXT NOT NULL,requested_by TEXT NOT NULL,created_at TEXT NOT NULL,result_json TEXT NOT NULL,simulated INTEGER NOT NULL CHECK(simulated=1),org_id TEXT NOT NULL DEFAULT 'org_default')")
+  columns={row[1] for row in c.execute("PRAGMA table_info(simulation_runs)")}
+  if "org_id" not in columns:
+   c.execute("ALTER TABLE simulation_runs ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
 def scenario_catalog():return [{"scenario_id":row[0],"title":row[1],"attempt":row[2],"decision":row[3],"severity":row[4],"risk_added":row[5],"suspends_agent":row[6],"fictional_target":"reserved-target.example","operational":False,"detected_by":DETECTED_BY,"why_dangerous":WHY_DANGEROUS[row[0]]} for row in SCENARIOS]
-def simulation_status():
+def simulation_status(org_id):
  initialize_simulations()
  with sqlite3.connect(database_path) as c:
-  enabled=bool(c.execute("SELECT enabled FROM simulation_config WHERE config_id=1").fetchone()[0]);runs=[json.loads(r[0]) for r in c.execute("SELECT result_json FROM simulation_runs ORDER BY created_at DESC LIMIT 100")]
+  enabled=bool(c.execute("SELECT enabled FROM simulation_config WHERE config_id=1").fetchone()[0]);runs=[json.loads(r[0]) for r in c.execute("SELECT result_json FROM simulation_runs WHERE org_id=? ORDER BY created_at DESC LIMIT 100",(org_id,))]
  return {"enabled":enabled,"simulation_only":True,"network_access":False,"production_executor_imported":False,"scenarios":scenario_catalog(),"runs":runs}
 def set_enabled(enabled,actor):
  with sqlite3.connect(database_path) as c:c.execute("UPDATE simulation_config SET enabled=?,updated_at=?,updated_by=? WHERE config_id=1",(int(enabled),utc_now(),actor))
  return {"enabled":bool(enabled),"actor":actor}
-def run_simulation(scenario_id,actor):
- status=simulation_status()
+def run_simulation(scenario_id,actor,org_id):
+ status=simulation_status(org_id)
  if not status["enabled"]:raise PermissionError("The simulation lab is disabled.")
  scenario=next((item for item in status["scenarios"] if item["scenario_id"]==scenario_id),None)
  if not scenario:raise KeyError("Predefined simulation scenario not found.")
@@ -78,11 +81,11 @@ def run_simulation(scenario_id,actor):
  with sqlite3.connect(database_path) as c:
   row=c.execute("SELECT alert_id FROM security_alerts WHERE source_event_id=?",(event["event_id"],)).fetchone()
   result.update({"alert_created":row is not None,"alert_id":row[0] if row else None})
-  c.execute("INSERT INTO simulation_runs VALUES(?,?,?,?,?,1)",(run_id,scenario_id,actor,created,json.dumps({**result,"evidence_preserved":True},separators=(",",":"))))
-  stored=c.execute("SELECT 1 FROM simulation_runs WHERE run_id=?",(run_id,)).fetchone()
+  c.execute("INSERT INTO simulation_runs (run_id,scenario_id,requested_by,created_at,result_json,simulated,org_id) VALUES(?,?,?,?,?,1,?)",(run_id,scenario_id,actor,created,json.dumps({**result,"evidence_preserved":True},separators=(",",":")),org_id))
+  stored=c.execute("SELECT 1 FROM simulation_runs WHERE run_id=? AND org_id=?",(run_id,org_id)).fetchone()
  result["evidence_preserved"]=stored is not None and result["alert_created"]
  return result
-def export_assessment(run_id):
- with sqlite3.connect(database_path) as c:row=c.execute("SELECT result_json FROM simulation_runs WHERE run_id=?",(run_id,)).fetchone()
+def export_assessment(run_id,org_id):
+ with sqlite3.connect(database_path) as c:row=c.execute("SELECT result_json FROM simulation_runs WHERE run_id=? AND org_id=?",(run_id,org_id)).fetchone()
  if not row:raise KeyError("Simulation run not found.")
  result=json.loads(row[0]);return {"title":"GreyGuard Non-Operational Defensive Assessment","simulation_banner":"SIMULATION ONLY — NO REAL ACTION","result":result}
