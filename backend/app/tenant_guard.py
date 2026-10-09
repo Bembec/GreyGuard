@@ -139,6 +139,21 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     "rate_limit_policies",
     "rate_limit_counters",
     "abuse_events",
+    # Same shape as abuse_protection's tables above, reclassified during P2.2 batch 9 after
+    # tracing its real call sites: observe_request() (api.py) is a global pre-auth HTTP
+    # middleware wrapping EVERY request - including /auth/login and every unauthenticated
+    # route - before any session or org is resolved. observability_spans/_correlations record
+    # method/path/status/duration for that HTTP layer, not a tenant's resource data, and the
+    # overwhelming majority of spans (every unauthenticated request, every request whose auth
+    # fails) could never be attributed to an org in the first place. observability_config's
+    # tracing/metrics/retention toggles are an install-wide operational switch, the same
+    # category as abuse_protection's throttling policy, not a per-org setting - a platform
+    # operator debugging latency needs to see traces across every org, not one filtered to
+    # whichever org happens to be viewing /observability/traces. No schema change: this was a
+    # registry reclassification only, the same as abuse_protection's in batch 2.
+    "observability_config",
+    "observability_spans",
+    "observability_correlations",
 })
 
 # Tables that exist today but have not yet had a tenant-scoping decision made - not a silent
@@ -171,8 +186,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "notification_deliveries", "notification_destinations", "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones", "notification_templates",
-    "observability_config",  # *
-    "observability_correlations", "observability_spans",
     "oidc_login_attempts",  # check whether this is genuinely global like abuse_protection's tables - trace its call sites first
     "outbound_allowed_private_hosts", "outbound_delivery_evidence", "policy_adapters",
     "policy_change_events",
