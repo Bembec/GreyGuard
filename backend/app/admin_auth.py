@@ -70,7 +70,7 @@ def initialize_admin_auth() -> None:
         session_columns = {row[1] for row in connection.execute("PRAGMA table_info(administrator_sessions)")}
         for name, definition in {
             "device_name": "TEXT", "ip_address": "TEXT", "last_seen_at": "TEXT",
-            "elevated_until": "TEXT",
+            "elevated_until": "TEXT", "active_org_id": "TEXT",
         }.items():
             if name not in session_columns:
                 connection.execute(f"ALTER TABLE administrator_sessions ADD COLUMN {name} {definition}")
@@ -191,12 +191,14 @@ def _issue_session(connection, row, device_name, ip_address) -> dict:
     session_id = "ses_" + secrets.token_hex(12)
     created = datetime.now(timezone.utc)
     expires = created + timedelta(minutes=SESSION_MINUTES)
+    from . import organizations  # deferred: organizations.py imports admin_auth at module level
+    initial_org_id = organizations.resolve_initial_active_org_id(row["admin_id"])
     connection.execute(
         """INSERT INTO administrator_sessions
-        (session_id,admin_id,token_hash,created_at,expires_at,revoked_at,device_name,ip_address,last_seen_at)
-        VALUES (?,?,?,?,?,NULL,?,?,?)""",
+        (session_id,admin_id,token_hash,created_at,expires_at,revoked_at,device_name,ip_address,last_seen_at,active_org_id)
+        VALUES (?,?,?,?,?,NULL,?,?,?,?)""",
         (session_id, row["admin_id"], token_hash, created.isoformat(), expires.isoformat(),
-         str(device_name)[:100], str(ip_address)[:64], created.isoformat()),
+         str(device_name)[:100], str(ip_address)[:64], created.isoformat(), initial_org_id),
     )
     refresh = "ggr_" + secrets.token_urlsafe(40)
     refresh_id = "ref_" + secrets.token_hex(12)
@@ -211,6 +213,7 @@ def _issue_session(connection, row, device_name, ip_address) -> dict:
     )
     user = _public_admin(row)
     user["last_login_at"] = created.isoformat()
+    user = organizations.apply_identity_context(user, row["admin_id"], initial_org_id)
     return {"access_token": token, "refresh_token": refresh, "token_type": "session",
             "expires_at": expires.isoformat(), "administrator": user}
 
@@ -235,7 +238,10 @@ def setup_first_administrator(email: str, display_name: str, password: str, devi
         existing = connection.execute("SELECT COUNT(*) FROM administrators").fetchone()[0]
     if existing > 0:
         raise ValueError("An administrator account already exists.")
-    create_administrator(email=email, display_name=display_name, role="PLATFORM_ADMIN", password=password)
+    created = create_administrator(email=email, display_name=display_name, role="PLATFORM_ADMIN", password=password)
+    from . import organizations  # deferred: organizations.py imports admin_auth at module level
+    organizations.initialize_organizations()
+    organizations.ensure_membership(organizations.DEFAULT_ORG_ID, created["admin_id"], "PLATFORM_ADMIN", "OWNER")
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
@@ -304,6 +310,10 @@ def provision_sso_administrator(email: str, display_name: str, role: str, provid
                  salt.hex(), placeholder_password_hash, now, provider_id),
             )
         row = connection.execute("SELECT * FROM administrators WHERE admin_id=?", (admin_id,)).fetchone()
+    from . import organizations  # deferred: organizations.py imports admin_auth at module level
+    organizations.initialize_organizations()
+    organizations.ensure_membership(organizations.DEFAULT_ORG_ID, admin_id, normalized_role, "MEMBER")
+    organizations.sync_operational_role(organizations.DEFAULT_ORG_ID, admin_id, normalized_role)
     return _public_admin(row)
 
 
@@ -324,14 +334,17 @@ def validate_session(token: str) -> dict:
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute("""
-            SELECT a.* FROM administrator_sessions s
+            SELECT a.*, s.active_org_id FROM administrator_sessions s
             JOIN administrators a ON a.admin_id = s.admin_id
             WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ?
               AND a.status = 'ACTIVE'
         """, (token_hash, utc_now())).fetchone()
     if not row:
         raise ValueError("Administrator session has expired or was revoked.")
-    return _public_admin(row)
+    from . import organizations  # deferred: organizations.py imports admin_auth at module level
+    administrator = _public_admin(row)
+    active_org_id = row["active_org_id"] if "active_org_id" in row.keys() else None
+    return organizations.apply_identity_context(administrator, row["admin_id"], active_org_id)
 
 
 def revoke_session(token: str) -> bool:

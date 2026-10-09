@@ -8,6 +8,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from . import tenant_guard
+
 Row = _sqlite.Row
 Connection = Any
 Error = _sqlite.Error
@@ -165,6 +167,7 @@ class PostgresConnection:
         self.close()
     def execute(self,sql,parameters=()):
         normalized=sql.strip()
+        tenant_guard.check_statement(normalized)
         if re.match(r"PRAGMA\s+foreign_keys",normalized,re.I):return VirtualCursor()
         match=re.match(r"PRAGMA\s+table_info\(([^)]+)\)",normalized,re.I)
         if match:
@@ -184,6 +187,7 @@ class PostgresConnection:
         except self._psycopg.Error as error:
             raise Error(str(error)) from error
     def executemany(self,sql,parameters):
+        tenant_guard.check_statement(sql)
         try:
             cursor=self._connection.cursor();cursor.executemany(_translate(sql),parameters);return Cursor(cursor)
         except self._psycopg.IntegrityError as error:raise IntegrityError(str(error)) from error
@@ -196,11 +200,27 @@ class PostgresConnection:
     def rollback(self):self._connection.rollback()
     def close(self):self._connection.close()
 
+class _GuardedSqliteConnection(_sqlite.Connection):
+    """Routes every statement through tenant_guard.check_statement(), mirroring
+    PostgresConnection.execute()/executemany() above so both backends get the same
+    protection. See tenant_guard.py for why this exists."""
+    def execute(self,sql,parameters=()):
+        tenant_guard.check_statement(sql)
+        return super().execute(sql,parameters)
+    def executemany(self,sql,parameters):
+        tenant_guard.check_statement(sql)
+        return super().executemany(sql,parameters)
+    def executescript(self,sql_script):
+        for statement in sql_script.split(";"):
+            if statement.strip():tenant_guard.check_statement(statement)
+        return super().executescript(sql_script)
+
 def connect(database=None,*args,**kwargs):
     url=os.environ.get("GREYGUARD_DATABASE_URL","").strip()
     if url.startswith(("postgresql://","postgresql+psycopg://")):return PostgresConnection(url)
     if os.environ.get("GREYGUARD_ENV","").strip().lower()=="production":
         raise RuntimeError("Production requires GREYGUARD_DATABASE_URL with PostgreSQL.")
+    kwargs.setdefault("factory",_GuardedSqliteConnection)
     return _sqlite.connect(Path(database) if isinstance(database,Path) else database,*args,**kwargs)
 
 def backend_name() -> str:

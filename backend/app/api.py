@@ -69,6 +69,7 @@ from .enterprise_sso import (
     initialize_enterprise_sso,
     list_enabled_providers_for_login,
 )
+from . import organizations
 
 
 from .policy_control import (
@@ -298,6 +299,7 @@ async def lifespan(_app: FastAPI):
 
     load_production_config()
     with initialization_lock():
+        organizations.initialize_organizations()
         main.initialize_greyguard()
         initialize_policy_control(
             permissions=main.permissions,
@@ -515,6 +517,30 @@ class AdministratorUpdate(BaseModel):
 
 class AdministratorPasswordReset(BaseModel):
     new_password: str = Field(min_length=12, max_length=256)
+
+
+class ActiveOrgSwitch(BaseModel):
+    org_id: str = Field(min_length=1, max_length=64)
+
+
+class OrganizationCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    slug: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class OrganizationInvitationCreate(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    operational_role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"]
+    governance_role: Literal["OWNER", "BILLING_ADMIN", "MEMBER"] = "MEMBER"
+
+
+class OrganizationInvitationAccept(BaseModel):
+    token: str = Field(min_length=1, max_length=256)
+
+
+class OrganizationMembershipUpdate(BaseModel):
+    operational_role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"] | None = None
+    governance_role: Literal["OWNER", "BILLING_ADMIN", "MEMBER"] | None = None
 
 
 class PolicyDocumentRequest(BaseModel):
@@ -1222,6 +1248,103 @@ def current_administrator(x_admin_pin: str | None = Header(default=None)):
     return require_admin(x_admin_pin)
 
 
+@app.post("/auth/active-org")
+def switch_active_organization(payload: ActiveOrgSwitch, x_admin_pin: str | None = Header(default=None)):
+    """Switch which org the current session acts as, without re-authenticating."""
+    actor = require_admin(x_admin_pin)
+    if not x_admin_pin or not x_admin_pin.startswith("gga_"):
+        raise HTTPException(status_code=400, detail="The legacy administrator PIN has no session to switch.")
+    try:
+        organizations.switch_active_org(actor["admin_id"], payload.org_id, hashlib.sha256(x_admin_pin.encode()).hexdigest())
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    return validate_session(x_admin_pin)
+
+
+@app.post("/organizations", status_code=201)
+def create_organization_route(payload: OrganizationCreate, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        return organizations.create_organization(payload.name, actor["admin_id"], payload.slug)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.get("/organizations/{org_id}/members")
+def list_organization_members(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    if organizations.get_membership(org_id, actor["admin_id"]) is None:
+        raise HTTPException(status_code=403, detail="You are not a member of that organization.")
+    return {"members": organizations.list_members(org_id)}
+
+
+@app.post("/organizations/{org_id}/invitations", status_code=201)
+def create_organization_invitation(org_id: str, payload: OrganizationInvitationCreate, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        return organizations.create_invitation(
+            org_id, payload.email, payload.operational_role, payload.governance_role, actor["admin_id"],
+        )
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/organizations/invitations/accept")
+def accept_organization_invitation(payload: OrganizationInvitationAccept, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        return organizations.accept_invitation(payload.token, actor["admin_id"], actor["email"])
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/organizations/{org_id}/invitations/{invitation_id}")
+def revoke_organization_invitation(org_id: str, invitation_id: str, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        organizations.revoke_invitation(org_id, invitation_id, actor["admin_id"])
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"revoked": True}
+
+
+@app.put("/organizations/{org_id}/members/{admin_id}")
+def update_organization_member(org_id: str, admin_id: str, payload: OrganizationMembershipUpdate, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        return organizations.update_membership(
+            org_id, admin_id, actor["admin_id"], payload.operational_role, payload.governance_role,
+        )
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/organizations/{org_id}/members/{admin_id}")
+def remove_organization_member(org_id: str, admin_id: str, x_admin_pin: str | None = Header(default=None)):
+    actor = require_admin(x_admin_pin)
+    try:
+        organizations.remove_membership(org_id, admin_id, actor["admin_id"])
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {"removed": True}
+
+
 @app.post("/auth/logout")
 def administrator_logout(x_admin_pin: str | None = Header(default=None)):
     administrator = require_admin(x_admin_pin)
@@ -1275,9 +1398,18 @@ def register_administrator(registration: AdministratorCreate, x_admin_pin: str |
     if not has_permission(actor, "admin:manage"):
         raise HTTPException(status_code=403, detail="Platform administrator role is required.")
     try:
-        return create_administrator(registration.email, registration.display_name, registration.role, registration.password)
+        created = create_administrator(registration.email, registration.display_name, registration.role, registration.password)
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    # Pair the new account into the actor's own org so they have a resolvable role on next
+    # login - falls back to the default org for the "legacy" PIN identity, which has no
+    # active_org_id of its own (see admin_auth.validate_session/organizations.apply_identity_context).
+    organizations.ensure_membership(
+        actor.get("active_org_id") or organizations.DEFAULT_ORG_ID,
+        created["admin_id"], registration.role, "MEMBER",
+        invited_by=actor.get("admin_id"),
+    )
+    return created
 
 
 @app.put("/administrators/{admin_id}")
