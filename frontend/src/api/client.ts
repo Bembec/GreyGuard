@@ -71,6 +71,15 @@ export function verifyAdministrator(
 }
 
 
+export interface OrganizationMembership {
+  org_id: string
+  org_name: string
+  operational_role: "PLATFORM_ADMIN" | "SECURITY_ANALYST" | "AUDITOR"
+  governance_role: "OWNER" | "BILLING_ADMIN" | "MEMBER"
+  status: string
+  created_at: string
+}
+
 export interface AdministratorIdentity {
   admin_id: string
   email: string
@@ -79,6 +88,10 @@ export interface AdministratorIdentity {
   permissions: string[]
   mfa_enabled?: boolean
   password_expires_at?: string | null
+  organizations?: OrganizationMembership[]
+  active_org_id?: string | null
+  active_org_name?: string | null
+  governance_role?: "OWNER" | "BILLING_ADMIN" | "MEMBER" | null
 }
 
 export interface AdministratorLoginResponse {
@@ -113,6 +126,14 @@ export function logoutAdministrator(token: string) {
   return apiRequest<{ logged_out: boolean }>("/auth/logout", {
     method: "POST",
     headers: { "x-admin-pin": token },
+  })
+}
+
+export function switchActiveOrganization(token: string, orgId: string) {
+  return apiRequest<AdministratorIdentity>("/auth/active-org", {
+    method: "POST",
+    headers: { "x-admin-pin": token },
+    body: JSON.stringify({ org_id: orgId }),
   })
 }
 

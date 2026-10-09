@@ -14,8 +14,10 @@ import {
   refreshAdministrator,
   getCurrentAdministrator,
   logoutAdministrator,
+  switchActiveOrganization,
   verifyAdministrator,
   type AdministratorLoginResponse,
+  type OrganizationMembership,
 } from "../api/client"
 import type { Agent } from "../types/api"
 
@@ -33,6 +35,10 @@ export interface Administrator {
   permissions: string[]
   mfa_enabled?: boolean
   password_expires_at?: string | null
+  organizations?: OrganizationMembership[]
+  active_org_id?: string | null
+  active_org_name?: string | null
+  governance_role?: "OWNER" | "BILLING_ADMIN" | "MEMBER" | null
 }
 
 interface AuthContextValue {
@@ -48,6 +54,7 @@ interface AuthContextValue {
   ) => Promise<void>
   completeSso: (state: string, code: string) => Promise<void>
   completeSetup: (result: AdministratorLoginResponse) => Promise<void>
+  switchActiveOrg: (orgId: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -161,6 +168,17 @@ export function AuthProvider({
     [applySession],
   )
 
+  const switchActiveOrg = useCallback(
+    async (orgId: string) => {
+      if (!sessionToken) {
+        throw new Error("No active session.")
+      }
+      const updated = await switchActiveOrganization(sessionToken, orgId)
+      setAdministrator(updated)
+    },
+    [sessionToken],
+  )
+
   const logout = useCallback(async () => {
     if (sessionToken) {
       await logoutAdministrator(sessionToken).catch(
@@ -182,6 +200,7 @@ export function AuthProvider({
       login,
       completeSso,
       completeSetup,
+      switchActiveOrg,
       logout,
     }),
     [
@@ -192,6 +211,7 @@ export function AuthProvider({
       login,
       completeSso,
       completeSetup,
+      switchActiveOrg,
       logout,
     ],
   )

@@ -19,6 +19,7 @@ function wrapperFor(administrator: Administrator | null) {
           login: async () => {},
           completeSso: async () => {},
           completeSetup: async () => {},
+          switchActiveOrg: async () => {},
           logout: async () => {},
         }}
       >

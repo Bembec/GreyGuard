@@ -1,4 +1,4 @@
-import { ChevronDown, LockKeyhole, LogOut, Settings, ShieldCheck } from "lucide-react"
+import { Building2, ChevronDown, LockKeyhole, LogOut, Settings, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 
@@ -14,9 +14,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 /** Replaces the previously static, non-interactive topbar operator label. */
 export function UserMenu() {
-  const { administrator, logout } = useAuth()
+  const { administrator, switchActiveOrg, logout } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [switching, setSwitching] = useState(false)
   const panelRef = useDismissableLayer<HTMLDivElement>({ open, onClose: () => setOpen(false), trapFocus: true })
 
   if (!administrator) return null
@@ -25,6 +26,18 @@ export function UserMenu() {
     setOpen(false)
     navigate(path)
   }
+
+  async function selectOrg(orgId: string) {
+    if (orgId === administrator?.active_org_id || switching) return
+    setSwitching(true)
+    try {
+      await switchActiveOrg(orgId)
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  const organizations = administrator.organizations ?? []
 
   return (
     <div className="user-menu">
@@ -51,6 +64,31 @@ export function UserMenu() {
             <strong>{administrator.display_name}</strong>
             <small>{administrator.email}</small>
           </div>
+          {organizations.length > 1 && (
+            <div className="user-menu__orgs">
+              <small>
+                <Building2 size={13} />
+                Organization
+              </small>
+              {organizations.map((org) => (
+                <button
+                  key={org.org_id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={org.org_id === administrator.active_org_id}
+                  className={
+                    org.org_id === administrator.active_org_id
+                      ? "user-menu__org is-active"
+                      : "user-menu__org"
+                  }
+                  disabled={switching}
+                  onClick={() => void selectOrg(org.org_id)}
+                >
+                  {org.org_name}
+                </button>
+              ))}
+            </div>
+          )}
           <button type="button" role="menuitem" onClick={() => go("/account-security")}>
             <LockKeyhole size={16} />
             Account security
