@@ -154,6 +154,21 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     "observability_config",
     "observability_spans",
     "observability_correlations",
+    # P2.2 batch 10: traced both tables flagged in PENDING_TENANT_SCOPING's comments for the
+    # same scrutiny abuse_protection/observability got. authentication_events
+    # (database.py/main.py/agent_certificate_auth.py) logs agent identity-verification
+    # attempts - claimed vs. authenticated agent name, outcome, reason - fired at the agent
+    # request-ingress layer before any administrator session exists, and agents are not
+    # tenant-scoped at all yet (agent_identities is still in PENDING_TENANT_SCOPING below); it
+    # would be premature and architecturally inconsistent to scope this table to an org concept
+    # that doesn't apply to agents yet. oidc_login_attempts (enterprise_sso.py) is single-use
+    # OAuth2 state/nonce/PKCE-verifier data keyed by a random `state` token, created and looked
+    # up entirely before the administrator it belongs to has authenticated - the whole reason
+    # the table exists is that no session (and therefore no org) is resolvable yet during an
+    # SSO redirect round-trip. Both are pre-auth security/handshake state, not tenant resource
+    # data - the same category as administrator_sessions and abuse_protection's tables above.
+    "authentication_events",
+    "oidc_login_attempts",
 })
 
 # Tables that exist today but have not yet had a tenant-scoping decision made - not a silent
@@ -176,7 +191,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "agent_identities", "alert_notes", "approval_events", "audit_events",
     "audit_integrity_chain", "audit_integrity_checks", "audit_legal_holds",
     "audit_retention_config",  # *
-    "authentication_events",  # check whether this is genuinely global like abuse_protection's tables - trace its call sites first
     "break_glass_activations",
     "callback_evidence", "compliance_reports",
     "enterprise_identity_events",
@@ -186,7 +200,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "notification_deliveries", "notification_destinations", "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones", "notification_templates",
-    "oidc_login_attempts",  # check whether this is genuinely global like abuse_protection's tables - trace its call sites first
     "outbound_allowed_private_hosts", "outbound_delivery_evidence", "policy_adapters",
     "policy_change_events",
     "policy_emergency_controls",  # *
