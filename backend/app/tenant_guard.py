@@ -34,6 +34,13 @@ import re
 # adapter_control.py's initialize_adapter_control()). adapter_events needed only a plain ADD
 # COLUMN. abuse_protection's three tables were also considered this batch and reclassified as
 # GLOBAL_TABLES instead - see the comment there for why.
+#
+# P2.2 batch 3 (browser_connectors, defensive_response_plans, endpoint_collectors,
+# endpoint_telemetry_events): all four use UUID-generated primary keys, not fixed named rows, so
+# a plain ADD COLUMN was sufficient - no composite-key reshape needed. endpoint_telemetry_events
+# has no live call site writing to it anywhere in the codebase today (confirmed by search); the
+# column was still added for schema completeness and to let it leave PENDING_TENANT_SCOPING
+# honestly rather than leaving a quietly-abandoned table in the "undecided" bucket.
 ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "simulation_runs",
     "capability_removals",
@@ -42,6 +49,10 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "universal_control_events",
     "adapter_configs",
     "adapter_events",
+    "browser_connectors",
+    "defensive_response_plans",
+    "endpoint_collectors",
+    "endpoint_telemetry_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -94,9 +105,9 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "audit_integrity_chain", "audit_integrity_checks", "audit_legal_holds",
     "audit_retention_config",  # *
     "authentication_events",  # check whether this is genuinely global like abuse_protection's tables - trace its call sites first
-    "break_glass_activations", "browser_connectors",
-    "callback_evidence", "compliance_reports", "defensive_response_plans",
-    "endpoint_collectors", "endpoint_telemetry_events", "enterprise_identity_events",
+    "break_glass_activations",
+    "callback_evidence", "compliance_reports",
+    "enterprise_identity_events",
     "execution_events", "expiring_approval_links", "export_destinations", "export_queue",
     "external_incident_records", "identity_providers", "identity_role_mappings",
     "incident_destinations", "incident_postmortems", "isolated_workspaces",
