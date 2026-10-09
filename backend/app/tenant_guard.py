@@ -58,6 +58,16 @@ import re
 # threat_id rows seeded from the THREATS tuple, keyed by threat_id alone - so it got the same
 # composite (threat_id, org_id) primary-key reshape. threat_register_history needed only a plain
 # ADD COLUMN (AUTOINCREMENT surrogate key, no fixed-row problem).
+#
+# P2.2 batch 6 (isolation_config, isolation_executions): isolation_config is the first of the
+# seven singleton `CHECK(config_id=1)` tables flagged in PENDING_TENANT_SCOPING's comments to
+# actually land - reshaped to a composite (config_id, org_id) key, the same treatment as the
+# fixed-row-set tables above. isolation_executions needed only a plain ADD COLUMN. A real
+# architectural finding this batch: `emergency_terminate()` originally killed every RUNNING
+# sandbox container on the host regardless of org - scoped it by org_id so one org's emergency
+# stop can never terminate another org's container (that would have been a cross-tenant denial
+# of service, not just a tenancy gap), including the in-memory `_running` fallback registry,
+# which now carries org_id alongside each entry.
 ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "simulation_runs",
     "capability_removals",
@@ -75,6 +85,8 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "service_account_events",
     "threat_register",
     "threat_register_history",
+    "isolation_config",
+    "isolation_executions",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -133,8 +145,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "execution_events", "expiring_approval_links", "export_destinations", "export_queue",
     "external_incident_records", "identity_providers", "identity_role_mappings",
     "incident_destinations", "incident_postmortems", "isolated_workspaces",
-    "isolation_config",  # *
-    "isolation_executions",
     "isolation_operations_config",  # *
     "notification_deliveries", "notification_destinations", "notification_retention_events",
     "notification_retention_policy",  # *

@@ -2207,26 +2207,26 @@ def revoke_outbound_private_destination(host: str,x_admin_pin: str | None = Head
 
 @app.get("/execution-isolation")
 def execution_isolation_controls(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return {"config":get_isolation_config(),"history":execution_history()}
+    administrator=require_platform_admin(x_admin_pin);org_id=organizations.resolve_org_id(administrator);return {"config":get_isolation_config(org_id),"history":execution_history(org_id=org_id)}
 
 
 @app.put("/execution-isolation")
 def configure_execution_isolation(payload: IsolationConfigurationRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return update_isolation_config(payload.enabled,payload.image,payload.cpu_limit,payload.memory_mb,payload.pids_limit,payload.timeout_seconds,policy_actor(administrator))
+    try:return update_isolation_config(payload.enabled,payload.image,payload.cpu_limit,payload.memory_mb,payload.pids_limit,payload.timeout_seconds,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/execution-isolation/jobs",status_code=202)
 def execute_isolated_job(payload: IsolatedJobRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return run_predefined_job(payload.job_type,policy_actor(administrator))
+    try:return run_predefined_job(payload.job_type,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
 
 
 @app.post("/execution-isolation/emergency-terminate")
 def terminate_isolated_jobs(x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin);return emergency_terminate(policy_actor(administrator))
+    administrator=require_platform_admin(x_admin_pin);return emergency_terminate(policy_actor(administrator),organizations.resolve_org_id(administrator))
 
 
 @app.get("/isolation-operations")

@@ -18,8 +18,8 @@ def test_predefined_job_records_evidence(isolated):
  enable(isolated);result=isolated.run_predefined_job("SANDBOX_PROBE","owner",runner=lambda *a,**k:SimpleNamespace(returncode=0,stdout="ready",stderr=""));assert result["status"]=="SUCCEEDED";assert isolated.execution_history()[0]["result"]=="ready"
 def test_resource_limits_reject_unsafe_values(isolated):
  with pytest.raises(ValueError,match="outside"):isolated.update_config(True,"greyguard-sandbox:test",8,4096,1000,600,"owner")
-def _insert_running(module,execution_id):
- with module.sqlite3.connect(module.database_path) as c:c.execute("INSERT INTO isolation_executions VALUES(?,?,?,?,?,?,?,?,?)",(execution_id,"SANDBOX_PROBE","2026-10-07T00:00:00+00:00","owner","RUNNING","greyguard-"+execution_id,None,None,None))
+def _insert_running(module,execution_id,org_id="org_default"):
+ with module.sqlite3.connect(module.database_path) as c:c.execute("INSERT INTO isolation_executions (execution_id,job_type,created_at,started_by,status,container_name,finished_at,result,termination_reason,org_id) VALUES(?,?,?,?,?,?,?,?,?,?)",(execution_id,"SANDBOX_PROBE","2026-10-07T00:00:00+00:00","owner","RUNNING","greyguard-"+execution_id,None,None,None,org_id))
 def test_emergency_terminate_kills_jobs_started_by_another_worker(isolated):
  # The job exists only in the database, as if another worker process started it.
  execution_id="iso_"+"a"*32;_insert_running(isolated,execution_id);killed=[]
@@ -27,9 +27,22 @@ def test_emergency_terminate_kills_jobs_started_by_another_worker(isolated):
  assert result["terminated"]==[execution_id] and killed==[["docker","kill","greyguard-"+execution_id]]
  assert isolated.execution_history()[0]["status"]=="TERMINATED"
 def test_emergency_terminate_refuses_unexpected_container_names(isolated):
- with isolated.sqlite3.connect(isolated.database_path) as c:c.execute("INSERT INTO isolation_executions VALUES(?,?,?,?,?,?,?,?,?)",("iso_bad","SANDBOX_PROBE","2026-10-07T00:00:00+00:00","owner","RUNNING","postgres",None,None,None))
+ with isolated.sqlite3.connect(isolated.database_path) as c:c.execute("INSERT INTO isolation_executions (execution_id,job_type,created_at,started_by,status,container_name,finished_at,result,termination_reason,org_id) VALUES(?,?,?,?,?,?,?,?,?,?)",("iso_bad","SANDBOX_PROBE","2026-10-07T00:00:00+00:00","owner","RUNNING","postgres",None,None,None,"org_default"))
  killed=[];result=isolated.emergency_terminate("owner",runner=lambda command,**k:killed.append(command))
  assert result["count"]==0 and killed==[]
+def test_emergency_terminate_never_kills_another_organizations_job(isolated):
+ execution_id="iso_"+"b"*32;_insert_running(isolated,execution_id,org_id="org_other");killed=[]
+ result=isolated.emergency_terminate("owner",org_id="org_default",runner=lambda command,**k:killed.append(command))
+ assert result==({"terminated":[],"count":0}) and killed==[]
+ result=isolated.emergency_terminate("owner",org_id="org_other",runner=lambda command,**k:killed.append(command))
+ assert result["terminated"]==[execution_id] and killed==[["docker","kill","greyguard-"+execution_id]]
+def test_config_and_history_are_isolated_per_organization(isolated):
+ isolated.update_config(True,"greyguard-sandbox:other",1,512,128,60,"owner",org_id="org_other")
+ assert isolated.get_config("org_default")["enabled"] is False
+ assert isolated.get_config("org_other")["enabled"] is True
+ isolated.run_predefined_job("SANDBOX_PROBE","owner",org_id="org_other",runner=lambda *a,**k:__import__("types").SimpleNamespace(returncode=0,stdout="ok",stderr=""))
+ assert isolated.execution_history(org_id="org_default")==[]
+ assert len(isolated.execution_history(org_id="org_other"))==1
 def test_terminated_status_is_not_overwritten_when_the_job_returns(isolated):
  enable(isolated)
  def runner(command,**k):
