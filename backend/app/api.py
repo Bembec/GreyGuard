@@ -1401,11 +1401,9 @@ def register_administrator(registration: AdministratorCreate, x_admin_pin: str |
         created = create_administrator(registration.email, registration.display_name, registration.role, registration.password)
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    # Pair the new account into the actor's own org so they have a resolvable role on next
-    # login - falls back to the default org for the "legacy" PIN identity, which has no
-    # active_org_id of its own (see admin_auth.validate_session/organizations.apply_identity_context).
+    # Pair the new account into the actor's own org so they have a resolvable role on next login.
     organizations.ensure_membership(
-        actor.get("active_org_id") or organizations.DEFAULT_ORG_ID,
+        organizations.resolve_org_id(actor),
         created["admin_id"], registration.role, "MEMBER",
         invited_by=actor.get("admin_id"),
     )
@@ -2467,7 +2465,7 @@ def authorize_defensive_response(response_id: str,x_admin_pin: str | None = Head
 
 @app.get("/simulations")
 def simulation_lab_overview(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return simulation_status()
+    administrator=require_platform_admin(x_admin_pin);return simulation_status(organizations.resolve_org_id(administrator))
 
 
 @app.put("/simulations")
@@ -2479,29 +2477,30 @@ def update_simulation_lab(payload: SimulationStateRequest,x_admin_pin: str | Non
 def execute_safe_simulation(payload: SimulationRunRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
     actor=policy_actor(administrator)
+    org_id=organizations.resolve_org_id(administrator)
     try:
-        authorize_capability("SIMULATION_LAB",actor,"RUN",payload.scenario_id,"",True,True,1)
-        return run_simulation(payload.scenario_id,actor)
+        authorize_capability("SIMULATION_LAB",actor,org_id,"RUN",payload.scenario_id,"",True,True,1)
+        return run_simulation(payload.scenario_id,actor,org_id)
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except PermissionError as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.get("/simulations/{run_id}/assessment")
 def simulation_assessment(run_id: str,x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    try:return export_assessment(run_id)
+    administrator=require_admin(x_admin_pin)
+    try:return export_assessment(run_id,organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.get("/universal-controls")
 def universal_control_overview(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return {"controls":list_controls(),"fail_closed":True}
+    administrator=require_platform_admin(x_admin_pin);return {"controls":list_controls(organizations.resolve_org_id(administrator)),"fail_closed":True}
 
 
 @app.put("/universal-controls/{capability}")
 def update_universal_control(capability: str,payload: UniversalControlRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return configure_control(capability,payload.model_dump(),policy_actor(administrator))
+    try:return configure_control(capability,payload.model_dump(),policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
@@ -2514,35 +2513,35 @@ def universal_control_removal(capability: str,x_admin_pin: str | None = Header(d
 
 @app.get("/capability-removals")
 def capability_removal_history(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return {"removals":list_removals(),"automatic_audit_deletion":False}
+    administrator=require_platform_admin(x_admin_pin);return {"removals":list_removals(organizations.resolve_org_id(administrator)),"automatic_audit_deletion":False}
 
 
 @app.post("/capability-removals",status_code=201)
 def start_capability_removal(payload: CapabilityRemovalRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return begin_removal(payload.capability,payload.reason,policy_actor(administrator))
+    try:return begin_removal(payload.capability,payload.reason,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/capability-removals/actions/emergency-shutdown",status_code=202)
 def start_emergency_capability_shutdown(payload: EmergencyShutdownRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return emergency_shutdown(payload.reason,policy_actor(administrator))
+    try:return emergency_shutdown(payload.reason,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/capability-removals/{removal_id}/steps")
 def record_capability_removal_step(removal_id: str,payload: RemovalStepRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return complete_removal_step(removal_id,payload.step_name,payload.evidence,policy_actor(administrator))
+    try:return complete_removal_step(removal_id,payload.step_name,payload.evidence,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except (ValueError,PermissionError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.get("/capability-removals/{removal_id}")
 def capability_removal_details(removal_id: str,x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
-    try:return get_removal(removal_id)
+    administrator=require_platform_admin(x_admin_pin)
+    try:return get_removal(removal_id,organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 

@@ -35,6 +35,14 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def resolve_org_id(administrator: dict) -> str:
+    """The org_id every P2.2 route scopes its data by, given the authenticated administrator
+    dict (as returned by admin_auth.require_admin()). Falls back to the default org for the
+    legacy GREYGUARD_ADMIN_PIN identity, which carries no active_org_id of its own - same
+    fallback already used by api.py's register_administrator()."""
+    return administrator.get("active_org_id") or DEFAULT_ORG_ID
+
+
 def _create_tables(connection) -> None:
     connection.execute("""
         CREATE TABLE IF NOT EXISTS organizations (
