@@ -14,6 +14,8 @@ from .admin_auth import list_administrators
 from .alerts import get_alerts
 from .database import database_path, get_administrator_audit_events
 from .policy_control import list_policy_versions
+from . import organizations
+from . import tenant_guard
 
 
 def utc_now() -> str:
@@ -43,7 +45,7 @@ def _within(timestamp: str | None, date_from: str | None, date_to: str | None) -
     return (not date_from or day >= date_from) and (not date_to or day <= date_to)
 
 
-def _privileged_activity(date_from: str | None, date_to: str | None) -> list[dict[str, Any]]:
+def _privileged_activity(date_from: str | None, date_to: str | None, org_id: str = organizations.DEFAULT_ORG_ID) -> list[dict[str, Any]]:
     tables = [
         ("policy_change_events", "timestamp", "actor", "event_type", "note", "policy_id"),
         ("secret_events", "timestamp", "actor", "event_type", "detail", "secret_id"),
@@ -60,10 +62,24 @@ def _privileged_activity(date_from: str | None, date_to: str | None) -> list[dic
         for table, timestamp, actor, event_type, detail, subject in tables:
             if table not in existing:
                 continue
-            rows = connection.execute(
-                f"SELECT {timestamp}, {actor}, {event_type}, {detail}, {subject} "
-                f"FROM {table} ORDER BY {timestamp} DESC LIMIT 500"
-            ).fetchall()
+            # compliance_reports itself is not yet tenant-scoped (it also pulls from
+            # audit_events/security_alerts/policy_versions, none of which are scoped either -
+            # that is its own future P2.2 batch). This table-by-table check exists only so this
+            # generic query never re-trips tenant_guard the moment one of these source tables
+            # gets its own org_id column in an earlier batch, as service_account_events and
+            # secret_events already have - defaulting to DEFAULT_ORG_ID until compliance_reports
+            # gets its own batch to thread a real org_id all the way through.
+            if table in tenant_guard.ORG_SCOPED_TABLES:
+                query = (
+                    f"SELECT {timestamp}, {actor}, {event_type}, {detail}, {subject} "
+                    f"FROM {table} WHERE org_id=? ORDER BY {timestamp} DESC LIMIT 500"
+                )
+                rows = connection.execute(query, (org_id,)).fetchall()
+            else:
+                rows = connection.execute(
+                    f"SELECT {timestamp}, {actor}, {event_type}, {detail}, {subject} "
+                    f"FROM {table} ORDER BY {timestamp} DESC LIMIT 500"
+                ).fetchall()
             for row in rows:
                 if _within(row[0], date_from, date_to):
                     activity.append({
@@ -73,7 +89,7 @@ def _privileged_activity(date_from: str | None, date_to: str | None) -> list[dic
     return sorted(activity, key=lambda item: item["timestamp"], reverse=True)
 
 
-def build_evidence(filters: dict[str, Any]) -> dict[str, Any]:
+def build_evidence(filters: dict[str, Any], org_id: str = organizations.DEFAULT_ORG_ID) -> dict[str, Any]:
     date_from = filters.get("date_from")
     date_to = filters.get("date_to")
     severities = {str(value).upper() for value in filters.get("severities", [])}
@@ -104,7 +120,7 @@ def build_evidence(filters: dict[str, Any]) -> dict[str, Any]:
         }
         for admin in list_administrators()
     ]
-    activity = _privileged_activity(date_from, date_to)
+    activity = _privileged_activity(date_from, date_to, org_id)
     return {
         "generated_at": utc_now(),
         "filters": filters,
@@ -135,14 +151,14 @@ def _digest(evidence: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def create_compliance_report(title: str, filters: dict[str, Any], actor: str) -> dict[str, Any]:
+def create_compliance_report(title: str, filters: dict[str, Any], actor: str, org_id: str = organizations.DEFAULT_ORG_ID) -> dict[str, Any]:
     initialize_compliance_reports()
     normalized_title = str(title).strip()
     if len(normalized_title) < 3:
         raise ValueError("Compliance report title must contain at least 3 characters.")
     if filters.get("date_from") and filters.get("date_to") and filters["date_from"] > filters["date_to"]:
         raise ValueError("Report start date cannot be after the end date.")
-    evidence = build_evidence(filters)
+    evidence = build_evidence(filters, org_id)
     summary = evidence_summary(evidence)
     report_id = "rpt_" + uuid.uuid4().hex
     created_at = utc_now()
