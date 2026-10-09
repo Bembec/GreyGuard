@@ -189,6 +189,31 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     # data - the same category as administrator_sessions and abuse_protection's tables above.
     "authentication_events",
     "oidc_login_attempts",
+    # P2.2 batch 14 (enterprise_identity.py, all six of its tables): surveyed each one
+    # individually rather than assuming the module as a whole is global or scoped.
+    # identity_providers/identity_role_mappings are enterprise SSO configuration selected by
+    # GET /auth/sso/providers before any administrator is authenticated - the same shape as
+    # oidc_login_attempts above, and the login page cannot know which org a not-yet-authenticated
+    # person is signing into. workload_identities is resolved by
+    # find_active_workload_identity_by_thumbprint(), called from agent_certificate_auth.py's
+    # pre-auth mTLS layer - the same shape as authentication_events, and agents are not
+    # tenant-scoped at all yet (agent_identities is still pending above). privilege_elevations
+    # and break_glass_activations are administrator-level governance requests, not tenant
+    # resources: the role being requested is the global admin_auth.ROLES enum (not a per-org
+    # governance_role), nothing in either workflow ever reads or writes an org_id anywhere, and
+    # break-glass eligibility is gated on administrators.break_glass - a global account flag,
+    # not a per-org one. Neither an approved elevation nor a break-glass activation currently
+    # mutates anything beyond its own status column (confirmed by reading every call site) -
+    # there is no enforcement tie-in today that an org concept could even attach to.
+    # enterprise_identity_events is this module's shared audit sink across all five tables
+    # above, the same category as administrator_security_events. Zero schema change - a pure
+    # registry move, same as batches 2, 9 and 10's.
+    "identity_providers",
+    "identity_role_mappings",
+    "workload_identities",
+    "privilege_elevations",
+    "break_glass_activations",
+    "enterprise_identity_events",
 })
 
 # Tables that exist today but have not yet had a tenant-scoping decision made - not a silent
@@ -211,11 +236,9 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "agent_identities", "alert_notes", "approval_events", "audit_events",
     "audit_integrity_chain", "audit_integrity_checks", "audit_legal_holds",
     "audit_retention_config",  # *
-    "break_glass_activations",
     "callback_evidence", "compliance_reports",
-    "enterprise_identity_events",
     "execution_events", "expiring_approval_links", "export_destinations", "export_queue",
-    "external_incident_records", "identity_providers", "identity_role_mappings",
+    "external_incident_records",
     "incident_destinations",
     "notification_deliveries", "notification_destinations", "notification_retention_events",
     "notification_retention_policy",  # *
@@ -244,9 +267,8 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_versions", "policy_change_events", "policy_test_cases",
     "policy_emergency_controls",  # *
     "policy_emergency_events", "policy_integration_events", "policy_rollouts",
-    "privilege_elevations",
     "security_alerts", "security_notifications",
-    "tool_requests", "workload_identities",
+    "tool_requests",
 })
 
 _STATEMENT_TABLE = re.compile(
