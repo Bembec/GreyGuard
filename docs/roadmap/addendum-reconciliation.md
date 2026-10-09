@@ -68,7 +68,18 @@ These were part of the original engineering task's "Operations and structural co
 
 ## P2 — Tenant and commercial platform foundation
 
-**Status: Deferred**, same basis as P1, and additionally blocked on the Alembic baseline migration above. Not started. No organizations/tenancy/billing code exists anywhere in the repository (confirmed: no `organization`/`tenant`/`billing` tables or modules).
+**Status: In progress — Sub-phase 1 of 6 (organizations, membership, auth-chain plumbing, the tenant-scoping safety net) verified.** Michael approved beginning this workstream ("Phase C"). The Alembic baseline migration this phase was blocked on is now done (see above), so P2 is unblocked at the infrastructure level. Split into 6 reviewable sub-phases mirroring P1's cadence - each gets its own explicit go-ahead before work starts. Two decisions made up front: (1) one administrator account can belong to multiple organizations, not one-org-per-account; (2) billing is a provider-neutral interface plus a mock/sandbox implementation only (P2.4), no live payment processor.
+
+| Sub-phase | Status | Evidence |
+|---|---|---|
+| P2.1 — Organizations, membership, invitations, auth-chain plumbing, tenant-scoping safety net | **Verified** | New `organizations`/`org_memberships`/`org_invitations` tables (SQLite via `organizations.py`, PostgreSQL via a new Alembic revision verified against a real rehearsal container in both directions). Default org seeded, every pre-existing administrator backfilled with role carried over verbatim. Two orthogonal roles per membership (operational_role reuses the existing PLATFORM_ADMIN/SECURITY_ANALYST/AUDITOR enum unchanged; governance_role OWNER/BILLING_ADMIN/MEMBER is new) rather than a collapsed enum - zero changes needed to any existing permission-check function. `admin_auth.validate_session()` now resolves role from the session's active org membership when one exists, falling back to the legacy global role otherwise - every pre-P2.1 test fixture keeps working unchanged. New `POST /auth/active-org` switches without re-authenticating; `UserMenu` grows an org switcher (hidden when there is only one org). The structural safety net this whole phase's biggest risk depends on - `tenant_guard.py`, routing every query through both database backends - is built and proven now, while empty, rather than after P2.2's real per-table sweep already depends on it. Commit `0331616`. |
+| P2.2 — Tenant-scoping sweep (org_id on ~60 resource tables + the 7 singleton configs) | **Not started** | Deliberately isolated as its own sub-phase - the large, high-risk one. Not begun. |
+| P2.3 — Entitlements, plans, trials, usage meters | **Not started** | Depends on P2.2. |
+| P2.4 — Billing (provider-neutral interface, mock provider, billing-event evidence, license leases) | **Not started** | Depends on P2.3. |
+| P2.5 — Organization lifecycle (export, deletion, onboarding, offboarding) | **Not started** | Depends on P2.2 and P2.4. |
+| P2.6 — Capstone: cross-tenant isolation + billing-failure safety acceptance suite | **Not started** | Deliberately last - needs every preceding sub-phase to exist to be meaningful. |
+
+**Verification run for P2.1:** full existing backend suite (435 passed, 4 skipped, 0 failed) confirms zero regressions; 29 new backend tests (organizations, membership governance, invitations, active-org switching, the tenant-guard mechanism) all pass; frontend tsc/lint/113 unit tests/build all clean; full Playwright suite 43/44 passed (1 skipped, no agents registered in this environment) including a new `org-switcher.spec.ts` that creates a real second organization via the API and confirms switching in a real browser; the PostgreSQL migration verified against a real rehearsal container in both directions (upgrade with existing administrators present, full downgrade, re-upgrade).
 
 ---
 
