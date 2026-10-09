@@ -41,6 +41,17 @@ import re
 # has no live call site writing to it anywhere in the codebase today (confirmed by search); the
 # column was still added for schema completeness and to let it leave PENDING_TENANT_SCOPING
 # honestly rather than leaving a quietly-abandoned table in the "undecided" bucket.
+#
+# P2.2 batch 4 (service_accounts, service_account_keys, service_account_events):
+# service_accounts had a different fixed-shape problem than batches 1-2's - not a fixed set of
+# named rows, but a plain `UNIQUE(name)` constraint (case-insensitive, COLLATE NOCASE/citext)
+# that would let two orgs collide on the same human-chosen account name. Reshaped to
+# `UNIQUE(name, org_id)` via the same SQLite rename/rebuild dance used for a composite primary
+# key, since SQLite can't alter a UNIQUE constraint in place either. The bearer-key verification
+# route (`authenticate_service_key`, used by `POST /service-accounts/verify`) deliberately takes
+# no org_id parameter: it looks a key up by its globally-unique random `key_prefix` before any
+# org is knowable, then reads org_id back off the resolved row - the same "identify first, scope
+# second" shape as admin_auth's own session-token lookups.
 ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "simulation_runs",
     "capability_removals",
@@ -53,6 +64,9 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "defensive_response_plans",
     "endpoint_collectors",
     "endpoint_telemetry_events",
+    "service_accounts",
+    "service_account_keys",
+    "service_account_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -127,7 +141,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_test_cases", "policy_versions", "privilege_elevations", "quarantined_artifacts",
     "report_schedules", "secret_events",
     "secret_references", "security_alerts", "security_notifications",
-    "service_account_events", "service_account_keys", "service_accounts",
     "simulation_config",  # *
     "threat_register", "threat_register_history", "tool_requests", "workload_identities",
 })

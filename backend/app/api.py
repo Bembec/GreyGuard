@@ -1829,9 +1829,9 @@ def emergency_secret_revocation(payload: EmergencySecretRevocationRequest, x_adm
 @app.get("/service-accounts")
 def administrator_service_accounts(x_admin_pin: str | None = Header(default=None)):
     """Return machine identities without plaintext API keys."""
-    require_platform_admin(x_admin_pin)
+    administrator = require_platform_admin(x_admin_pin)
     return {
-        "service_accounts": list_service_accounts(),
+        "service_accounts": list_service_accounts(organizations.resolve_org_id(administrator)),
         "available_scopes": sorted(AVAILABLE_SCOPES),
         "plaintext_keys_stored": False,
     }
@@ -1860,6 +1860,7 @@ def administrator_create_service_account(
         return create_service_account(
             payload.name, payload.description, payload.scopes,
             payload.expires_in_days, policy_actor(administrator),
+            organizations.resolve_org_id(administrator),
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -1874,7 +1875,8 @@ def administrator_rotate_service_account_key(
     administrator = require_platform_admin(x_admin_pin)
     try:
         return rotate_service_account_key(
-            account_id, payload.expires_in_days, policy_actor(administrator)
+            account_id, payload.expires_in_days, policy_actor(administrator),
+            organizations.resolve_org_id(administrator),
         )
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -1889,7 +1891,7 @@ def administrator_revoke_service_account(
 ):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        return revoke_service_account(account_id, policy_actor(administrator))
+        return revoke_service_account(account_id, policy_actor(administrator), organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
