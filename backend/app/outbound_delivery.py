@@ -46,6 +46,10 @@ CLOUD_METADATA_IPV4 = ipaddress.ip_address("169.254.169.254")
 CLOUD_METADATA_IPV6 = ipaddress.ip_address("fd00:ec2::254")  # AWS IPv6 metadata
 
 
+# Evidence subsystems with no tenant behind them; their rows carry a NULL org_id.
+INSTALL_LEVEL_EVIDENCE_SUBSYSTEMS = ("ENTERPRISE_SSO", "SSRF_ALLOWLIST")
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -58,7 +62,19 @@ def initialize_outbound_delivery() -> None:
         connection.execute("""CREATE TABLE IF NOT EXISTS outbound_delivery_evidence(
             evidence_id TEXT PRIMARY KEY, subsystem TEXT NOT NULL, record_id TEXT NOT NULL,
             event TEXT NOT NULL, attempt INTEGER, occurred_at TEXT NOT NULL,
-            worker_id TEXT, detail_json TEXT)""")
+            worker_id TEXT, detail_json TEXT, org_id TEXT)""")
+        # org_id is deliberately nullable here, unlike every other org-scoped table: NULL marks an
+        # install-level event with no tenant behind it (an enterprise SSO login handshake, a change
+        # to the install-wide SSRF allowlist), rather than misattributing it to org_default, which
+        # is a real tenant. Every org-scoped subsystem records its own org explicitly.
+        evidence_columns = {row[1] for row in connection.execute("PRAGMA table_info(outbound_delivery_evidence)")}
+        if "org_id" not in evidence_columns:
+            connection.execute("ALTER TABLE outbound_delivery_evidence ADD COLUMN org_id TEXT")
+            # Pre-existing tenant evidence predates orgs, so it all belongs to org_default; only
+            # the install-level subsystems keep NULL.
+            connection.execute(f"""UPDATE outbound_delivery_evidence SET org_id='org_default'
+                WHERE subsystem NOT IN ({",".join("?" * len(INSTALL_LEVEL_EVIDENCE_SUBSYSTEMS))})""",
+                tuple(INSTALL_LEVEL_EVIDENCE_SUBSYSTEMS))
 
 
 class SSRFBlocked(Exception):
@@ -73,15 +89,21 @@ class DeliveryError(Exception):
     """A transient failure; the caller should retry with backoff."""
 
 
-def record_evidence(subsystem, record_id, event, *, attempt=None, detail=None, worker_id=None):
-    """Append-only lifecycle evidence: ENQUEUED/ATTEMPT/SUCCESS/FAILURE/RETRY/DEAD_LETTER/BLOCKED."""
+def record_evidence(subsystem, record_id, event, *, org_id, attempt=None, detail=None, worker_id=None):
+    """Append-only lifecycle evidence: ENQUEUED/ATTEMPT/SUCCESS/FAILURE/RETRY/DEAD_LETTER/BLOCKED.
+
+    org_id is a required keyword with no default, so a new call site cannot silently record
+    evidence without deciding which tenant it belongs to; pass None only for an install-level
+    event that has no tenant (see initialize_outbound_delivery())."""
     initialize_outbound_delivery()
     safe_detail = redact(detail) if detail is not None else None
     with sqlite3.connect(database_path) as connection:
         connection.execute(
-            "INSERT INTO outbound_delivery_evidence VALUES(?,?,?,?,?,?,?,?)",
+            """INSERT INTO outbound_delivery_evidence(evidence_id,subsystem,record_id,event,attempt,
+                occurred_at,worker_id,detail_json,org_id) VALUES(?,?,?,?,?,?,?,?,?)""",
             ("oev_" + uuid.uuid4().hex, subsystem, str(record_id), event, attempt, utc_now(),
-             worker_id, json.dumps(safe_detail, separators=(",", ":"), sort_keys=True) if safe_detail is not None else None),
+             worker_id, json.dumps(safe_detail, separators=(",", ":"), sort_keys=True) if safe_detail is not None else None,
+             org_id),
         )
 
 
@@ -122,7 +144,7 @@ def allow_private_destination(host, reason, actor):
                                 (reason, utc_now(), actor, host))
         else:
             connection.execute("INSERT INTO outbound_allowed_private_hosts VALUES(?,?,?,?)", (host, reason, utc_now(), actor))
-    record_evidence("SSRF_ALLOWLIST", host, "ALLOWED", detail={"reason": reason, "actor": actor})
+    record_evidence("SSRF_ALLOWLIST", host, "ALLOWED", org_id=None, detail={"reason": reason, "actor": actor})
     return {"host": host, "reason": reason, "created_by": actor}
 
 
@@ -133,7 +155,7 @@ def revoke_private_destination(host, actor):
         changed = connection.execute("DELETE FROM outbound_allowed_private_hosts WHERE host=?", (host,)).rowcount
     if not changed:
         raise KeyError("Private-destination allowance not found.")
-    record_evidence("SSRF_ALLOWLIST", host, "REVOKED", detail={"actor": actor})
+    record_evidence("SSRF_ALLOWLIST", host, "REVOKED", org_id=None, detail={"actor": actor})
     return {"host": host, "revoked_by": actor}
 
 

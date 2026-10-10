@@ -94,7 +94,7 @@ def run_due_schedules(generator=None,exporter=None,notifier=None,limit=10,worker
   rows=c.execute("SELECT schedule_id,title,frequency,enabled,next_run_at,created_by,created_at,disabled_at,claim_token,claimed_at,last_run_at,last_status,last_error,notify_destination_id,org_id FROM report_schedules WHERE claim_token=?",(claim_token,)).fetchall()
  results=[]
  for row in rows:
-  record_evidence("REPORT_SCHEDULE",row["schedule_id"],"ATTEMPT",worker_id=worker_id)
+  record_evidence("REPORT_SCHEDULE",row["schedule_id"],"ATTEMPT",org_id=row["org_id"],worker_id=worker_id)
   try:
    date_from=str(row["last_run_at"] or row["created_at"])[:10]
    report=generator(f"{row['title']} — {now[:10]}",{"date_from":date_from,"date_to":now[:10]},"system-schedule",org_id=row["org_id"])
@@ -104,15 +104,15 @@ def run_due_schedules(generator=None,exporter=None,notifier=None,limit=10,worker
    with sqlite3.connect(database_path) as c:
     c.execute("""UPDATE report_schedules SET next_run_at=?,last_run_at=?,last_status='COMPLETED',last_error=NULL,
      claim_token=NULL,claimed_at=NULL WHERE schedule_id=? AND org_id=?""",(next_run,now,row["schedule_id"],row["org_id"]))
-   record_evidence("REPORT_SCHEDULE",row["schedule_id"],"SUCCESS",detail={"report_id":report["report_id"]},worker_id=worker_id)
+   record_evidence("REPORT_SCHEDULE",row["schedule_id"],"SUCCESS",org_id=row["org_id"],detail={"report_id":report["report_id"]},worker_id=worker_id)
    if notifier and row["notify_destination_id"]:
     try:notifier(row["notify_destination_id"],{"event_type":"REPORT_READY","severity":"INFO","title":f"{row['title']} is ready","summary":f"Report {report['report_id']} was generated and signed.","source_id":report["report_id"]},org_id=row["org_id"])
-    except Exception as error:record_evidence("REPORT_SCHEDULE",row["schedule_id"],"NOTIFY_FAILED",detail={"error":safe_error(error)},worker_id=worker_id)
+    except Exception as error:record_evidence("REPORT_SCHEDULE",row["schedule_id"],"NOTIFY_FAILED",org_id=row["org_id"],detail={"error":safe_error(error)},worker_id=worker_id)
    results.append({"schedule_id":row["schedule_id"],"report_id":report["report_id"],"signature":manifest["signature"]})
   except Exception as error:
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE report_schedules SET last_status='FAILED',last_error=?,claim_token=NULL,claimed_at=NULL WHERE schedule_id=? AND org_id=?",(safe_error(error),row["schedule_id"],row["org_id"]))
-   record_evidence("REPORT_SCHEDULE",row["schedule_id"],"FAILURE",detail={"error":safe_error(error)},worker_id=worker_id)
+   record_evidence("REPORT_SCHEDULE",row["schedule_id"],"FAILURE",org_id=row["org_id"],detail={"error":safe_error(error)},worker_id=worker_id)
  return {"processed":len(rows),"results":results}
 def disable_schedule(schedule_id,actor,org_id=organizations.DEFAULT_ORG_ID):
  with sqlite3.connect(database_path) as c:changed=c.execute("UPDATE report_schedules SET enabled=0,disabled_at=? WHERE schedule_id=? AND org_id=? AND enabled=1",(utc_now(),schedule_id,org_id)).rowcount

@@ -160,11 +160,11 @@ def test_claim_tokens_are_unique():
 
 
 def test_evidence_is_recorded_and_secrets_are_redacted(isolated):
-    od.record_evidence("TEST_SUBSYSTEM", "rec_1", "ATTEMPT", attempt=1,
+    od.record_evidence("TEST_SUBSYSTEM", "rec_1", "ATTEMPT", org_id="org_default", attempt=1,
                         detail={"endpoint": "https://example.test", "api_key": "super-secret-value"})
     with od.sqlite3.connect(od.database_path) as connection:
         connection.row_factory = od.sqlite3.Row
-        row = connection.execute("SELECT * FROM outbound_delivery_evidence WHERE record_id='rec_1'").fetchone()
+        row = connection.execute("SELECT * FROM outbound_delivery_evidence WHERE record_id='rec_1' AND org_id='org_default'").fetchone()
     assert row["subsystem"] == "TEST_SUBSYSTEM"
     assert row["event"] == "ATTEMPT"
     detail = json.loads(row["detail_json"])
@@ -176,8 +176,36 @@ def test_allowlist_changes_are_recorded_as_evidence(isolated):
     od.allow_private_destination("audit-me.corp", "Needed for audit trail test", "admin@example.com")
     with od.sqlite3.connect(od.database_path) as connection:
         connection.row_factory = od.sqlite3.Row
-        rows = connection.execute("SELECT * FROM outbound_delivery_evidence WHERE record_id='audit-me.corp'").fetchall()
+        rows = connection.execute("SELECT * FROM outbound_delivery_evidence WHERE record_id='audit-me.corp' AND org_id IS NULL").fetchall()
     assert any(row["event"] == "ALLOWED" for row in rows)
+
+
+def test_evidence_requires_an_explicit_org_decision(isolated):
+    # No default: a new call site must say which org its evidence belongs to (or None for an
+    # install-level event), so evidence can never be silently left unattributed.
+    with pytest.raises(TypeError):
+        od.record_evidence("TEST_SUBSYSTEM", "rec_2", "ATTEMPT")
+
+
+def test_legacy_evidence_is_backfilled_except_install_level_events(tmp_path, monkeypatch):
+    import sqlite3
+
+    path = tmp_path / "legacy.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute("""CREATE TABLE outbound_delivery_evidence(
+            evidence_id TEXT PRIMARY KEY, subsystem TEXT NOT NULL, record_id TEXT NOT NULL,
+            event TEXT NOT NULL, attempt INTEGER, occurred_at TEXT NOT NULL,
+            worker_id TEXT, detail_json TEXT)""")
+        connection.execute("INSERT INTO outbound_delivery_evidence VALUES('oev_legacy','SECURITY_EXPORT','exp_1','SUCCESS',1,'2026-01-01',NULL,NULL)")
+        connection.execute("INSERT INTO outbound_delivery_evidence VALUES('oev_sso','ENTERPRISE_SSO','idp_1','LOGIN_SUCCESS',NULL,'2026-01-01',NULL,NULL)")
+    monkeypatch.setattr(od, "database_path", path)
+    od.initialize_outbound_delivery()
+    od.record_evidence("SECURITY_EXPORT", "exp_2", "SUCCESS", org_id="org_other")
+    with sqlite3.connect(path) as connection:
+        rows = dict(connection.execute("SELECT evidence_id, org_id FROM outbound_delivery_evidence").fetchall())
+    assert rows.pop("oev_legacy") == "org_default"
+    assert rows.pop("oev_sso") is None
+    assert list(rows.values()) == ["org_other"]
 
 
 # -- a real local TLS server, to exercise the pinned-connection sender end to end -----

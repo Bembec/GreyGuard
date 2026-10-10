@@ -263,7 +263,7 @@ def begin_login(provider_id: str) -> dict:
             (state, provider_id, nonce, verifier, redirect_uri, now.isoformat(),
              (now + timedelta(seconds=LOGIN_ATTEMPT_TTL_SECONDS)).isoformat()),
         )
-    record_evidence("ENTERPRISE_SSO", provider_id, "LOGIN_BEGIN")
+    record_evidence("ENTERPRISE_SSO", provider_id, "LOGIN_BEGIN", org_id=None)
     query = urlencode({
         "response_type": "code",
         "client_id": provider["client_id"],
@@ -347,13 +347,13 @@ def complete_login(state: str, code: str, device_name: str = "Unknown device", i
         provision_sso_administrator(email, display_name, role, provider["provider_id"])
         session = issue_sso_session(email, device_name, ip_address)
     except SSOError as error:
-        record_evidence("ENTERPRISE_SSO", provider_id_for_evidence, "LOGIN_FAILURE", detail={"error": str(error)})
+        record_evidence("ENTERPRISE_SSO", provider_id_for_evidence, "LOGIN_FAILURE", org_id=None, detail={"error": str(error)})
         raise
     except ValueError as error:
         # provision_sso_administrator/issue_sso_session raise plain ValueError for "the matched
         # local account isn't ACTIVE" - surfaced as the same generic failure, not a stack trace.
-        record_evidence("ENTERPRISE_SSO", provider_id_for_evidence, "LOGIN_FAILURE", detail={"error": str(error)})
+        record_evidence("ENTERPRISE_SSO", provider_id_for_evidence, "LOGIN_FAILURE", org_id=None, detail={"error": str(error)})
         raise SSOError("Administrator authentication failed.") from error
 
-    record_evidence("ENTERPRISE_SSO", provider["provider_id"], "LOGIN_SUCCESS")
+    record_evidence("ENTERPRISE_SSO", provider["provider_id"], "LOGIN_SUCCESS", org_id=None)
     return session

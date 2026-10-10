@@ -75,7 +75,7 @@ def queue_incident(destination_id,alert,org_id=organizations.DEFAULT_ORG_ID):
   rid="incx_"+uuid.uuid4().hex
   try:c.execute("INSERT INTO external_incident_records(record_id,destination_id,source_alert_id,created_at,status,payload_json,external_id,delivered_at,last_error,attempts,available_at,org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",(rid,destination_id,source,utc_now(),"QUEUED",json.dumps(payload,separators=(",",":"),sort_keys=True),None,None,None,0,utc_now(),org_id))
   except sqlite3.IntegrityError:return {"status":"DEDUPLICATED","source_alert_id":source}
- record_evidence("INCIDENT_INTEGRATION",rid,"ENQUEUED",detail={"destination_id":destination_id,"source_alert_id":source})
+ record_evidence("INCIDENT_INTEGRATION",rid,"ENQUEUED",org_id=org_id,detail={"destination_id":destination_id,"source_alert_id":source})
  with sqlite3.connect(database_path) as c:
   c.row_factory=sqlite3.Row;return dict(c.execute("SELECT * FROM external_incident_records WHERE record_id=? AND org_id=?",(rid,org_id)).fetchone())
 def _external_id_from_response(body,fallback):
@@ -114,29 +114,29 @@ def process_incidents(sender,limit=100,worker_id=None):
    JOIN incident_destinations d ON d.destination_id=r.destination_id AND d.org_id=r.org_id WHERE r.claim_token=?""",(claim_token,)).fetchall()
  for row in rows:
   attempts=row["attempts"]+1
-  record_evidence("INCIDENT_INTEGRATION",row["record_id"],"ATTEMPT",attempt=attempts,worker_id=worker_id)
+  record_evidence("INCIDENT_INTEGRATION",row["record_id"],"ATTEMPT",org_id=row["org_id"],attempt=attempts,worker_id=worker_id)
   try:
    external_id=sender(row["system_type"],row["endpoint"],row["credential_reference"],json.loads(row["payload_json"]),idempotency_key=row["record_id"])
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE external_incident_records SET status='CREATED',attempts=?,external_id=?,delivered_at=?,last_error=NULL,claim_token=NULL,claimed_at=NULL WHERE record_id=? AND org_id=?",(attempts,str(external_id),utc_now(),row["record_id"],row["org_id"]))
     c.execute("UPDATE incident_destinations SET last_success_at=?,last_error=NULL WHERE destination_id=? AND org_id=?",(utc_now(),row["destination_id"],row["org_id"]))
-   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"SUCCESS",attempt=attempts,worker_id=worker_id)
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"SUCCESS",org_id=row["org_id"],attempt=attempts,worker_id=worker_id)
   except SSRFBlocked as error:
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE external_incident_records SET status='BLOCKED',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE record_id=? AND org_id=?",(attempts,safe_error(error),row["record_id"],row["org_id"]))
-   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"BLOCKED",attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"BLOCKED",org_id=row["org_id"],attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
   except PermanentDeliveryError as error:
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE external_incident_records SET status='DEAD_LETTER',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE record_id=? AND org_id=?",(attempts,safe_error(error),row["record_id"],row["org_id"]))
     c.execute("UPDATE incident_destinations SET last_failure_at=?,last_error=? WHERE destination_id=? AND org_id=?",(utc_now(),safe_error(error),row["destination_id"],row["org_id"]))
-   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"DEAD_LETTER",attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"DEAD_LETTER",org_id=row["org_id"],attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
   except Exception as error:
    terminal=attempts>=row["max_attempts"]
    available=(datetime.now(timezone.utc)+timedelta(seconds=backoff_seconds(attempts))).isoformat()
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE external_incident_records SET status=?,attempts=?,available_at=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE record_id=? AND org_id=?",("DEAD_LETTER" if terminal else "QUEUED",attempts,available,safe_error(error),row["record_id"],row["org_id"]))
     c.execute("UPDATE incident_destinations SET last_failure_at=?,last_error=? WHERE destination_id=? AND org_id=?",(utc_now(),safe_error(error),row["destination_id"],row["org_id"]))
-   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"DEAD_LETTER" if terminal else "RETRY",attempt=attempts,detail={"error":safe_error(error)},worker_id=worker_id)
+   record_evidence("INCIDENT_INTEGRATION",row["record_id"],"DEAD_LETTER" if terminal else "RETRY",org_id=row["org_id"],attempt=attempts,detail={"error":safe_error(error)},worker_id=worker_id)
   processed+=1
  return {"processed":processed}
 def create_approval_link(request_id,decision,minutes,actor):

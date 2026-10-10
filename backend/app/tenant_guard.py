@@ -173,6 +173,16 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # tool_requests (itself still pending), and callbacks are not yet tied to a record's org.
     "incident_destinations",
     "external_incident_records",
+    # P2.2 batch 18 (outbound_delivery.py): outbound_delivery_evidence is the shared append-only
+    # lifecycle log every outbound subsystem writes through record_evidence(). Its org_id is
+    # deliberately NULLABLE - the one exception in this registry - because two of its writers are
+    # install-level with no tenant behind them (an enterprise SSO login handshake, which runs
+    # before any org is resolvable, and the install-wide SSRF allowlist below); NULL marks those
+    # rather than misattributing them to org_default, a real tenant. record_evidence() takes
+    # org_id as a required keyword with no default, so a new call site cannot silently record
+    # evidence without deciding which org it belongs to. No reader exists in application code yet;
+    # the column makes a future per-org evidence view possible without a second migration.
+    "outbound_delivery_evidence",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -284,7 +294,18 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones",
-    "outbound_allowed_private_hosts", "outbound_delivery_evidence",
+    # outbound_allowed_private_hosts (outbound_delivery.py) was surveyed for P2.2 batch 18 and
+    # deliberately left here. It is not tenant data: is_private_destination_allowed() is
+    # consulted on every org's outbound send, and every org's workers share one install network,
+    # so the allowlist is an install-wide network control - per-org scoping would still let any
+    # org open a path into the install's private network for its own destinations. But it cannot
+    # honestly be reclassified as global either: its write endpoints are gated by
+    # require_platform_admin(), and PLATFORM_ADMIN is now resolved from the caller's *org*
+    # membership (P2.1), so any org's admin can change an SSRF control that applies to every
+    # tenant. Correctly classifying it needs an install-level operator role that does not exist
+    # yet. observability_config (reclassified global in batch 9) has the same latent write-gate
+    # gap and should be revisited together with it.
+    "outbound_allowed_private_hosts",
     # policy_versions, policy_change_events, policy_test_cases, policy_emergency_controls (*)
     # and policy_emergency_events (policy_control.py) were surveyed for P2.2 batch 13 and
     # deliberately NOT scoped - a bigger finding than a table-shape problem. Enforcement never
