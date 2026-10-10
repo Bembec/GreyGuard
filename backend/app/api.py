@@ -57,6 +57,7 @@ from .admin_auth import (
 )
 from .database import (
     count_agent_identities,
+    get_tool_request as get_stored_tool_request,
     get_audit_summary,
     get_recent_authentication_events,
     get_recent_audit_events,
@@ -2194,23 +2195,25 @@ def create_external_incident(payload: ExternalIncidentRequest,x_admin_pin: str |
 
 @app.post("/incident-integrations/approval-links",status_code=201)
 def issue_expiring_approval_link(payload: ApprovalLinkCreateRequest,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_admin(x_admin_pin)
-    return create_approval_link(payload.request_id,payload.decision,payload.minutes,policy_actor(administrator))
+    administrator=require_admin(x_admin_pin);org_id=organizations.resolve_org_id(administrator)
+    # A link can only be issued for a tool request in the administrator's own org.
+    if get_stored_tool_request(payload.request_id,org_id=org_id) is None:raise HTTPException(status_code=404,detail="Tool request not found.")
+    return create_approval_link(payload.request_id,payload.decision,payload.minutes,policy_actor(administrator),org_id)
 
 
 @app.post("/incident-integrations/approval-links/consume")
 def use_expiring_approval_link(payload: ApprovalLinkConsumeRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_admin(x_admin_pin)
     try:
-        claim=consume_approval_link(payload.token,policy_actor(administrator))
+        claim=consume_approval_link(payload.token,policy_actor(administrator),organizations.resolve_org_id(administrator))
         return main.review_tool_request(request_id=claim["request_id"],actor=policy_actor(administrator),decision=claim["decision"],note=f"Decision through expiring approval link {claim['link_id']}.",org_id=organizations.resolve_org_id(administrator))
     except (ValueError,KeyError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.post("/incident-integrations/callbacks")
 def receive_signed_incident_callback(payload: SignedCallbackRequest,x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
-    try:return verify_callback(payload.record_id,payload.payload,payload.signature,payload.key_reference)
+    administrator=require_platform_admin(x_admin_pin)
+    try:return verify_callback(payload.record_id,payload.payload,payload.signature,payload.key_reference,organizations.resolve_org_id(administrator))
     except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
@@ -2319,8 +2322,7 @@ def create_kubernetes_isolated_job(payload: KubernetesJobRequest,x_admin_pin: st
 @app.get("/compliance-reports")
 def compliance_report_history(x_admin_pin: str | None = Header(default=None)):
     """Return immutable compliance-report history."""
-    require_admin(x_admin_pin)
-    return {"reports": list_compliance_reports()}
+    return {"reports": list_compliance_reports(org_id=organizations.resolve_org_id(require_admin(x_admin_pin)))}
 
 
 @app.post("/compliance-reports", status_code=201)
@@ -2340,6 +2342,9 @@ def generate_compliance_report(
                 "event_types": payload.event_types,
             },
             policy_actor(administrator),
+            # Before P2.2 this was omitted, so every report was built from the default org's
+            # evidence whichever org requested it.
+            org_id=organizations.resolve_org_id(administrator),
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -2350,9 +2355,9 @@ def compliance_report_details(
     report_id: str,
     x_admin_pin: str | None = Header(default=None),
 ):
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
     try:
-        return get_compliance_report(report_id)
+        return get_compliance_report(report_id, org_id=org_id)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -2363,19 +2368,19 @@ def export_compliance_report(
     format: Literal["json", "csv", "html", "pdf"] = Query(default="json"),
     x_admin_pin: str | None = Header(default=None),
 ):
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
     try:
         if format == "csv":
-            content = export_csv(report_id)
+            content = export_csv(report_id, org_id=org_id)
             media_type = "text/csv; charset=utf-8"
         elif format == "html":
-            content = export_html(report_id)
+            content = export_html(report_id, org_id=org_id)
             media_type = "text/html; charset=utf-8"
         elif format == "pdf":
-            content = export_pdf(report_id)
+            content = export_pdf(report_id, org_id=org_id)
             media_type = "application/pdf"
         else:
-            content = export_json(report_id)
+            content = export_json(report_id, org_id=org_id)
             media_type = "application/json"
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
@@ -2388,8 +2393,8 @@ def export_compliance_report(
 
 @app.get("/compliance-reports/{report_id}/evidence-catalog")
 def compliance_evidence_catalog(report_id: str,x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    try:return {"categories":evidence_catalog(report_id)}
+    org_id=organizations.resolve_org_id(require_admin(x_admin_pin))
+    try:return {"categories":evidence_catalog(report_id,org_id=org_id)}
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
 
@@ -2415,10 +2420,11 @@ def remove_report_schedule(schedule_id: str,x_admin_pin: str | None = Header(def
 
 @app.get("/compliance-reports/{report_id}/signed-manifest")
 def report_signed_manifest(report_id: str,x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
+    org_id=organizations.resolve_org_id(require_admin(x_admin_pin))
     try:
-        report=get_compliance_report(report_id,include_evidence=False)
-        checksums=export_checksums(report_id,{"json":export_json,"csv":export_csv,"html":export_html,"pdf":export_pdf})
+        report=get_compliance_report(report_id,include_evidence=False,org_id=org_id)
+        exporters={"json":export_json,"csv":export_csv,"html":export_html,"pdf":export_pdf}
+        checksums=export_checksums(report_id,{name:(lambda export:lambda rid:export(rid,org_id=org_id))(export) for name,export in exporters.items()})
         return signed_manifest(report,checksums)
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except RuntimeError as error:raise HTTPException(status_code=503,detail=str(error)) from error

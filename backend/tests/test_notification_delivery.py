@@ -60,7 +60,7 @@ def test_scheduled_report_notification_is_queued_within_the_schedules_organizati
  past=(dt.datetime.now(dt.timezone.utc)-dt.timedelta(minutes=5)).isoformat()
  report_governance.create_schedule("Other report","DAILY",past,"admin",notify_destination_id=other_item["destination_id"],org_id="org_other")
  result=report_governance.run_due_schedules(generator=lambda title,filters,actor,org_id=None:{"report_id":"rpt_1","title":title,"evidence_hash":"a"*64},
-                                            exporter=lambda report_id:b"{}",notifier=isolated.queue_notification)
+                                            exporter=lambda report_id,org_id=None:b"{}",notifier=isolated.queue_notification)
  assert [r["report_id"] for r in result["results"]]==["rpt_1"]
  subjects=[d["subject"] for d in isolated.list_configuration("org_other")["recent_deliveries"]]
  assert len(subjects)==1 and subjects[0].startswith("Other report") and subjects[0].endswith("is ready")

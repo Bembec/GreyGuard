@@ -253,6 +253,15 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "policy_adapters",
     "policy_rollouts",
     "policy_integration_events",
+    # P2.2 final batch: the last three tables. compliance_reports - a report belongs to the org
+    # whose evidence it snapshots (also fixed: the API built every report from the default org's
+    # evidence whichever org asked, and any org could read or export any org's report).
+    # expiring_approval_links - a link belongs to the org of the tool request it decides; it can
+    # only be issued for, and consumed by, that org. callback_evidence - recorded under the org
+    # that received the callback.
+    "compliance_reports",
+    "expiring_approval_links",
+    "callback_evidence",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -376,10 +385,7 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
 # constraint) that need the same composite-key reshape universal_capability_controls and
 # adapter_configs got, not a plain ADD COLUMN - flagged now so whichever batch tackles them
 # doesn't rediscover that the hard way.
-PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
-    "callback_evidence", "compliance_reports",
-    "expiring_approval_links",
-})
+PENDING_TENANT_SCOPING: frozenset[str] = frozenset()
 
 _STATEMENT_TABLE = re.compile(
     r"\b(?:FROM|UPDATE|INTO|TABLE)\s+(?:IF\s+NOT\s+EXISTS\s+)?[\"'`]?(\w+)[\"'`]?",

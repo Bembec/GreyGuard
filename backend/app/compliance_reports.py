@@ -33,9 +33,15 @@ def initialize_compliance_reports() -> None:
                 filters_json TEXT NOT NULL,
                 summary_json TEXT NOT NULL,
                 evidence_json TEXT NOT NULL,
-                evidence_hash TEXT NOT NULL
+                evidence_hash TEXT NOT NULL,
+                org_id TEXT NOT NULL DEFAULT 'org_default'
             )
         """)
+        # P2.2: a report belongs to the org whose evidence it snapshots (build_evidence() has
+        # been org-scoped since agent batch B); reports that predate orgs belong to org_default.
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(compliance_reports)")}
+        if "org_id" not in columns:
+            connection.execute("ALTER TABLE compliance_reports ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
 
 
 def _within(timestamp: str | None, date_from: str | None, date_to: str | None) -> bool:
@@ -167,15 +173,15 @@ def create_compliance_report(title: str, filters: dict[str, Any], actor: str, or
         connection.execute("""
             INSERT INTO compliance_reports (
                 report_id, title, created_by, created_at, filters_json,
-                summary_json, evidence_json, evidence_hash
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                summary_json, evidence_json, evidence_hash, org_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             report_id, normalized_title, actor, created_at,
             json.dumps(filters, separators=(",", ":")),
             json.dumps(summary, separators=(",", ":")),
-            json.dumps(evidence, separators=(",", ":"), default=str), digest,
+            json.dumps(evidence, separators=(",", ":"), default=str), digest, org_id,
         ))
-    return get_compliance_report(report_id, include_evidence=False)
+    return get_compliance_report(report_id, include_evidence=False, org_id=org_id)
 
 
 def _serialize(row: sqlite3.Row, include_evidence: bool) -> dict[str, Any]:
@@ -192,35 +198,35 @@ def _serialize(row: sqlite3.Row, include_evidence: bool) -> dict[str, Any]:
     return result
 
 
-def list_compliance_reports() -> list[dict[str, Any]]:
+def list_compliance_reports(*, org_id) -> list[dict[str, Any]]:
     initialize_compliance_reports()
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
-            "SELECT * FROM compliance_reports ORDER BY created_at DESC"
+            "SELECT * FROM compliance_reports WHERE org_id = ? ORDER BY created_at DESC", (org_id,)
         ).fetchall()
     return [_serialize(row, False) for row in rows]
 
 
-def get_compliance_report(report_id: str, include_evidence: bool = True) -> dict[str, Any]:
+def get_compliance_report(report_id: str, include_evidence: bool = True, *, org_id) -> dict[str, Any]:
     initialize_compliance_reports()
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
-            "SELECT * FROM compliance_reports WHERE report_id = ?", (report_id,)
+            "SELECT * FROM compliance_reports WHERE report_id = ? AND org_id = ?", (report_id, org_id)
         ).fetchone()
     if row is None:
         raise KeyError("Compliance report not found.")
     return _serialize(row, include_evidence)
 
 
-def export_json(report_id: str) -> bytes:
-    report = get_compliance_report(report_id, include_evidence=True)
+def export_json(report_id: str, *, org_id) -> bytes:
+    report = get_compliance_report(report_id, include_evidence=True, org_id=org_id)
     return json.dumps(report, indent=2, ensure_ascii=False).encode("utf-8")
 
 
-def export_csv(report_id: str) -> bytes:
-    report = get_compliance_report(report_id, include_evidence=True)
+def export_csv(report_id: str, *, org_id) -> bytes:
+    report = get_compliance_report(report_id, include_evidence=True, org_id=org_id)
     evidence = report["evidence"]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=[
@@ -246,8 +252,8 @@ def _safe_csv_row(row: dict[str, Any]) -> dict[str, Any]:
     return {key: _safe_csv_value(value) for key, value in row.items()}
 
 
-def evidence_catalog(report_id: str) -> list[dict[str, Any]]:
-    evidence = get_compliance_report(report_id, include_evidence=True)["evidence"]
+def evidence_catalog(report_id: str, *, org_id) -> list[dict[str, Any]]:
+    evidence = get_compliance_report(report_id, include_evidence=True, org_id=org_id)["evidence"]
     return [
         {"key": "agent_security_assessment", "label": "Agent security assessment", "count": len({item.get("agent_name") for item in evidence["audit_events"] if item.get("agent_name")})},
         {"key": "risk_timeline", "label": "Risk timeline", "count": len(evidence["security_alerts"])},
@@ -259,9 +265,9 @@ def evidence_catalog(report_id: str) -> list[dict[str, Any]]:
     ]
 
 
-def export_html(report_id: str) -> bytes:
-    report = get_compliance_report(report_id, include_evidence=True)
-    rows = "".join(f"<tr><th>{html.escape(item['label'])}</th><td>{item['count']}</td></tr>" for item in evidence_catalog(report_id))
+def export_html(report_id: str, *, org_id) -> bytes:
+    report = get_compliance_report(report_id, include_evidence=True, org_id=org_id)
+    rows = "".join(f"<tr><th>{html.escape(item['label'])}</th><td>{item['count']}</td></tr>" for item in evidence_catalog(report_id, org_id=org_id))
     title = html.escape(report["title"]); digest = html.escape(report["evidence_hash"])
     document = f"""<!doctype html><html><head><meta charset=\"utf-8\"><title>{title}</title><style>body{{font:14px Arial;color:#172033;margin:40px}}h1{{color:#102a43}}table{{border-collapse:collapse;width:100%}}th,td{{padding:10px;border:1px solid #cbd5e1;text-align:left}}code{{word-break:break-all}}@media print{{button{{display:none}}}}</style></head><body><button onclick=\"print()\">Print report</button><h1>{title}</h1><p>Generated {html.escape(report['created_at'])} by {html.escape(report['created_by'])}</p><p>Integrity: <strong>{'VERIFIED' if report['integrity_verified'] else 'FAILED'}</strong></p><table>{rows}</table><h2>Evidence checksum</h2><code>{digest}</code></body></html>"""
     return document.encode("utf-8")
@@ -271,10 +277,10 @@ def _pdf_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def export_pdf(report_id: str) -> bytes:
-    report = get_compliance_report(report_id, include_evidence=True)
+def export_pdf(report_id: str, *, org_id) -> bytes:
+    report = get_compliance_report(report_id, include_evidence=True, org_id=org_id)
     lines = [report["title"], f"Generated: {report['created_at']}", f"Created by: {report['created_by']}", f"Integrity: {'VERIFIED' if report['integrity_verified'] else 'FAILED'}"]
-    lines.extend(f"{item['label']}: {item['count']}" for item in evidence_catalog(report_id)); lines.append(f"SHA-256: {report['evidence_hash']}")
+    lines.extend(f"{item['label']}: {item['count']}" for item in evidence_catalog(report_id, org_id=org_id)); lines.append(f"SHA-256: {report['evidence_hash']}")
     stream = "BT /F1 12 Tf 50 790 Td " + " ".join(f"({_pdf_escape(line)}) Tj 0 -24 Td" for line in lines) + " ET"
     objects = ["1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj", "2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj", "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 842]/Resources<</Font<</F1 5 0 R>>>>/Contents 4 0 R>>endobj", f"4 0 obj<</Length {len(stream.encode('latin-1','replace'))}>>stream\n{stream}\nendstream endobj", "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj"]
     data = bytearray(b"%PDF-1.4\n"); offsets = [0]

@@ -32,8 +32,13 @@ def initialize_incident_integrations():
    c.execute("ALTER TABLE incident_destinations_org RENAME TO incident_destinations")
   c.execute("CREATE TABLE IF NOT EXISTS incident_destinations "+_DESTINATIONS_SCHEMA)
   c.execute("""CREATE TABLE IF NOT EXISTS external_incident_records(record_id TEXT PRIMARY KEY,destination_id TEXT NOT NULL,source_alert_id TEXT NOT NULL,created_at TEXT NOT NULL,status TEXT NOT NULL,payload_json TEXT NOT NULL,external_id TEXT,delivered_at TEXT,last_error TEXT,attempts INTEGER NOT NULL DEFAULT 0,available_at TEXT,claim_token TEXT,claimed_at TEXT,org_id TEXT NOT NULL DEFAULT 'org_default',UNIQUE(destination_id,source_alert_id))""")
-  c.execute("""CREATE TABLE IF NOT EXISTS expiring_approval_links(link_id TEXT PRIMARY KEY,request_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,decision TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,created_by TEXT NOT NULL,used_at TEXT,used_by TEXT,revoked_at TEXT)""")
-  c.execute("""CREATE TABLE IF NOT EXISTS callback_evidence(callback_id TEXT PRIMARY KEY,record_id TEXT NOT NULL,received_at TEXT NOT NULL,signature_valid INTEGER NOT NULL,payload_hash TEXT NOT NULL,outcome TEXT NOT NULL)""")
+  c.execute("""CREATE TABLE IF NOT EXISTS expiring_approval_links(link_id TEXT PRIMARY KEY,request_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,decision TEXT NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL,created_by TEXT NOT NULL,used_at TEXT,used_by TEXT,revoked_at TEXT,org_id TEXT NOT NULL DEFAULT 'org_default')""")
+  c.execute("""CREATE TABLE IF NOT EXISTS callback_evidence(callback_id TEXT PRIMARY KEY,record_id TEXT NOT NULL,received_at TEXT NOT NULL,signature_valid INTEGER NOT NULL,payload_hash TEXT NOT NULL,outcome TEXT NOT NULL,org_id TEXT NOT NULL DEFAULT 'org_default')""")
+  # P2.2: an approval link belongs to the org of the tool request it decides; callback evidence to
+  # the org that received it. Everything that predates orgs belongs to org_default.
+  for org_table in ("expiring_approval_links","callback_evidence"):
+   if "org_id" not in {row[1] for row in c.execute(f"PRAGMA table_info({org_table})")}:
+    c.execute(f"ALTER TABLE {org_table} ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
   # The CREATE TABLEs above already define every column, so these ALTERs only upgrade a pre-existing
   # database. As with export_queue (batch 15), tenant_guard checks each one and only the org_id ALTER
   # mentions the literal it requires, so a database old enough to predate the delivery columns must
@@ -48,7 +53,7 @@ def initialize_incident_integrations():
 def list_controls(org_id=organizations.DEFAULT_ORG_ID):
  initialize_incident_integrations()
  with sqlite3.connect(database_path) as c:
-  c.row_factory=sqlite3.Row;dest=[dict(r) for r in c.execute("SELECT * FROM incident_destinations WHERE org_id=? ORDER BY name",(org_id,))];records=[dict(r) for r in c.execute("SELECT record_id,destination_id,source_alert_id,created_at,status,external_id,delivered_at,last_error FROM external_incident_records WHERE org_id=? ORDER BY created_at DESC LIMIT 100",(org_id,))];links=[dict(r) for r in c.execute("SELECT link_id,request_id,decision,expires_at,created_at,created_by,used_at,used_by,revoked_at FROM expiring_approval_links ORDER BY created_at DESC LIMIT 100")]
+  c.row_factory=sqlite3.Row;dest=[dict(r) for r in c.execute("SELECT * FROM incident_destinations WHERE org_id=? ORDER BY name",(org_id,))];records=[dict(r) for r in c.execute("SELECT record_id,destination_id,source_alert_id,created_at,status,external_id,delivered_at,last_error FROM external_incident_records WHERE org_id=? ORDER BY created_at DESC LIMIT 100",(org_id,))];links=[dict(r) for r in c.execute("SELECT link_id,request_id,decision,expires_at,created_at,created_by,used_at,used_by,revoked_at FROM expiring_approval_links WHERE org_id=? ORDER BY created_at DESC LIMIT 100",(org_id,))]
  for d in dest:d["enabled"]=bool(d["enabled"]);d["credentials_stored"]=False
  return {"destinations":dest,"records":records,"approval_links":links,"systems":sorted(SYSTEMS)}
 def save_destination(name,system_type,endpoint,credential_reference,project_or_table,enabled,actor,org_id=organizations.DEFAULT_ORG_ID):
@@ -139,27 +144,29 @@ def process_incidents(sender,limit=100,worker_id=None):
    record_evidence("INCIDENT_INTEGRATION",row["record_id"],"DEAD_LETTER" if terminal else "RETRY",org_id=row["org_id"],attempt=attempts,detail={"error":safe_error(error)},worker_id=worker_id)
   processed+=1
  return {"processed":processed}
-def create_approval_link(request_id,decision,minutes,actor):
+def create_approval_link(request_id,decision,minutes,actor,org_id=organizations.DEFAULT_ORG_ID):
  decision=decision.upper()
  if decision not in {"APPROVED","DENIED"}:raise ValueError("Decision must be APPROVED or DENIED.")
  if not 5<=minutes<=60:raise ValueError("Approval links must expire within 5 to 60 minutes.")
  token=secrets.token_urlsafe(32);digest=hashlib.sha256(token.encode()).hexdigest();lid="alink_"+uuid.uuid4().hex;expires=(datetime.now(timezone.utc)+timedelta(minutes=minutes)).isoformat()
- with sqlite3.connect(database_path) as c:c.execute("INSERT INTO expiring_approval_links VALUES(?,?,?,?,?,?,?,?,?,?)",(lid,request_id,digest,decision,expires,utc_now(),actor,None,None,None))
+ with sqlite3.connect(database_path) as c:c.execute("INSERT INTO expiring_approval_links(link_id,request_id,token_hash,decision,expires_at,created_at,created_by,used_at,used_by,revoked_at,org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",(lid,request_id,digest,decision,expires,utc_now(),actor,None,None,None,org_id))
  return {"link_id":lid,"request_id":request_id,"decision":decision,"expires_at":expires,"token":token,"shown_once":True}
-def consume_approval_link(token,actor):
+def consume_approval_link(token,actor,org_id=organizations.DEFAULT_ORG_ID):
  digest=hashlib.sha256(token.encode()).hexdigest();now=utc_now()
  with sqlite3.connect(database_path) as c:
-  c.row_factory=sqlite3.Row;row=c.execute("SELECT * FROM expiring_approval_links WHERE token_hash=?",(digest,)).fetchone()
+  # Only the issuing org's administrators can use a link: another org's admin holding the token
+  # gets the same answer as for an invalid one.
+  c.row_factory=sqlite3.Row;row=c.execute("SELECT * FROM expiring_approval_links WHERE token_hash=? AND org_id=?",(digest,org_id)).fetchone()
   if not row:raise ValueError("Approval link is invalid.")
   if row["revoked_at"] or row["used_at"]:raise ValueError("Approval link is no longer active.")
   if row["expires_at"]<=now:raise ValueError("Approval link has expired.")
-  changed=c.execute("UPDATE expiring_approval_links SET used_at=?,used_by=? WHERE link_id=? AND used_at IS NULL",(now,actor,row["link_id"])).rowcount
+  changed=c.execute("UPDATE expiring_approval_links SET used_at=?,used_by=? WHERE link_id=? AND org_id=? AND used_at IS NULL",(now,actor,row["link_id"],org_id)).rowcount
   if not changed:raise ValueError("Approval link was already consumed.")
  return {"link_id":row["link_id"],"request_id":row["request_id"],"decision":row["decision"]}
-def verify_callback(record_id,payload,signature,key_reference):
+def verify_callback(record_id,payload,signature,key_reference,org_id=organizations.DEFAULT_ORG_ID):
  key=os.getenv(key_reference)
  if not key:raise ValueError("Callback signing-key reference is unavailable.")
  serialized=json.dumps(redact(payload),separators=(",",":"),sort_keys=True);expected="sha256="+hmac.new(key.encode(),serialized.encode(),hashlib.sha256).hexdigest();valid=hmac.compare_digest(expected,signature or "");cid="cb_"+uuid.uuid4().hex
- with sqlite3.connect(database_path) as c:c.execute("INSERT INTO callback_evidence VALUES(?,?,?,?,?,?)",(cid,record_id,utc_now(),int(valid),hashlib.sha256(serialized.encode()).hexdigest(),"ACCEPTED" if valid else "REJECTED"))
+ with sqlite3.connect(database_path) as c:c.execute("INSERT INTO callback_evidence(callback_id,record_id,received_at,signature_valid,payload_hash,outcome,org_id) VALUES(?,?,?,?,?,?,?)",(cid,record_id,utc_now(),int(valid),hashlib.sha256(serialized.encode()).hexdigest(),"ACCEPTED" if valid else "REJECTED",org_id))
  if not valid:raise PermissionError("Callback signature is invalid.")
  return {"callback_id":cid,"signature_valid":True,"payload":json.loads(serialized)}
