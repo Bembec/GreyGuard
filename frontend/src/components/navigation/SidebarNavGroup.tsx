@@ -3,7 +3,7 @@ import { useState } from "react"
 import { NavLink } from "react-router-dom"
 
 import type { NavigationGroup } from "../../config/navigationGroups"
-import type { NavigationItem } from "../../config/navigation"
+import { navigationPermission, type NavigationItem } from "../../config/navigation"
 import { useAuth } from "../../context/AuthContext"
 import { matchesPermission } from "../../hooks/usePermission"
 
@@ -17,7 +17,7 @@ export function SidebarNavGroup({ group, items }: SidebarNavGroupProps) {
   const { administrator } = useAuth()
   const [expanded, setExpanded] = useState(true)
   const visible = items.filter((item) =>
-    matchesPermission(administrator, item.requiredRole ? { role: item.requiredRole as "PLATFORM_ADMIN" } : undefined),
+    matchesPermission(administrator, navigationPermission(item)),
   )
   if (!visible.length) return null
 

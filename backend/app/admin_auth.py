@@ -77,6 +77,15 @@ def initialize_admin_auth() -> None:
         admin_columns = {row[1] for row in connection.execute("PRAGMA table_info(administrators)")}
         if "sso_provider_id" not in admin_columns:
             connection.execute("ALTER TABLE administrators ADD COLUMN sso_provider_id TEXT")
+        if "install_operator" not in admin_columns:
+            # Install operator: a global account flag (like break_glass), orthogonal to every
+            # per-org role. It gates the install-wide controls no single tenant may own - accounts,
+            # org creation, SSO configuration, rate limits, observability, the SSRF allowlist -
+            # which were previously gated by PLATFORM_ADMIN, a role P2.1 made per-org. Before
+            # orgs existed, every PLATFORM_ADMIN ran the whole install, so they are backfilled as
+            # operators: nobody loses access on upgrade.
+            connection.execute("ALTER TABLE administrators ADD COLUMN install_operator INTEGER NOT NULL DEFAULT 0")
+            connection.execute("UPDATE administrators SET install_operator = 1 WHERE role = 'PLATFORM_ADMIN'")
         connection.execute("""CREATE TABLE IF NOT EXISTS administrator_refresh_tokens (
             refresh_id TEXT PRIMARY KEY, family_id TEXT NOT NULL, session_id TEXT NOT NULL,
             token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, expires_at TEXT NOT NULL,
@@ -95,6 +104,7 @@ def initialize_admin_auth() -> None:
             role="PLATFORM_ADMIN",
             password=password,
             ignore_existing=True,
+            install_operator=True,
         )
 
 
@@ -116,10 +126,11 @@ def _public_admin(row: sqlite3.Row) -> dict:
         "password_expires_at": row["password_expires_at"] if "password_expires_at" in row.keys() else None,
         "break_glass": bool(row["break_glass"]) if "break_glass" in row.keys() else False,
         "sso_provider_id": row["sso_provider_id"] if "sso_provider_id" in row.keys() else None,
+        "install_operator": bool(row["install_operator"]) if "install_operator" in row.keys() else False,
     }
 
 
-def create_administrator(email, display_name, role, password, ignore_existing=False) -> dict:
+def create_administrator(email, display_name, role, password, ignore_existing=False, install_operator=False) -> dict:
     normalized_email = str(email).strip().lower()
     normalized_name = str(display_name).strip()
     normalized_role = str(role).strip().upper()
@@ -137,12 +148,13 @@ def create_administrator(email, display_name, role, password, ignore_existing=Fa
             connection.execute("""
                 INSERT INTO administrators (
                     admin_id,email,display_name,role,password_salt,password_hash,status,created_at,
-                    password_expires_at
-                ) VALUES (?,?,?,?,?,?, 'ACTIVE', ?,?)
+                    password_expires_at,install_operator
+                ) VALUES (?,?,?,?,?,?, 'ACTIVE', ?,?,?)
             """, (
                 admin_id, normalized_email, normalized_name, normalized_role,
                 salt.hex(), _password_digest(str(password), salt), timestamp,
                 (datetime.now(timezone.utc) + timedelta(days=PASSWORD_DAYS)).isoformat(),
+                int(bool(install_operator)),
             ))
     except sqlite3.IntegrityError:
         if not ignore_existing:
@@ -238,7 +250,8 @@ def setup_first_administrator(email: str, display_name: str, password: str, devi
         existing = connection.execute("SELECT COUNT(*) FROM administrators").fetchone()[0]
     if existing > 0:
         raise ValueError("An administrator account already exists.")
-    created = create_administrator(email=email, display_name=display_name, role="PLATFORM_ADMIN", password=password)
+    created = create_administrator(email=email, display_name=display_name, role="PLATFORM_ADMIN", password=password,
+                                   install_operator=True)
     from . import organizations  # deferred: organizations.py imports admin_auth at module level
     organizations.initialize_organizations()
     organizations.ensure_membership(organizations.DEFAULT_ORG_ID, created["admin_id"], "PLATFORM_ADMIN", "OWNER")
@@ -396,8 +409,16 @@ def _active_platform_admin_count(connection: sqlite3.Connection) -> int:
     ).fetchone()[0]
 
 
-def update_administrator(admin_id, display_name=None, role=None, status=None) -> dict:
-    """Update an operator while preserving at least one active platform administrator."""
+def _active_install_operator_count(connection: sqlite3.Connection) -> int:
+    return connection.execute(
+        "SELECT COUNT(*) FROM administrators WHERE install_operator = 1 AND status = 'ACTIVE'"
+    ).fetchone()[0]
+
+
+def update_administrator(admin_id, display_name=None, role=None, status=None, install_operator=None) -> dict:
+    """Update an operator while preserving at least one active platform administrator and at
+    least one active install operator - losing the last one would leave nobody able to manage
+    accounts, SSO, or any other install-wide control."""
     normalized_role = str(role).strip().upper() if role is not None else None
     normalized_status = str(status).strip().upper() if status is not None else None
     if normalized_role is not None and normalized_role not in ROLES:
@@ -420,15 +441,23 @@ def update_administrator(admin_id, display_name=None, role=None, status=None) ->
         )
         if removes_platform_admin and _active_platform_admin_count(connection) <= 1:
             raise ValueError("The final active Platform Administrator cannot be removed or disabled.")
+        current_operator = bool(current["install_operator"])
+        resulting_operator = current_operator if install_operator is None else bool(install_operator)
+        removes_install_operator = (
+            current_operator and current["status"] == "ACTIVE"
+            and (not resulting_operator or resulting_status != "ACTIVE")
+        )
+        if removes_install_operator and _active_install_operator_count(connection) <= 1:
+            raise ValueError("The final active install operator cannot be removed or disabled.")
         normalized_name = current["display_name"]
         if display_name is not None:
             normalized_name = str(display_name).strip()
             if not normalized_name:
                 raise ValueError("Display name cannot be empty.")
         connection.execute("""
-            UPDATE administrators SET display_name = ?, role = ?, status = ?
+            UPDATE administrators SET display_name = ?, role = ?, status = ?, install_operator = ?
             WHERE admin_id = ?
-        """, (normalized_name, resulting_role, resulting_status, admin_id))
+        """, (normalized_name, resulting_role, resulting_status, int(resulting_operator), admin_id))
         if resulting_status == "DISABLED":
             connection.execute(
                 "UPDATE administrator_sessions SET revoked_at = ? WHERE admin_id = ? AND revoked_at IS NULL",

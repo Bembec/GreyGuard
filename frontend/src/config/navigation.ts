@@ -1,3 +1,4 @@
+import type { PermissionCheck } from "../hooks/usePermission"
 import {
   AlertTriangle,
   Bell,
@@ -43,6 +44,8 @@ export interface NavigationItem {
   path: string
   description: string
   requiredRole?: string
+  /** Install-wide pages: visible only to install operators, whatever their role in the active org. */
+  requiresInstallOperator?: boolean
   /** Undefined for the one pinned item (Command Center), which renders above all groups. */
   group?: NavigationGroupId
   icon: LucideIcon
@@ -150,7 +153,7 @@ export const navigationItems: NavigationItem[] = [
     label: "Team & Access",
     path: "/team",
     description: "Administrator identities and roles",
-    requiredRole: "PLATFORM_ADMIN",
+    requiresInstallOperator: true,
     group: "administration",
     icon: UsersRound,
   },
@@ -182,7 +185,7 @@ export const navigationItems: NavigationItem[] = [
     label: "Observability",
     path: "/observability",
     description: "Tracing, metrics, correlation and export controls",
-    requiredRole: "PLATFORM_ADMIN",
+    requiresInstallOperator: true,
     group: "watch",
     icon: LineChart,
   },
@@ -285,7 +288,7 @@ export const navigationItems: NavigationItem[] = [
     label: "Enterprise Identity",
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",
-    requiredRole: "PLATFORM_ADMIN",
+    requiresInstallOperator: true,
     group: "gate",
     icon: Building2,
   },
@@ -293,7 +296,7 @@ export const navigationItems: NavigationItem[] = [
     label: "Abuse Protection",
     path: "/abuse-protection",
     description: "Rate limits, lockouts and burst controls",
-    requiredRole: "PLATFORM_ADMIN",
+    requiresInstallOperator: true,
     group: "gate",
     icon: ShieldEllipsis,
   },
@@ -305,3 +308,9 @@ export const navigationItems: NavigationItem[] = [
     icon: Settings,
   },
 ]
+
+/** The permission check that decides whether a navigation item is shown. */
+export function navigationPermission(item: NavigationItem): PermissionCheck | undefined {
+  if (item.requiresInstallOperator) return { installOperator: true }
+  return item.requiredRole ? { role: item.requiredRole as "PLATFORM_ADMIN" } : undefined
+}

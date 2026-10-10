@@ -6,7 +6,9 @@ import {
 
 import {
   navigationItems,
+  navigationPermission,
 } from "../config/navigation";
+import { matchesPermission } from "../hooks/usePermission";
 
 
 describe("GreyGuard navigation", () => {
@@ -49,9 +51,18 @@ describe("GreyGuard navigation", () => {
     expect(navigationItems.some((item) => item.path === "/compliance")).toBe(true);
   });
 
-  it("restricts abuse controls to platform administrators", () => {
-    const item = navigationItems.find((entry) => entry.path === "/abuse-protection");
-    expect(item?.requiredRole).toBe("PLATFORM_ADMIN");
+  it("restricts install-wide pages to install operators, not to an org's platform administrators", () => {
+    const orgAdmin = { admin_id: "a", email: "a@x", display_name: "A", role: "PLATFORM_ADMIN" as const, permissions: [] }
+    const operator = { ...orgAdmin, install_operator: true }
+    for (const path of ["/team", "/observability", "/enterprise-identity", "/abuse-protection"]) {
+      const item = navigationItems.find((entry) => entry.path === path)!
+      expect(navigationPermission(item)).toEqual({ installOperator: true })
+      expect(matchesPermission(orgAdmin, navigationPermission(item))).toBe(false)
+      expect(matchesPermission(operator, navigationPermission(item))).toBe(true)
+    }
+    // Tenant-scoped admin pages stay on the per-org role.
+    const exports = navigationItems.find((entry) => entry.path === "/security-exports")!
+    expect(matchesPermission(orgAdmin, navigationPermission(exports))).toBe(true)
   });
 
   it("restricts SIEM exports to platform administrators", () => {
