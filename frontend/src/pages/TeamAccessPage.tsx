@@ -16,6 +16,7 @@ export type AdminStatus = "ACTIVE" | "DISABLED"
 type Administrator = {
   admin_id: string; email: string; display_name: string; role: AdminRole;
   status: AdminStatus; created_at: string; last_login_at: string | null; permissions: string[]
+  install_operator?: boolean
 }
 type ListResponse = { administrators: Administrator[]; count: number }
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api"
@@ -50,7 +51,7 @@ export default function TeamAccessPage() {
   const [selected, setSelected] = useState<Administrator | null>(null)
   const [confirmAdmin, setConfirmAdmin] = useState<Administrator | null>(null)
   const [form, setForm] = useState({ email: "", display_name: "", role: "SECURITY_ANALYST" as AdminRole, password: "" })
-  const [edit, setEdit] = useState({ display_name: "", role: "AUDITOR" as AdminRole, status: "ACTIVE" as AdminStatus, password: "" })
+  const [edit, setEdit] = useState({ display_name: "", role: "AUDITOR" as AdminRole, status: "ACTIVE" as AdminStatus, install_operator: false, password: "" })
   const drawerCloseRef = useRef<HTMLButtonElement>(null)
   const drawerRef = useDismissableLayer<HTMLDivElement>({
     open: creating || !!selected,
@@ -67,7 +68,7 @@ export default function TeamAccessPage() {
     onSuccess: async () => { setCreating(false); setForm({ email: "", display_name: "", role: "SECURITY_ANALYST", password: "" }); pushToast({tone:"success",title:"Administrator created",message:"The accountable operator can now sign in with the assigned role."}); await refresh() },
   })
   const update = useMutation({
-    mutationFn: () => request<Administrator>(`/administrators/${selected?.admin_id}`, { method: "PUT", body: JSON.stringify({ display_name: edit.display_name, role: edit.role, status: edit.status }) }),
+    mutationFn: () => request<Administrator>(`/administrators/${selected?.admin_id}`, { method: "PUT", body: JSON.stringify({ display_name: edit.display_name, role: edit.role, status: edit.status, install_operator: edit.install_operator }) }),
     onSuccess: async value => { setSelected(value); pushToast({tone:"success",title:"Access profile updated"}); await refresh() },
   })
   const resetPassword = useMutation({
@@ -85,7 +86,7 @@ export default function TeamAccessPage() {
   }, [search, team.data])
   const open = (item: Administrator) => {
     setSelected(item)
-    setEdit({ display_name: item.display_name, role: item.role, status: item.status, password: "" })
+    setEdit({ display_name: item.display_name, role: item.role, status: item.status, install_operator: item.install_operator === true, password: "" })
   }
 
   if (!administrator?.install_operator) return <main className="team-page"><section className="team-denied"><Ban size={34}/><h1>Install operator access required</h1><p>Your role cannot manage operator identities.</p></section></main>
@@ -97,12 +98,12 @@ export default function TeamAccessPage() {
       {team.isLoading && <LoadingState label="Loading administrator accounts" rows={3}/>} 
       {team.isError && <ErrorState message={team.error.message} onRetry={() => void refresh()}/>} 
       {!team.isLoading&&!team.isError&&entries.length===0&&<EmptyState icon={<UsersRound size={30}/>} title="No administrators found" description="No operator account matches the current search."/>}
-      <div className="team-grid">{entries.map(item=><button type="button" className="team-card" key={item.admin_id} onClick={()=>open(item)}><span className={`team-avatar team-avatar--${item.status.toLowerCase()}`}>{item.display_name.slice(0,2).toUpperCase()}</span><div><strong>{item.display_name}</strong><small>{item.email}</small></div><span className="team-role">{formatRole(item.role)}</span><span className={`team-status team-status--${item.status.toLowerCase()}`}>{item.status}</span></button>)}</div>
+      <div className="team-grid">{entries.map(item=><button type="button" className="team-card" key={item.admin_id} onClick={()=>open(item)}><span className={`team-avatar team-avatar--${item.status.toLowerCase()}`}>{item.display_name.slice(0,2).toUpperCase()}</span><div><strong>{item.display_name}</strong><small>{item.email}</small></div><span className="team-role">{formatRole(item.role)}{item.install_operator&&<em className="team-operator">Install operator</em>}</span><span className={`team-status team-status--${item.status.toLowerCase()}`}>{item.status}</span></button>)}</div>
     </section>
 
     {(creating || selected) && <div className="team-modal"><button type="button" className="team-backdrop" onClick={()=>{setCreating(false);setSelected(null)}} aria-label="Close"/><section ref={drawerRef} className="team-drawer" role="dialog" aria-modal="true" aria-label={creating?"Add administrator":"Manage administrator"}><header><div><p>Role-based control</p><h2>{creating?"Add administrator":"Manage administrator"}</h2></div><button ref={drawerCloseRef} type="button" onClick={()=>{setCreating(false);setSelected(null)}} aria-label="Close"><X/></button></header>
       {creating ? <form onSubmit={e=>{e.preventDefault();create.mutate()}}><label>Display name<input required value={form.display_name} onChange={e=>setForm({...form,display_name:e.target.value})}/></label><label>Email<input required type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label><label>Role<select value={form.role} onChange={e=>setForm({...form,role:e.target.value as AdminRole})}>{Object.keys(roleDescriptions).map(role=><option key={role} value={role}>{formatRole(role as AdminRole)}</option>)}</select><small>{roleDescriptions[form.role]}</small></label><label>Temporary password<input required type="password" minLength={12} value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label><button disabled={create.isPending}>{create.isPending?"Creating…":"Create accountable operator"}</button>{create.isError&&<p className="team-error">{create.error.message}</p>}</form>
-      : selected && <div className="team-edit"><label>Display name<input value={edit.display_name} onChange={e=>setEdit({...edit,display_name:e.target.value})}/></label><label>Role<select value={edit.role} onChange={e=>setEdit({...edit,role:e.target.value as AdminRole})}>{Object.keys(roleDescriptions).map(role=><option key={role} value={role}>{formatRole(role as AdminRole)}</option>)}</select><small>{roleDescriptions[edit.role]}</small></label><label>Status<select value={edit.status} onChange={e=>setEdit({...edit,status:e.target.value as AdminStatus})}><option>ACTIVE</option><option>DISABLED</option></select></label><button onClick={()=>update.mutate()} disabled={update.isPending}>Save access profile</button><hr/><label>New password<input type="password" minLength={12} value={edit.password} onChange={e=>setEdit({...edit,password:e.target.value})} placeholder="At least 12 characters"/></label><button className="team-secondary" disabled={edit.password.length<12||resetPassword.isPending} onClick={()=>resetPassword.mutate()}><KeyRound size={16}/>Reset password</button><button className="team-danger" onClick={()=>setConfirmAdmin(selected)}>Revoke active sessions</button>{(update.isError||resetPassword.isError||revoke.isError)&&<p className="team-error">{update.error?.message||resetPassword.error?.message||revoke.error?.message}</p>}</div>}
+      : selected && <div className="team-edit"><label>Display name<input value={edit.display_name} onChange={e=>setEdit({...edit,display_name:e.target.value})}/></label><label>Role<select value={edit.role} onChange={e=>setEdit({...edit,role:e.target.value as AdminRole})}>{Object.keys(roleDescriptions).map(role=><option key={role} value={role}>{formatRole(role as AdminRole)}</option>)}</select><small>{roleDescriptions[edit.role]}</small></label><label>Status<select value={edit.status} onChange={e=>setEdit({...edit,status:e.target.value as AdminStatus})}><option>ACTIVE</option><option>DISABLED</option></select></label><label className="team-check"><input type="checkbox" checked={edit.install_operator} onChange={e=>setEdit({...edit,install_operator:e.target.checked})}/><span>Install operator<small>Manages install-wide controls for every organization: administrator accounts, SSO, observability, rate limits and the private-network allowlist. Independent of the role above.</small></span></label><button onClick={()=>update.mutate()} disabled={update.isPending}>Save access profile</button><hr/><label>New password<input type="password" minLength={12} value={edit.password} onChange={e=>setEdit({...edit,password:e.target.value})} placeholder="At least 12 characters"/></label><button className="team-secondary" disabled={edit.password.length<12||resetPassword.isPending} onClick={()=>resetPassword.mutate()}><KeyRound size={16}/>Reset password</button><button className="team-danger" onClick={()=>setConfirmAdmin(selected)}>Revoke active sessions</button>{(update.isError||resetPassword.isError||revoke.isError)&&<p className="team-error">{update.error?.message||resetPassword.error?.message||revoke.error?.message}</p>}</div>}
     </section></div>}
     <ConfirmDialog open={Boolean(confirmAdmin)} title="Revoke active sessions?" description={`${confirmAdmin?.display_name ?? "This administrator"} will be signed out from every active session and must authenticate again.`} confirmLabel="Revoke sessions" busy={revoke.isPending} onCancel={()=>setConfirmAdmin(null)} onConfirm={()=>confirmAdmin&&revoke.mutate(confirmAdmin)}/>
   </main>
