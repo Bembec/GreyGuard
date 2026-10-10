@@ -143,8 +143,8 @@ def retention_report(org_id=organizations.DEFAULT_ORG_ID):
     count=c.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
    rows.append({"data_set":table,"records":count,"retention_action":"Review configured retention before deletion"})
  return {"generated_at":utc_now(),"data_sets":rows,"automatic_deletion":False}
-def administrator_action_report(limit=200):
- events=get_administrator_audit_events(limit=min(max(int(limit),1),500))["events"];return {"generated_at":utc_now(),"actions":events,"count":len(events)}
+def administrator_action_report(limit=200,org_id=organizations.DEFAULT_ORG_ID):
+ events=get_administrator_audit_events(limit=min(max(int(limit),1),500),org_id=org_id)["events"];return {"generated_at":utc_now(),"actions":events,"count":len(events)}
 def create_postmortem(incident_id,title,actor,org_id=organizations.DEFAULT_ORG_ID):
  initialize_report_governance()
  incident_id=str(incident_id).strip();title=str(title).strip()

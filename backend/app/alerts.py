@@ -72,8 +72,10 @@ def sync_alerts_from_events(events: list[dict[str, Any]] | None = None, database
     """Create deduplicated alerts from high and critical evidence."""
     initialize_alert_database(database)
     if events is None:
-        from .database import get_administrator_audit_events
-        response = get_administrator_audit_events(limit=500)
+        from .database import ALL_ORGS, get_administrator_audit_events
+        # Install-level background derivation across every org's evidence; each event carries
+        # its own org_id (alerts themselves are org-scoped in a later P2.2 agent batch).
+        response = get_administrator_audit_events(limit=500, org_id=ALL_ORGS)
         events = response["events"]
 
     created = 0

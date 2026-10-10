@@ -225,6 +225,7 @@ from .enterprise_identity import (
     save_provider,
 )
 from .agent_certificate_auth import (
+    authenticate_agent_by_certificate,
     authenticate_and_authorize_agent_by_certificate,
     certificate_was_presented,
 )
@@ -2097,40 +2098,40 @@ def queue_security_export(
 
 @app.get("/audit-integrity")
 def audit_integrity_controls(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
+    require_install_operator(x_admin_pin)
     return get_audit_integrity_controls()
 
 
 @app.post("/audit-integrity/verify")
 def verify_audit_chain(x_admin_pin: str | None = Header(default=None)):
-    administrator = require_platform_admin(x_admin_pin)
+    administrator = require_install_operator(x_admin_pin)
     return verify_integrity(policy_actor(administrator))
 
 
 @app.put("/audit-integrity/retention")
 def configure_audit_retention(payload: AuditRetentionRequest, x_admin_pin: str | None = Header(default=None)):
-    administrator = require_platform_admin(x_admin_pin)
+    administrator = require_install_operator(x_admin_pin)
     try: return update_retention(payload.retention_days,payload.immutable_enabled,policy_actor(administrator))
     except PermissionError as error: raise HTTPException(status_code=409,detail=str(error)) from error
 
 
 @app.post("/audit-integrity/legal-holds",status_code=201)
 def add_audit_legal_hold(payload: LegalHoldRequest,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin)
+    administrator=require_install_operator(x_admin_pin)
     try: return create_legal_hold(payload.name,payload.reason,payload.agent_name,payload.starts_at,payload.ends_at,policy_actor(administrator))
     except ValueError as error: raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/audit-integrity/legal-holds/{hold_id}/release")
 def release_audit_legal_hold(hold_id: str,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin)
+    administrator=require_install_operator(x_admin_pin)
     try: return release_legal_hold(hold_id,policy_actor(administrator))
     except KeyError as error: raise HTTPException(status_code=404,detail=str(error)) from error
 
 
 @app.post("/audit-integrity/apply-retention")
 def execute_audit_retention(payload: RetentionExecutionRequest,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin)
+    administrator=require_install_operator(x_admin_pin)
     try: return apply_retention(policy_actor(administrator),payload.confirm)
     except PermissionError as error: raise HTTPException(status_code=409,detail=str(error)) from error
 
@@ -2194,7 +2195,7 @@ def use_expiring_approval_link(payload: ApprovalLinkConsumeRequest,x_admin_pin: 
     administrator=require_admin(x_admin_pin)
     try:
         claim=consume_approval_link(payload.token,policy_actor(administrator))
-        return main.review_tool_request(request_id=claim["request_id"],actor=policy_actor(administrator),decision=claim["decision"],note=f"Decision through expiring approval link {claim['link_id']}.")
+        return main.review_tool_request(request_id=claim["request_id"],actor=policy_actor(administrator),decision=claim["decision"],note=f"Decision through expiring approval link {claim['link_id']}.",org_id=organizations.resolve_org_id(administrator))
     except (ValueError,KeyError) as error:raise HTTPException(status_code=409,detail=str(error)) from error
 
 
@@ -2417,7 +2418,7 @@ def report_signed_manifest(report_id: str,x_admin_pin: str | None = Header(defau
 
 @app.get("/report-governance/administrator-actions")
 def governance_administrator_actions(x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin);return administrator_action_report()
+    administrator=require_admin(x_admin_pin);return administrator_action_report(org_id=organizations.resolve_org_id(administrator))
 
 
 @app.post("/report-governance/postmortems",status_code=201)
@@ -2694,7 +2695,7 @@ def agent_investigation(
     """Return a redacted, administrator-scoped agent investigation view."""
     agent_name = require_agent_in_org(agent_name, require_admin(x_admin_pin))
     try:
-        return build_agent_investigation(agent_name, limit)
+        return build_agent_investigation(agent_name, limit, org_id=main.agent_org_id(agent_name))
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Agent not found.") from error
 
@@ -3035,15 +3036,16 @@ def list_tool_requests(
         default=None,
     ),
 ):
-    """Return tool requests for administrators."""
+    """Return the administrator's org's tool requests."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     requests = get_tool_requests(
         agent_name=agent_name,
         approval_status=approval_status,
         execution_status=execution_status,
         limit=limit,
+        org_id=organizations.resolve_org_id(administrator),
     )
 
     return {
@@ -3074,10 +3076,34 @@ def get_tool_request(
         default=None,
     ),
 ):
-    """Return an agent's tool-request evidence."""
+    """Return an agent's tool-request evidence.
+
+    The agent is authenticated first and the request is then looked up in that agent's own org,
+    so an agent can never even confirm that another org's request id exists. Scope is enforced
+    for the request's action once it is known. (Before P2.2 agent batch B this route read a
+    "request" key the lookup never returned, so it failed with a 500 for every existing request.)
+    """
+
+    try:
+        if certificate_was_presented(x_ssl_client_verify):
+            identity = authenticate_agent_by_certificate(
+                x_ssl_client_verify, x_ssl_client_cert, x_agent_name,
+            )
+        else:
+            identity = main.authenticate_agent(
+                agent_name=x_agent_name,
+                credential=x_agent_key,
+            )
+    except main.AgentAuthenticationError as error:
+        raise HTTPException(
+            status_code=401,
+            detail=str(error),
+            headers={"WWW-Authenticate": "AgentCredential"},
+        ) from error
 
     details = get_tool_request_details(
-        request_id
+        request_id,
+        org_id=main.agent_org_id(identity["agent_name"]),
     )
 
     if details is None:
@@ -3086,30 +3112,11 @@ def get_tool_request(
             detail="Tool request not found.",
         )
 
-    request_data = details["request"]
-
-    authentication = authenticate_request(
-        x_agent_name=x_agent_name,
-        x_agent_key=x_agent_key,
-        action=request_data["action"],
-        x_ssl_client_verify=x_ssl_client_verify,
-        x_ssl_client_cert=x_ssl_client_cert,
-    )
-
-    identity = authentication["identity"]
-
-    if (
-        identity["agent_name"]
-        != request_data["agent_name"]
-    ):
+    if identity["agent_name"] != details["agent_name"]:
         main.record_authentication_event(
-            claimed_agent_name=(
-                identity["agent_name"]
-            ),
-            authenticated_agent_name=(
-                identity["agent_name"]
-            ),
-            action=request_data["action"],
+            claimed_agent_name=identity["agent_name"],
+            authenticated_agent_name=identity["agent_name"],
+            action=details["action"],
             outcome="RESOURCE_DENIED",
             reason=(
                 "Agent attempted to access "
@@ -3126,6 +3133,14 @@ def get_tool_request(
             ),
         )
 
+    try:
+        main.enforce_agent_scope(identity, details["action"])
+    except main.AgentScopeError as error:
+        raise HTTPException(
+            status_code=403,
+            detail=str(error),
+        ) from error
+
     return details
 
 
@@ -3139,9 +3154,9 @@ def review_tool_request(
         default=None,
     ),
 ):
-    """Approve or deny a pending tool request."""
+    """Approve or deny a pending tool request in the administrator's org."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     try:
         return main.review_tool_request(
@@ -3149,6 +3164,7 @@ def review_tool_request(
             actor="administrator",
             decision=review.decision,
             note=review.note,
+            org_id=organizations.resolve_org_id(administrator),
         )
 
     except KeyError as error:
@@ -3201,6 +3217,7 @@ def recent_audit_events(
             agent_name
         ),
         limit=limit,
+        org_id=main.agent_org_id(agent_name),
     )
 
     return [
@@ -3254,7 +3271,8 @@ def audit_summary(
     return {
         "agent_name": normalized_name,
         **get_audit_summary(
-            normalized_name
+            normalized_name,
+            org_id=main.agent_org_id(normalized_name),
         ),
     }
 
@@ -3339,9 +3357,9 @@ def administrator_audit_events(
         default=None,
     ),
 ):
-    """Return unified audit evidence to an administrator."""
+    """Return the administrator's org's unified audit evidence."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     from .database import (
         get_administrator_audit_events,
@@ -3351,6 +3369,7 @@ def administrator_audit_events(
         event_type=event_type,
         agent_name=agent_name,
         limit=limit,
+        org_id=organizations.resolve_org_id(administrator),
     )
 
 
@@ -3381,9 +3400,9 @@ def live_administrator_events(
         default=None,
     ),
 ):
-    """Stream live unified security evidence."""
+    """Stream the administrator's org's live security evidence."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     event_stream = stream_administrator_events(
         request=request,
@@ -3393,6 +3412,7 @@ def live_administrator_events(
         include_history=include_history,
         poll_interval=poll_interval,
         last_event_id=last_event_id,
+        org_id=organizations.resolve_org_id(administrator),
     )
 
     return StreamingResponse(
@@ -3475,8 +3495,8 @@ def request_investigation(
     x_admin_pin: str | None = Header(default=None),
 ):
     """Return a redacted request lifecycle investigation bundle."""
-    require_admin(x_admin_pin)
-    result = build_request_investigation(request_id)
+    administrator = require_admin(x_admin_pin)
+    result = build_request_investigation(request_id, org_id=organizations.resolve_org_id(administrator))
     if result is None:
         raise HTTPException(status_code=404, detail="Tool request not found.")
     return result

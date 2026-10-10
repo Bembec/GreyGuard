@@ -1104,6 +1104,7 @@ def write_log(
         risk_level=risk_level,
         agent_status=agent_status,
         blocked_attempts=blocked_attempts,
+        org_id=agent_org_id(normalized_name),
     )
 
 
@@ -1291,11 +1292,12 @@ def evaluate_action(
     )
 
 
-def execute_saved_tool_request(request_id):
+def execute_saved_tool_request(request_id, org_id=DEFAULT_ORG_ID):
     """Execute one authorized saved request."""
 
     request = get_tool_request(
-        request_id
+        request_id,
+        org_id=org_id,
     )
 
     if request is None:
@@ -1319,10 +1321,12 @@ def execute_saved_tool_request(request_id):
             request_id=request_id,
             timestamp=current_timestamp(),
             result=result,
+            org_id=org_id,
         )
 
         return get_tool_request_details(
-            request_id
+            request_id,
+            org_id=org_id,
         )
 
     if (
@@ -1331,17 +1335,20 @@ def execute_saved_tool_request(request_id):
         != "APPROVED"
     ):
         return get_tool_request_details(
-            request_id
+            request_id,
+            org_id=org_id,
         )
 
     claimed = claim_tool_request_execution(
         request_id=request_id,
         timestamp=current_timestamp(),
+        org_id=org_id,
     )
 
     if not claimed:
         return get_tool_request_details(
-            request_id
+            request_id,
+            org_id=org_id,
         )
 
     try:
@@ -1374,10 +1381,12 @@ def execute_saved_tool_request(request_id):
         timestamp=current_timestamp(),
         execution_status=execution_status,
         result=result,
+        org_id=org_id,
     )
 
     return get_tool_request_details(
-        request_id
+        request_id,
+        org_id=org_id,
     )
 
 
@@ -1397,9 +1406,11 @@ def submit_tool_request(
     normalized_action = normalize_action(
         action
     )
+    # A tool request belongs to the requesting agent's org - never to anything the caller says.
+    org_id = agent_org_id(normalized_name)
 
     if request_id is not None:
-        existing_request = get_tool_request_details(str(request_id))
+        existing_request = get_tool_request_details(str(request_id), org_id=org_id)
         if existing_request is not None:
             return existing_request
 
@@ -1469,6 +1480,7 @@ def submit_tool_request(
         risk_score=policy_result[
             "risk_score"
         ],
+        org_id=org_id,
     )
 
     if execution_status == "BLOCKED":
@@ -1481,19 +1493,23 @@ def submit_tool_request(
                     "Tool execution was blocked."
                 ),
             },
+            org_id=org_id,
         )
 
         return get_tool_request_details(
-            request_id
+            request_id,
+            org_id=org_id,
         )
 
     if execution_status == "NOT_STARTED":
         return execute_saved_tool_request(
-            request_id
+            request_id,
+            org_id,
         )
 
     return get_tool_request_details(
-        request_id
+        request_id,
+        org_id=org_id,
     )
 
 
@@ -1502,6 +1518,7 @@ def review_tool_request(
     actor,
     decision,
     note=None,
+    org_id=DEFAULT_ORG_ID,
 ):
     """Approve or deny a pending tool request."""
 
@@ -1520,7 +1537,8 @@ def review_tool_request(
         )
 
     request = get_tool_request(
-        request_id
+        request_id,
+        org_id=org_id,
     )
 
     if request is None:
@@ -1547,6 +1565,7 @@ def review_tool_request(
         ),
         decision=normalized_decision,
         note=note,
+        org_id=org_id,
     )
 
     if not changed:
@@ -1556,11 +1575,13 @@ def review_tool_request(
 
     if normalized_decision == "APPROVED":
         return execute_saved_tool_request(
-            request_id
+            request_id,
+            org_id,
         )
 
     return get_tool_request_details(
-        request_id
+        request_id,
+        org_id=org_id,
     )
 
 
@@ -1682,6 +1703,7 @@ def display_recent_audit_events():
     events = get_recent_audit_events(
         active_agent_name,
         limit=5,
+        org_id=agent_org_id(active_agent_name),
     )
 
     print(
@@ -1711,7 +1733,8 @@ def display_audit_summary():
     """Display the current agent's summary."""
 
     summary = get_audit_summary(
-        active_agent_name
+        active_agent_name,
+        org_id=agent_org_id(active_agent_name),
     )
 
     print(

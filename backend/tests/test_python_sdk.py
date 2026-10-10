@@ -108,7 +108,7 @@ def test_existing_idempotent_request_skips_policy_evaluation(monkeypatch):
         "action": "read_file",
         "execution_status": "COMPLETED",
     }
-    monkeypatch.setattr(main, "get_tool_request_details", lambda request_id: existing)
+    monkeypatch.setattr(main, "get_tool_request_details", lambda request_id, org_id: existing)
 
     def unexpected_evaluation(*args, **kwargs):
         raise AssertionError("duplicate request must not be evaluated again")

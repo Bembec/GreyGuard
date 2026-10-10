@@ -69,6 +69,8 @@ async def stream_administrator_events(
     include_history: bool = True,
     poll_interval: float = 1.0,
     last_event_id: str | None = None,
+    *,
+    org_id: str,
 ) -> AsyncIterator[str]:
     """Stream unified GreyGuard evidence to an administrator."""
 
@@ -93,6 +95,7 @@ async def stream_administrator_events(
         event_type=event_type,
         agent_name=agent_name,
         limit=limit,
+        org_id=org_id,
     )
 
     initial_events = prepare_stream_events(initial_response["events"], agent_name)
@@ -138,6 +141,7 @@ async def stream_administrator_events(
                 event_type=event_type,
                 agent_name=agent_name,
                 limit=limit,
+                org_id=org_id,
             )
 
             current_events = prepare_stream_events(current_response["events"], agent_name)

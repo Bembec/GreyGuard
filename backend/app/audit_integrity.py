@@ -49,7 +49,10 @@ def seal_audit_events():
         connection.row_factory = sqlite3.Row
         previous = connection.execute("SELECT record_hash FROM audit_integrity_chain ORDER BY sequence DESC LIMIT 1").fetchone()
         previous_hash = previous[0] if previous else GENESIS_HASH
-        rows = connection.execute("""SELECT * FROM audit_events WHERE CAST(id AS TEXT) NOT IN (
+        # One install-wide hash chain over every org's audit events: tamper evidence for the log as
+        # a whole, so it deliberately spans every org_id (operator-only, see api.py).
+        rows = connection.execute("""-- install-wide integrity chain across every org_id
+            SELECT * FROM audit_events WHERE CAST(id AS TEXT) NOT IN (
             SELECT source_id FROM audit_integrity_chain WHERE source_table='audit_events') ORDER BY id""").fetchall()
         for row in rows:
             payload_hash = hashlib.sha256(_canonical(row).encode()).hexdigest()
@@ -67,7 +70,7 @@ def verify_integrity(actor="system"):
         chain = connection.execute("SELECT * FROM audit_integrity_chain ORDER BY sequence").fetchall()
         for item in chain:
             checked += 1
-            source = connection.execute("SELECT * FROM audit_events WHERE id=?", (item["source_id"],)).fetchone()
+            source = connection.execute("-- install-wide integrity check across every org_id\nSELECT * FROM audit_events WHERE id=?", (item["source_id"],)).fetchone()
             payload_hash = hashlib.sha256(_canonical(source).encode()).hexdigest() if source else "MISSING"
             expected = hashlib.sha256(f"{expected_previous}:{payload_hash}:{item['source_table']}:{item['source_id']}".encode()).hexdigest()
             if payload_hash != item["payload_hash"] or item["previous_hash"] != expected_previous or item["record_hash"] != expected:
@@ -125,5 +128,8 @@ def apply_retention(actor, confirm=False):
     with sqlite3.connect(database_path) as connection:
         protected = connection.execute("SELECT COUNT(*) FROM audit_legal_holds WHERE active=1").fetchone()[0]
         if protected: raise PermissionError("Retention deletion is blocked while a legal hold is active.")
-        deleted = connection.execute("DELETE FROM audit_events WHERE timestamp<?", (cutoff,)).rowcount
+        # Install-wide retention: one policy for the whole log, so it spans every org_id. Only an
+        # install operator can configure or apply it (api.py) - any org's admin being able to
+        # would let one tenant delete every other tenant's audit history.
+        deleted = connection.execute("-- install-wide retention across every org_id\nDELETE FROM audit_events WHERE timestamp<?", (cutoff,)).rowcount
     return {"deleted": deleted, "cutoff": cutoff, "actor": actor, "integrity_evidence_preserved": True}

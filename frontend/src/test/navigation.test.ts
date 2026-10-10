@@ -54,7 +54,7 @@ describe("GreyGuard navigation", () => {
   it("restricts install-wide pages to install operators, not to an org's platform administrators", () => {
     const orgAdmin = { admin_id: "a", email: "a@x", display_name: "A", role: "PLATFORM_ADMIN" as const, permissions: [] }
     const operator = { ...orgAdmin, install_operator: true }
-    for (const path of ["/team", "/observability", "/enterprise-identity", "/abuse-protection"]) {
+    for (const path of ["/team", "/observability", "/enterprise-identity", "/abuse-protection", "/audit-integrity"]) {
       const item = navigationItems.find((entry) => entry.path === path)!
       expect(navigationPermission(item)).toEqual({ installOperator: true })
       expect(matchesPermission(orgAdmin, navigationPermission(item))).toBe(false)
@@ -68,9 +68,6 @@ describe("GreyGuard navigation", () => {
   it("restricts SIEM exports to platform administrators", () => {
     const item = navigationItems.find((entry) => entry.path === "/security-exports");
     expect(item?.requiredRole).toBe("PLATFORM_ADMIN");
-  });
-  it("restricts audit integrity controls to platform administrators", () => {
-    expect(navigationItems.find((entry) => entry.path === "/audit-integrity")?.requiredRole).toBe("PLATFORM_ADMIN");
   });
   it("restricts communication integrations to platform administrators", () => {
     expect(navigationItems.find((entry) => entry.path === "/communication-integrations")?.requiredRole).toBe("PLATFORM_ADMIN");
