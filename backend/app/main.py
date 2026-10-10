@@ -47,6 +47,7 @@ from .tool_gateway import (
 from .policy_control import get_emergency_controls
 from .policy_integrations import effective_rollout_policy
 from .paths import data_directory
+from .organizations import DEFAULT_ORG_ID
 
 
 permissions = {
@@ -477,6 +478,35 @@ def public_identity(identity):
     }
 
 
+def agent_org_id(agent_name):
+    """The org that owns an agent: its identity's org, or org_default for an agent with no
+    identity at all (the identity-less runtime states that predate orgs, e.g. default_agent).
+
+    Agent names are a global namespace, so this resolves ownership from the name alone. Every
+    administrator-facing agent operation must compare it with the administrator's org."""
+
+    identity = get_agent_identity(
+        normalize_agent_name(agent_name)
+    )
+
+    return identity["org_id"] if identity else DEFAULT_ORG_ID
+
+
+def _owned_identity(normalized_name, org_id):
+    """The identity if it exists *and* belongs to org_id - otherwise None, so callers raise the
+    same "not found" for another org's agent as for a missing one, never revealing that the
+    name exists elsewhere."""
+
+    identity = get_agent_identity(
+        normalized_name
+    )
+
+    if identity is None or identity["org_id"] != org_id:
+        return None
+
+    return identity
+
+
 def get_public_agent_identity(agent_name):
     """Return one safe identity record."""
 
@@ -497,16 +527,17 @@ def get_public_agent_identity(agent_name):
     return public_identity(identity)
 
 
-def list_public_agent_identities():
-    """Return all safe identity records."""
+def list_public_agent_identities(org_id=DEFAULT_ORG_ID):
+    """Return one org's safe identity records."""
 
-    return get_agent_identities()
+    return get_agent_identities(org_id)
 
 
 def issue_agent_credential(
     agent_name,
     scopes,
     actor="system",
+    org_id=DEFAULT_ORG_ID,
 ):
     """Create an identity and credential."""
 
@@ -523,15 +554,31 @@ def issue_agent_credential(
         scopes
     )
 
-    if (
-        get_agent_identity(
-            normalized_name
-        )
-        is not None
-    ):
+    existing_identity = get_agent_identity(
+        normalized_name
+    )
+
+    if existing_identity is not None:
+        if existing_identity["org_id"] != org_id:
+            # Agent names are a global namespace (like administrator emails), so the name is
+            # unavailable - without confirming that another org owns it.
+            raise ValueError(
+                "This agent name is unavailable."
+            )
+
         raise ValueError(
             "An identity already exists for "
             f"{normalized_name}."
+        )
+
+    if (
+        normalized_name in agent_states
+        and org_id != DEFAULT_ORG_ID
+    ):
+        # An identity-less runtime state that predates orgs (default_agent, legacy_agent)
+        # belongs to org_default along with its audit history; another org cannot claim it.
+        raise ValueError(
+            "This agent name is unavailable."
         )
 
     registration = register_agent(
@@ -553,6 +600,7 @@ def issue_agent_credential(
         credential_hash=credential_hash,
         scopes=normalized_scopes,
         timestamp=current_timestamp(),
+        org_id=org_id,
     )
 
     if not created:
@@ -565,6 +613,7 @@ def issue_agent_credential(
         event_type="ISSUED",
         actor=actor,
         timestamp=current_timestamp(),
+        org_id=org_id,
     )
 
     identity = get_agent_identity(
@@ -585,15 +634,16 @@ def issue_agent_credential(
     }
 
 
-def rotate_agent_credential(agent_name, actor="system"):
+def rotate_agent_credential(agent_name, actor="system", org_id=DEFAULT_ORG_ID):
     """Replace an agent credential."""
 
     normalized_name = normalize_agent_name(
         agent_name
     )
 
-    identity = get_agent_identity(
-        normalized_name
+    identity = _owned_identity(
+        normalized_name,
+        org_id,
     )
 
     if identity is None:
@@ -616,6 +666,7 @@ def rotate_agent_credential(agent_name, actor="system"):
         credential_salt=credential_salt,
         credential_hash=credential_hash,
         timestamp=current_timestamp(),
+        org_id=org_id,
     )
 
     if not updated:
@@ -629,6 +680,7 @@ def rotate_agent_credential(agent_name, actor="system"):
         event_type="ROTATED",
         actor=actor,
         timestamp=current_timestamp(),
+        org_id=org_id,
     )
 
     updated_identity = get_agent_identity(
@@ -648,15 +700,16 @@ def rotate_agent_credential(agent_name, actor="system"):
     }
 
 
-def revoke_agent_credential(agent_name, actor="system"):
+def revoke_agent_credential(agent_name, actor="system", org_id=DEFAULT_ORG_ID):
     """Revoke an agent credential."""
 
     normalized_name = normalize_agent_name(
         agent_name
     )
 
-    identity = get_agent_identity(
-        normalized_name
+    identity = _owned_identity(
+        normalized_name,
+        org_id,
     )
 
     if identity is None:
@@ -683,6 +736,7 @@ def revoke_agent_credential(agent_name, actor="system"):
     revoked = revoke_stored_credential(
         agent_name=normalized_name,
         timestamp=current_timestamp(),
+        org_id=org_id,
     )
 
     if not revoked:
@@ -696,6 +750,7 @@ def revoke_agent_credential(agent_name, actor="system"):
         event_type="REVOKED",
         actor=actor,
         timestamp=current_timestamp(),
+        org_id=org_id,
     )
 
     updated_identity = get_agent_identity(
@@ -718,6 +773,7 @@ def get_agent_credential_history(
     agent_name,
     limit=20,
     offset=0,
+    org_id=DEFAULT_ORG_ID,
 ):
     """Return one page of an agent's credential issue/rotate/revoke evidence.
 
@@ -728,7 +784,7 @@ def get_agent_credential_history(
         agent_name
     )
 
-    if get_agent_identity(normalized_name) is None:
+    if _owned_identity(normalized_name, org_id) is None:
         raise KeyError(
             f"Identity not found: "
             f"{normalized_name}"
@@ -741,12 +797,14 @@ def get_agent_credential_history(
         normalized_name,
         limit=safe_limit,
         offset=safe_offset,
+        org_id=org_id,
     )
 
 
 def set_agent_scopes(
     agent_name,
     scopes,
+    org_id=DEFAULT_ORG_ID,
 ):
     """Replace an identity's scopes."""
 
@@ -758,8 +816,9 @@ def set_agent_scopes(
     )
 
     if (
-        get_agent_identity(
-            normalized_name
+        _owned_identity(
+            normalized_name,
+            org_id,
         )
         is None
     ):
@@ -771,6 +830,7 @@ def set_agent_scopes(
     updated = update_stored_scopes(
         agent_name=normalized_name,
         scopes=normalized_scopes,
+        org_id=org_id,
     )
 
     if not updated:
