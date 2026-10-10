@@ -98,7 +98,8 @@ def run_due_schedules(generator=None,exporter=None,notifier=None,limit=10,worker
   try:
    date_from=str(row["last_run_at"] or row["created_at"])[:10]
    report=generator(f"{row['title']} — {now[:10]}",{"date_from":date_from,"date_to":now[:10]},"system-schedule",org_id=row["org_id"])
-   checksums=export_checksums(report["report_id"],{"json":exporter})
+   # The exporter reads the report back within the schedule's own org, like the generator.
+   checksums=export_checksums(report["report_id"],{"json":lambda report_id:exporter(report_id,org_id=row["org_id"])})
    manifest=signed_manifest(report,checksums)
    next_run=_next_run_after(row["next_run_at"],row["frequency"])
    with sqlite3.connect(database_path) as c:

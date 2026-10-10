@@ -13,7 +13,8 @@ import pytest
 from fastapi import HTTPException
 
 from backend.app import (
-    admin_auth, alerts, api, database, main, notifications, organizations, policy_control, policy_integrations,
+    admin_auth, alerts, api, compliance_reports, database, incident_integrations, main, notifications,
+    organizations, policy_control, policy_integrations,
 )
 
 PASSWORD = "SecureDemo!123"
@@ -22,7 +23,8 @@ PASSWORD = "SecureDemo!123"
 @pytest.fixture()
 def tenants(tmp_path, monkeypatch):
     path = tmp_path / "tenancy.db"
-    for module in (admin_auth, organizations, database, alerts, notifications, policy_control, policy_integrations):
+    for module in (admin_auth, organizations, database, alerts, notifications, policy_control, policy_integrations,
+                   compliance_reports, incident_integrations):
         monkeypatch.setattr(module, "database_path", path)
     monkeypatch.setattr(main, "state_path", tmp_path / "state.json")
     monkeypatch.delenv("GREYGUARD_BOOTSTRAP_EMAIL", raising=False)
@@ -32,6 +34,7 @@ def tenants(tmp_path, monkeypatch):
     policy_control.initialize_policy_control(main.permissions, main.risk_weights,
                                              main.max_blocked_attempts, main.max_risk_score)
     policy_integrations.initialize_policy_integrations()
+    incident_integrations.initialize_incident_integrations()
     admin_auth.initialize_admin_auth()
     organizations.initialize_organizations()
 
@@ -459,3 +462,53 @@ def test_legacy_policy_tables_move_to_the_default_org_with_their_references_inta
     assert not {"policy_versions_org", "policy_emergency_controls_pre_org"} & tables
     # A second org can now have its own version 1 alongside the default org's history.
     assert policy_control.get_published_policy(org_id="org_other")["version_number"] == 1
+
+
+
+# --- P2.2 final batch: compliance reports, expiring approval links, callback evidence ------------
+
+def test_compliance_reports_snapshot_and_stay_within_the_requesting_org(tenants):
+    register(tenants["ours"], "ours_agent")
+    register(tenants["theirs"], "theirs_agent")
+    submit("ours_agent", "read_file")
+    submit("theirs_agent", "read_file")
+    report = api.generate_compliance_report(api.ComplianceReportRequest(title="Their evidence"), tenants["theirs"])
+    stored = api.compliance_report_details(report["report_id"], tenants["theirs"])
+    # Before this batch the API built every report from the default org's evidence.
+    assert {e["agent_name"] for e in stored["evidence"]["audit_events"]} == {"theirs_agent"}
+    assert not_found(lambda: api.compliance_report_details(report["report_id"], tenants["ours"]))
+    assert not_found(lambda: api.export_compliance_report(report["report_id"], format="json", x_admin_pin=tenants["ours"]))
+    assert api.compliance_report_history(tenants["ours"])["reports"] == []
+    assert [r["report_id"] for r in api.compliance_report_history(tenants["theirs"])["reports"]] == [report["report_id"]]
+
+
+def test_approval_links_are_issued_and_consumed_only_within_the_requests_org(tenants):
+    register(tenants["theirs"], "theirs_agent")
+    pending = submit("theirs_agent")
+    request = api.ApprovalLinkCreateRequest(request_id=pending["request_id"], decision="APPROVED")
+    assert not_found(lambda: api.issue_expiring_approval_link(request, tenants["ours"]))
+    link = api.issue_expiring_approval_link(request, tenants["theirs"])
+    with pytest.raises(HTTPException) as error:
+        api.use_expiring_approval_link(api.ApprovalLinkConsumeRequest(token=link["token"]), tenants["ours"])
+    assert error.value.status_code == 409
+    assert database.get_tool_request(pending["request_id"], org_id=tenants["other_org"])["approval_status"] == "PENDING"
+    decided = api.use_expiring_approval_link(api.ApprovalLinkConsumeRequest(token=link["token"]), tenants["theirs"])
+    assert decided["approval_status"] == "APPROVED"
+
+
+def test_callback_evidence_is_recorded_under_the_receiving_org(tenants, monkeypatch):
+    import hashlib, hmac, json
+    monkeypatch.setenv("CALLBACK_KEY", "tenancy-callback-key")
+    payload = {"external_id": "JIRA-1", "status": "OPEN"}
+    signature = "sha256=" + hmac.new(b"tenancy-callback-key", json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(),
+                                     hashlib.sha256).hexdigest()
+    result = api.receive_signed_incident_callback(api.SignedCallbackRequest(
+        record_id="incx_1", payload=payload, signature=signature, key_reference="CALLBACK_KEY"), tenants["theirs"])
+    with sqlite3.connect(database.database_path) as connection:
+        org = connection.execute("SELECT org_id FROM callback_evidence WHERE callback_id=?", (result["callback_id"],)).fetchone()[0]
+    assert org == tenants["other_org"]
+
+
+def test_every_table_is_now_org_scoped_or_deliberately_global():
+    from backend.app import tenant_guard
+    assert tenant_guard.PENDING_TENANT_SCOPING == frozenset()

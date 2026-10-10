@@ -32,7 +32,7 @@ def test_control_mapping_is_explicit():
 def _stub_generator(title,filters,actor,org_id=None):
  return {"report_id":"rpt_stub","title":title,"filters":filters,"actor":actor,"evidence_hash":"a"*64}
 
-def _stub_exporter(report_id):
+def _stub_exporter(report_id,org_id=None):
  return b'{"stub":true}'
 
 def test_due_schedule_is_generated_signed_and_rescheduled(isolated,monkeypatch):

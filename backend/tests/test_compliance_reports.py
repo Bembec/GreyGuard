@@ -17,7 +17,7 @@ def isolated_reports(tmp_path, monkeypatch):
 
 def test_report_snapshot_and_integrity(isolated_reports):
     report = compliance_reports.create_compliance_report("October evidence", {}, "admin")
-    stored = compliance_reports.get_compliance_report(report["report_id"])
+    stored = compliance_reports.get_compliance_report(report["report_id"], org_id="org_default")
     assert stored["integrity_verified"] is True
     assert stored["summary"]["audit_events"] == 1
     assert len(stored["evidence_hash"]) == 64
@@ -25,7 +25,7 @@ def test_report_snapshot_and_integrity(isolated_reports):
 
 def test_report_history_does_not_embed_evidence(isolated_reports):
     compliance_reports.create_compliance_report("Audit evidence", {}, "admin")
-    history = compliance_reports.list_compliance_reports()
+    history = compliance_reports.list_compliance_reports(org_id="org_default")
     assert len(history) == 1
     assert "evidence" not in history[0]
 
@@ -37,21 +37,21 @@ def test_date_range_is_validated(isolated_reports):
 
 def test_json_export_contains_integrity_result(isolated_reports):
     report = compliance_reports.create_compliance_report("JSON evidence", {}, "admin")
-    exported = compliance_reports.export_json(report["report_id"])
+    exported = compliance_reports.export_json(report["report_id"], org_id="org_default")
     assert b'"integrity_verified": true' in exported
 
 
 def test_csv_export_has_expected_sections(isolated_reports):
     report = compliance_reports.create_compliance_report("CSV evidence", {}, "admin")
-    exported = compliance_reports.export_csv(report["report_id"])
+    exported = compliance_reports.export_csv(report["report_id"], org_id="org_default")
     assert b"audit_event" in exported
     assert b"security_alert" in exported
 
 
 def test_printable_html_and_pdf_exports(isolated_reports):
     report = compliance_reports.create_compliance_report("Printable evidence", {}, "admin")
-    assert compliance_reports.export_html(report["report_id"]).startswith(b"<!doctype html>")
-    assert compliance_reports.export_pdf(report["report_id"]).startswith(b"%PDF-1.4")
+    assert compliance_reports.export_html(report["report_id"], org_id="org_default").startswith(b"<!doctype html>")
+    assert compliance_reports.export_pdf(report["report_id"], org_id="org_default").startswith(b"%PDF-1.4")
 
 
 def test_csv_formula_injection_is_neutralized():
@@ -60,7 +60,7 @@ def test_csv_formula_injection_is_neutralized():
 
 def test_evidence_catalog_covers_required_assessments(isolated_reports):
     report = compliance_reports.create_compliance_report("Evidence catalog", {}, "admin")
-    keys = {item["key"] for item in compliance_reports.evidence_catalog(report["report_id"])}
+    keys = {item["key"] for item in compliance_reports.evidence_catalog(report["report_id"], org_id="org_default")}
     assert {"agent_security_assessment", "risk_timeline", "approval_evidence", "containment_evidence", "authentication_evidence", "policy_version_evidence"} <= keys
 
 
