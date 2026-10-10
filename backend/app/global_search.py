@@ -30,8 +30,8 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30,
     owners: dict[str, str] = {}
 
     def owned(agent_name) -> bool:
-        # Agents are org-scoped by identity (tool requests and audit evidence are filtered in SQL).
-        # Alerts are not attributed to an org yet (a later P2.2 agent batch).
+        # Agents are org-scoped by identity; tool requests, audit evidence and alerts are filtered
+        # by org_id in SQL.
         name = str(agent_name or "")
         if name not in owners:
             owners[name] = main.agent_org_id(name)
@@ -63,7 +63,7 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30,
             "path": f"/requests/{item.get('request_id')}",
         })
 
-    for alert in get_alerts(limit=200)["alerts"]:
+    for alert in get_alerts(limit=200, org_id=org_id)["alerts"]:
         if _matches(normalized, alert.get("alert_id"), alert.get("title"), alert.get("summary"), alert.get("agent_name"), alert.get("status"), alert.get("severity")):
             results.append({
                 "kind": "ALERT", "id": alert.get("alert_id"),

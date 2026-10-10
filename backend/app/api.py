@@ -1577,6 +1577,16 @@ def require_install_operator(x_admin_pin):
     return administrator
 
 
+def alert_scope(administrator):
+    """Which alerts and notifications an administrator sees: their active org's, plus - for an
+    install operator only - install-level ones that belong to no tenant (see
+    alerts._visibility())."""
+    return {
+        "org_id": organizations.resolve_org_id(administrator),
+        "include_install_level": bool(administrator.get("install_operator")),
+    }
+
+
 def require_agent_in_org(agent_name, administrator):
     """The normalized agent name, if that agent belongs to the administrator's active org.
 
@@ -3429,15 +3439,13 @@ def live_administrator_events(
 @app.get("/alerts/summary")
 def administrator_alert_summary(x_admin_pin: str | None = Header(default=None)):
     """Return administrator alert metrics."""
-    require_admin(x_admin_pin)
-    return alert_summary()
+    return alert_summary(**alert_scope(require_admin(x_admin_pin)))
 
 
 @app.get("/notifications/summary")
 def administrator_notification_summary(x_admin_pin: str | None = Header(default=None)):
     """Return unread administrator notification counts."""
-    require_admin(x_admin_pin)
-    return notification_summary()
+    return notification_summary(**alert_scope(require_admin(x_admin_pin)))
 
 
 @app.get("/notifications")
@@ -3448,15 +3456,14 @@ def administrator_notifications(
     x_admin_pin: str | None = Header(default=None),
 ):
     """Return the persistent in-app security notification inbox."""
-    require_admin(x_admin_pin)
-    return list_notifications(unread_only, severity, limit)
+    return list_notifications(unread_only, severity, limit, **alert_scope(require_admin(x_admin_pin)))
 
 
 @app.get("/notifications/retention")
 def administrator_notification_retention(x_admin_pin: str | None = Header(default=None)):
     """Return retention configuration and recent retention evidence."""
-    require_admin(x_admin_pin)
-    return {"policy": get_retention_policy(), "history": retention_history()}
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
+    return {"policy": get_retention_policy(org_id), "history": retention_history(org_id=org_id)}
 
 
 @app.put("/notifications/retention")
@@ -3468,7 +3475,8 @@ def administrator_update_notification_retention(
     administrator = require_admin(x_admin_pin)
     if not has_permission(administrator, "admin:manage"):
         raise HTTPException(status_code=403, detail="Platform Administrator permission is required.")
-    return update_retention_policy(update.retention_days, administrator.get("email", "administrator"))
+    return update_retention_policy(update.retention_days, administrator.get("email", "administrator"),
+                                   organizations.resolve_org_id(administrator))
 
 
 @app.post("/notifications/retention/cleanup")
@@ -3477,7 +3485,7 @@ def administrator_cleanup_notifications(x_admin_pin: str | None = Header(default
     administrator = require_admin(x_admin_pin)
     if not has_permission(administrator, "admin:manage"):
         raise HTTPException(status_code=403, detail="Platform Administrator permission is required.")
-    return cleanup_expired_notifications(administrator.get("email", "administrator"))
+    return cleanup_expired_notifications(administrator.get("email", "administrator"), **alert_scope(administrator))
 
 
 @app.put("/notifications/read-all")
@@ -3485,7 +3493,7 @@ def administrator_read_all_notifications(x_admin_pin: str | None = Header(defaul
     """Mark every unread notification as reviewed."""
     administrator = require_admin(x_admin_pin)
     return {
-        "updated": mark_all_notifications_read(administrator.get("email", "administrator"))
+        "updated": mark_all_notifications_read(administrator.get("email", "administrator"), **alert_scope(administrator))
     }
 
 
@@ -3523,7 +3531,7 @@ def administrator_read_notification(
     administrator = require_admin(x_admin_pin)
     try:
         return mark_notification_read(
-            notification_id, administrator.get("email", "administrator")
+            notification_id, administrator.get("email", "administrator"), **alert_scope(administrator)
         )
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Notification not found.") from error
@@ -3538,15 +3546,13 @@ def administrator_alerts(
     x_admin_pin: str | None = Header(default=None),
 ):
     """Return filtered security alerts."""
-    require_admin(x_admin_pin)
-    return get_alerts(status, severity, agent_name, limit)
+    return get_alerts(status, severity, agent_name, limit, **alert_scope(require_admin(x_admin_pin)))
 
 
 @app.get("/alerts/{alert_id}")
 def administrator_alert(alert_id: str, x_admin_pin: str | None = Header(default=None)):
     """Return one alert and its evidence."""
-    require_admin(x_admin_pin)
-    result = get_alert(alert_id)
+    result = get_alert(alert_id, **alert_scope(require_admin(x_admin_pin)))
     if result is None:
         raise HTTPException(status_code=404, detail="Alert not found.")
     return result
@@ -3559,10 +3565,10 @@ def administrator_update_alert(
     x_admin_pin: str | None = Header(default=None),
 ):
     """Update alert workflow state."""
-    require_admin(x_admin_pin)
+    scope = alert_scope(require_admin(x_admin_pin))
     try:
         return update_alert(
-            alert_id, update.status, "administrator", update.assigned_to, update.note
+            alert_id, update.status, "administrator", update.assigned_to, update.note, **scope
         )
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Alert not found.") from error
@@ -3577,9 +3583,9 @@ def administrator_add_alert_note(
     x_admin_pin: str | None = Header(default=None),
 ):
     """Append investigation evidence."""
-    require_admin(x_admin_pin)
+    scope = alert_scope(require_admin(x_admin_pin))
     try:
-        return add_alert_note(alert_id, "administrator", request.note)
+        return add_alert_note(alert_id, "administrator", request.note, **scope)
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Alert not found.") from error
     except ValueError as error:

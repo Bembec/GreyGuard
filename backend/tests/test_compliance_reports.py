@@ -8,7 +8,7 @@ def isolated_reports(tmp_path, monkeypatch):
     database = tmp_path / "reports.db"
     monkeypatch.setattr(compliance_reports, "database_path", database)
     monkeypatch.setattr(compliance_reports, "get_administrator_audit_events", lambda limit=500, org_id=None: {"events": [{"event_id": "e1", "timestamp": "2026-10-02T10:00:00Z", "event_type": "POLICY", "severity": "HIGH", "agent_name": "agent", "action": "send_email", "outcome": "BLOCK", "summary": "Blocked."}]})
-    monkeypatch.setattr(compliance_reports, "get_alerts", lambda limit=500: {"alerts": [{"alert_id": "a1", "created_at": "2026-10-02T10:00:00Z", "event_type": "POLICY", "severity": "HIGH", "status": "OPEN", "summary": "Review.", "agent_name": "agent"}]})
+    monkeypatch.setattr(compliance_reports, "get_alerts", lambda limit=500, org_id=None: {"alerts": [{"alert_id": "a1", "created_at": "2026-10-02T10:00:00Z", "event_type": "POLICY", "severity": "HIGH", "status": "OPEN", "summary": "Review.", "agent_name": "agent"}]})
     monkeypatch.setattr(compliance_reports, "list_policy_versions", lambda: [])
     monkeypatch.setattr(compliance_reports, "list_administrators", lambda: [])
     compliance_reports.initialize_compliance_reports()

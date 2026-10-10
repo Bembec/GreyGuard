@@ -212,6 +212,24 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "tool_requests",
     "approval_events",
     "execution_events",
+    # P2.2 agent scoping, batch C (alerts.py/notifications.py): an alert belongs to the org of
+    # the evidence it was derived from (each timeline event carries its org_id since batch B),
+    # its notes and notifications to the alert's org - never to the caller's. org_id is
+    # deliberately NULLABLE here, as for outbound_delivery_evidence: NULL marks an install-level
+    # alert from evidence that belongs to no tenant (e.g. repeated authentication failures against
+    # an agent name that exists in no org), visible only to install operators alongside their
+    # active org's alerts - so a single-tenant install keeps exactly the visibility it had. The
+    # former notification_retention_policy singleton is reshaped to a composite (id, org_id) key
+    # (as simulation_config in batch 8): each org's policy now only expires that org's
+    # notifications, where before one org's admin could set the retention that deleted every
+    # org's. Install-level notifications follow a fixed INSTALL_LEVEL_RETENTION_DAYS. These six
+    # tables were blocked in batch 18 until alerts themselves were attributable to an org.
+    "security_alerts",
+    "alert_notes",
+    "security_notifications",
+    "notification_retention_policy",
+    "notification_retention_events",
+    "notification_retention_tombstones",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -336,12 +354,8 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
 # adapter_configs got, not a plain ADD COLUMN - flagged now so whichever batch tackles them
 # doesn't rediscover that the hard way.
 PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
-    "alert_notes",
     "callback_evidence", "compliance_reports",
     "expiring_approval_links",
-    "notification_retention_events",
-    "notification_retention_policy",  # *
-    "notification_retention_tombstones",
     # policy_versions, policy_change_events, policy_test_cases, policy_emergency_controls (*)
     # and policy_emergency_events (policy_control.py) were surveyed for P2.2 batch 13 and
     # deliberately NOT scoped - a bigger finding than a table-shape problem. Enforcement never
@@ -365,7 +379,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_versions", "policy_change_events", "policy_test_cases",
     "policy_emergency_controls",  # *
     "policy_emergency_events", "policy_integration_events", "policy_rollouts",
-    "security_alerts", "security_notifications",
 })
 
 _STATEMENT_TABLE = re.compile(

@@ -23,12 +23,13 @@ def high_event(event_id="policy-1"):
         "request_id": None,
         "summary": "Blocked action.",
         "details": {"risk_score": 40},
+        "org_id": "org_default",
     }
 
 
 def test_high_event_creates_alert(isolated_alert_database):
     assert alerts.sync_alerts_from_events([high_event()]) == 1
-    result = alerts.get_alerts(limit=10, sync_existing=False)
+    result = alerts.get_alerts(limit=10, sync_existing=False, org_id="org_default")
     assert result["count"] == 1
     assert result["alerts"][0]["status"] == "OPEN"
 
@@ -47,9 +48,9 @@ def test_info_event_does_not_create_alert(isolated_alert_database):
 
 def test_alert_workflow_and_note(isolated_alert_database):
     alerts.sync_alerts_from_events([high_event()])
-    alert_id = alerts.get_alerts(sync_existing=False)["alerts"][0]["alert_id"]
+    alert_id = alerts.get_alerts(sync_existing=False, org_id="org_default")["alerts"][0]["alert_id"]
     updated = alerts.update_alert(
-        alert_id, "INVESTIGATING", "administrator", "security-team", "Review started."
+        alert_id, "INVESTIGATING", "administrator", "security-team", "Review started.", org_id="org_default"
     )
     assert updated["status"] == "INVESTIGATING"
     assert updated["assigned_to"] == "security-team"
@@ -58,4 +59,4 @@ def test_alert_workflow_and_note(isolated_alert_database):
 
 def test_invalid_status_is_rejected(isolated_alert_database):
     with pytest.raises(ValueError, match="Unsupported"):
-        alerts.update_alert("missing", "MAYBE", "administrator")
+        alerts.update_alert("missing", "MAYBE", "administrator", org_id="org_default")

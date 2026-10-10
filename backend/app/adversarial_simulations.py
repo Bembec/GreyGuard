@@ -88,10 +88,10 @@ def run_simulation(scenario_id,actor,org_id):
  event={"event_id":"simulation-"+run_id,"event_type":"SIMULATION","timestamp":created,"agent_name":"synthetic-agent-"+scenario_id,
   "request_id":run_id,"action":scenario["title"],"outcome":scenario["decision"],"severity":scenario["severity"],
   "summary":"SIMULATION ONLY — NO REAL ACTION. "+scenario["title"]+" was "+scenario["decision"]+". "+DETECTED_BY,
-  "simulated":True,"actor":actor}
+  "simulated":True,"actor":actor,"org_id":org_id}
  sync_alerts_from_events([event],database=database_path)
  with sqlite3.connect(database_path) as c:
-  row=c.execute("SELECT alert_id FROM security_alerts WHERE source_event_id=?",(event["event_id"],)).fetchone()
+  row=c.execute("SELECT alert_id FROM security_alerts WHERE source_event_id=? AND org_id=?",(event["event_id"],org_id)).fetchone()
   result.update({"alert_created":row is not None,"alert_id":row[0] if row else None})
   c.execute("INSERT INTO simulation_runs (run_id,scenario_id,requested_by,created_at,result_json,simulated,org_id) VALUES(?,?,?,?,?,1,?)",(run_id,scenario_id,actor,created,json.dumps({**result,"evidence_preserved":True},separators=(",",":")),org_id))
   stored=c.execute("SELECT 1 FROM simulation_runs WHERE run_id=? AND org_id=?",(run_id,org_id)).fetchone()
