@@ -108,7 +108,7 @@ def build_evidence(filters: dict[str, Any], org_id: str = organizations.DEFAULT_
         and (not severities or str(alert.get("severity", "")).upper() in severities)
     ]
     policies = [
-        policy for policy in list_policy_versions()
+        policy for policy in list_policy_versions(org_id=org_id)
         if _within(policy.get("created_at"), date_from, date_to)
     ]
     administrators = [

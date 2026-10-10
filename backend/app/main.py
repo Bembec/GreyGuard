@@ -44,7 +44,7 @@ from .tool_gateway import (
     get_supported_tools,
     initialize_sandbox,
 )
-from .policy_control import get_emergency_controls
+from .policy_control import get_emergency_controls, get_published_policy
 from .policy_integrations import effective_rollout_policy
 from .paths import data_directory
 from .organizations import DEFAULT_ORG_ID
@@ -1158,9 +1158,12 @@ def evaluate_action(
     state = get_agent_state(
         normalized_name
     )
+    # Every decision is made under the agent's own org's policy, emergency controls and rollout -
+    # read from the database each time, never from a process-wide copy one org could overwrite.
+    org_id = agent_org_id(normalized_name)
 
     try:
-        emergency = get_emergency_controls()
+        emergency = get_emergency_controls(org_id=org_id)
     except Exception:
         emergency = {"global_deny": False, "disabled_agents": [], "disabled_tools": []}
 
@@ -1202,13 +1205,25 @@ def evaluate_action(
         )
 
     try:
-        staged_policy = effective_rollout_policy(normalized_name)
+        staged_policy = effective_rollout_policy(normalized_name, org_id=org_id)
     except Exception:
         staged_policy = None
-    active_permissions = staged_policy["permissions"] if staged_policy else permissions
-    active_weights = staged_policy["risk_weights"] if staged_policy else risk_weights
-    active_block_limit = staged_policy["max_blocked_attempts"] if staged_policy else max_blocked_attempts
-    active_risk_limit = staged_policy["max_risk_score"] if staged_policy else max_risk_score
+    try:
+        published_policy = get_published_policy(org_id=org_id)
+    except Exception:
+        published_policy = None
+    # The built-in rules below are only the seed for an org's first published policy; they are
+    # enforced directly only if no policy store is available at all (e.g. the CLI before setup).
+    active_policy = staged_policy or published_policy or {
+        "permissions": permissions,
+        "risk_weights": risk_weights,
+        "max_blocked_attempts": max_blocked_attempts,
+        "max_risk_score": max_risk_score,
+    }
+    active_permissions = active_policy["permissions"]
+    active_weights = active_policy["risk_weights"]
+    active_block_limit = active_policy["max_blocked_attempts"]
+    active_risk_limit = active_policy["max_risk_score"]
 
     policy_decision = active_permissions.get(
         normalized_action,
@@ -1876,7 +1891,16 @@ def run_cli():
         normalized_action = normalize_action(
             action
         )
-        policy = permissions.get(
+        # Ask for approval under the same policy evaluate_action() will enforce.
+        try:
+            cli_policy = get_published_policy(
+                org_id=agent_org_id(active_agent_name)
+            )
+        except Exception:
+            cli_policy = None
+        policy = (
+            cli_policy["permissions"] if cli_policy else permissions
+        ).get(
             normalized_action,
             "BLOCK",
         )

@@ -12,7 +12,9 @@ import sqlite3
 import pytest
 from fastapi import HTTPException
 
-from backend.app import admin_auth, alerts, api, database, main, notifications, organizations
+from backend.app import (
+    admin_auth, alerts, api, database, main, notifications, organizations, policy_control, policy_integrations,
+)
 
 PASSWORD = "SecureDemo!123"
 
@@ -20,12 +22,16 @@ PASSWORD = "SecureDemo!123"
 @pytest.fixture()
 def tenants(tmp_path, monkeypatch):
     path = tmp_path / "tenancy.db"
-    for module in (admin_auth, organizations, database, alerts, notifications):
+    for module in (admin_auth, organizations, database, alerts, notifications, policy_control, policy_integrations):
         monkeypatch.setattr(module, "database_path", path)
     monkeypatch.setattr(main, "state_path", tmp_path / "state.json")
     monkeypatch.delenv("GREYGUARD_BOOTSTRAP_EMAIL", raising=False)
     monkeypatch.delenv("GREYGUARD_BOOTSTRAP_PASSWORD", raising=False)
     main.initialize_greyguard()
+    # As the API's startup does: the install defaults every org's first policy is seeded from.
+    policy_control.initialize_policy_control(main.permissions, main.risk_weights,
+                                             main.max_blocked_attempts, main.max_risk_score)
+    policy_integrations.initialize_policy_integrations()
     admin_auth.initialize_admin_auth()
     organizations.initialize_organizations()
 
@@ -342,3 +348,114 @@ def test_legacy_retention_singleton_and_alerts_move_to_the_default_org(tmp_path,
     assert notifications.get_retention_policy("org_other")["retention_days"] == notifications.DEFAULT_RETENTION_DAYS
     assert alerts.get_alert("alr_legacy", org_id="org_default")["org_id"] == "org_default"
     assert alerts.get_alert("alr_legacy", org_id="org_other") is None
+
+
+# --- P2.2 policy batch: per-org policy, emergency controls and rollouts --------------------------
+
+def publish(org_id, permissions_update):
+    """Publish a policy for one org through the real four-eyes workflow."""
+    current = policy_control.get_published_policy(org_id=org_id)
+    draft = policy_control.create_policy_draft(
+        {**current["permissions"], **permissions_update}, current["risk_weights"],
+        current["max_blocked_attempts"], current["max_risk_score"], "Tenancy test", "author", org_id=org_id)
+    policy_control.submit_policy(draft["policy_id"], "author", org_id=org_id)
+    return policy_control.approve_policy(draft["policy_id"], "approver", org_id=org_id)
+
+
+def test_each_org_enforces_its_own_published_policy(tenants):
+    register(tenants["ours"], "ours_agent")
+    register(tenants["theirs"], "theirs_agent")
+    # Every org is seeded with the install defaults, numbered from its own version 1.
+    assert policy_control.get_published_policy(org_id=tenants["other_org"])["version_number"] == 1
+    publish(tenants["other_org"], {"read_file": "BLOCK"})
+    assert submit("theirs_agent", "read_file")["policy_decision"] == "BLOCK"
+    # Another org's approval never changes this org's enforcement.
+    assert submit("ours_agent", "read_file")["policy_decision"] == "ALLOW"
+
+
+def test_an_approved_policy_survives_a_restart(tenants):
+    register(tenants["theirs"], "theirs_agent")
+    publish(tenants["other_org"], {"read_file": "BLOCK"})
+    # What the API's startup does on every boot. Before the policy batch this reset enforcement
+    # to the built-in rules, because approval only ever updated an in-process copy.
+    policy_control.initialize_policy_control(main.permissions, main.risk_weights,
+                                             main.max_blocked_attempts, main.max_risk_score)
+    assert submit("theirs_agent", "read_file")["policy_decision"] == "BLOCK"
+    assert api.permissions(tenants["theirs"])["permissions"]["read_file"] == "BLOCK"
+    assert api.permissions(tenants["ours"])["permissions"]["read_file"] == "ALLOW"
+
+
+def test_one_orgs_emergency_global_deny_does_not_stop_other_orgs(tenants):
+    register(tenants["ours"], "ours_agent")
+    register(tenants["theirs"], "theirs_agent")
+    api.configure_policy_emergency_controls(api.PolicyEmergencyRequest(
+        global_deny=True, disabled_agents=[], disabled_tools=[], disabled_integrations=[]), tenants["theirs"])
+    assert submit("theirs_agent", "read_file")["policy_decision"] == "REFUSED"
+    assert submit("ours_agent", "read_file")["policy_decision"] == "ALLOW"
+    assert api.policy_emergency_control_state(tenants["ours"])["global_deny"] is False
+
+
+def test_one_orgs_rollout_does_not_reach_other_orgs_agents(tenants):
+    register(tenants["ours"], "ours_agent")
+    register(tenants["theirs"], "theirs_agent")
+    current = policy_control.get_published_policy(org_id=tenants["other_org"])
+    staged = policy_control.create_policy_draft({**current["permissions"], "read_file": "BLOCK"}, current["risk_weights"],
+                                                3, 100, "Staged", "author", org_id=tenants["other_org"])
+    policy_control.submit_policy(staged["policy_id"], "author", org_id=tenants["other_org"])
+    policy_integrations.create_rollout(staged["policy_id"], 100, [], "owner", org_id=tenants["other_org"])
+    assert submit("theirs_agent", "read_file")["policy_decision"] == "BLOCK"
+    assert submit("ours_agent", "read_file")["policy_decision"] == "ALLOW"
+
+
+def test_another_orgs_policy_versions_are_invisible(tenants):
+    their_policy = policy_control.get_published_policy(org_id=tenants["other_org"])
+    token = tenants["ours"]
+    assert not_found(lambda: api.policy_version(their_policy["policy_id"], token))
+    assert not_found(lambda: api.submit_policy_version(their_policy["policy_id"], token))
+    assert not_found(lambda: api.rollback_policy_version(their_policy["policy_id"], token))
+    assert {v["policy_id"] for v in api.policy_versions(token)["versions"]}.isdisjoint({their_policy["policy_id"]})
+
+
+def test_permissions_requires_an_administrator():
+    with pytest.raises(HTTPException) as error:
+        api.permissions(None)
+    assert error.value.status_code == 401
+
+
+def test_legacy_policy_tables_move_to_the_default_org_with_their_references_intact(tmp_path, monkeypatch):
+    path = tmp_path / "legacy-policy.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute("""CREATE TABLE policy_versions (policy_id TEXT PRIMARY KEY, version_number INTEGER NOT NULL UNIQUE,
+            status TEXT NOT NULL, permissions_json TEXT NOT NULL, risk_weights_json TEXT NOT NULL,
+            max_blocked_attempts INTEGER NOT NULL, max_risk_score INTEGER NOT NULL, change_summary TEXT NOT NULL,
+            created_by TEXT NOT NULL, created_at TEXT NOT NULL, submitted_at TEXT, approved_by TEXT, approved_at TEXT,
+            published_at TEXT, supersedes_policy_id TEXT, FOREIGN KEY (supersedes_policy_id) REFERENCES policy_versions(policy_id))""")
+        connection.execute("""CREATE TABLE policy_change_events (event_id INTEGER PRIMARY KEY AUTOINCREMENT, policy_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL, actor TEXT NOT NULL, event_type TEXT NOT NULL, note TEXT,
+            FOREIGN KEY (policy_id) REFERENCES policy_versions(policy_id))""")
+        connection.execute("""CREATE TABLE policy_emergency_controls (control_id INTEGER PRIMARY KEY CHECK(control_id=1),
+            global_deny INTEGER NOT NULL, disabled_agents_json TEXT NOT NULL, disabled_tools_json TEXT NOT NULL,
+            disabled_integrations_json TEXT NOT NULL, updated_by TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+        connection.execute("""INSERT INTO policy_versions VALUES('pol_v1',1,'ARCHIVED','{"read_file":"ALLOW"}','{"read_file":0}',3,100,
+            'v1','owner','2026-01-01',NULL,'owner','2026-01-01','2026-01-01',NULL)""")
+        connection.execute("""INSERT INTO policy_versions VALUES('pol_v2',2,'PUBLISHED','{"read_file":"BLOCK"}','{"read_file":5}',3,100,
+            'v2','owner','2026-01-02',NULL,'approver','2026-01-02','2026-01-02','pol_v1')""")
+        connection.execute("INSERT INTO policy_change_events(policy_id,timestamp,actor,event_type) VALUES('pol_v2','2026-01-02','approver','APPROVED_AND_PUBLISHED')")
+        connection.execute("INSERT INTO policy_emergency_controls VALUES(1,1,'[\"bot\"]','[]','[]','owner','2026-01-02')")
+    monkeypatch.setattr(policy_control, "database_path", path)
+    policy_control.initialize_policy_control({"read_file": "ALLOW"}, {"read_file": 0}, 3, 100)
+    published = policy_control.get_published_policy(org_id="org_default")
+    assert published["policy_id"] == "pol_v2" and published["permissions"] == {"read_file": "BLOCK"}
+    assert [e["event_type"] for e in policy_control.get_policy_history("pol_v2", org_id="org_default")] == ["APPROVED_AND_PUBLISHED"]
+    controls = policy_control.get_emergency_controls(org_id="org_default")
+    assert controls["global_deny"] is True and controls["disabled_agents"] == ["bot"]
+    assert policy_control.get_emergency_controls(org_id="org_other")["global_deny"] is False
+    with sqlite3.connect(path) as connection:
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        events_sql = connection.execute("SELECT sql FROM sqlite_master WHERE name='policy_change_events'").fetchone()[0]
+        connection.execute("PRAGMA foreign_keys = ON")
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+    assert "REFERENCES policy_versions(" in events_sql
+    assert not {"policy_versions_org", "policy_emergency_controls_pre_org"} & tables
+    # A second org can now have its own version 1 alongside the default org's history.
+    assert policy_control.get_published_policy(org_id="org_other")["version_number"] == 1

@@ -230,6 +230,29 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "notification_retention_policy",
     "notification_retention_events",
     "notification_retention_tombstones",
+    # P2.2 policy batch (policy_control.py/policy_integrations.py): the change batch 13 flagged
+    # as bigger than a table-shape problem. Enforcement used to read two process-wide dicts
+    # (main.permissions/main.risk_weights) that policy approval overwrote, so one org's approved
+    # policy became every org's enforcement - and nothing reloaded them at startup, so a restart
+    # silently reverted enforcement to the built-in rules while /permissions still reported the
+    # approved version. main.evaluate_action() now reads the agent's own org's published policy,
+    # emergency controls and active rollout from the database on every decision; there is no
+    # in-process policy copy left to overwrite, and each org is seeded on first use with the
+    # install defaults. policy_versions' globally UNIQUE version_number became
+    # UNIQUE(version_number, org_id) (rebuilt with batch 15's build-new/drop/rename order, on a
+    # connection without foreign-key enforcement, since two tables and itself reference it).
+    # policy_emergency_controls (a singleton) and policy_adapters (fixed rows) were reshaped to
+    # composite keys, as in batches 2 and 8. Also closed: one org's admin turning on "global
+    # deny" stopped every org's agents, and one org's active rollout was applied to every org's
+    # agents.
+    "policy_versions",
+    "policy_change_events",
+    "policy_test_cases",
+    "policy_emergency_controls",
+    "policy_emergency_events",
+    "policy_adapters",
+    "policy_rollouts",
+    "policy_integration_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -356,29 +379,6 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
 PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "callback_evidence", "compliance_reports",
     "expiring_approval_links",
-    # policy_versions, policy_change_events, policy_test_cases, policy_emergency_controls (*)
-    # and policy_emergency_events (policy_control.py) were surveyed for P2.2 batch 13 and
-    # deliberately NOT scoped - a bigger finding than a table-shape problem. Enforcement never
-    # reads these tables directly: api.py's activate_policy()-style code
-    # (main.permissions.clear()/.update(), main.risk_weights.clear()/.update(), api.py ~1593)
-    # copies whichever policy was just approved into two global, shared, in-process dicts that
-    # every real enforcement decision actually reads (main.py ~1147-1152, ~1796). Adding org_id
-    # to the database rows alone would be actively misleading, not just incomplete: it would
-    # look like each org has its own isolated policy while every org's enforcement decisions
-    # still came from a single shared in-process copy, last overwritten by whichever org most
-    # recently approved a policy - exactly the cross-tenant leak the original P2.1 plan flagged
-    # by name ("main.permissions/main.risk_weights... must be made per-org, not just the
-    # database rows"). That rework (per-org in-process policy state, re-validated at every
-    # enforcement call site, not just the two mutation sites) is its own dedicated batch - doing
-    # it carelessly is exactly how a tenant-isolation sweep introduces the security regression
-    # it exists to prevent. policy_adapters, policy_integration_events, policy_rollouts
-    # (policy_integrations.py) were not yet surveyed and remain pending for the same reason:
-    # they likely feed the same enforcement path and need the same scrutiny before any of this
-    # group is touched.
-    "policy_adapters",
-    "policy_versions", "policy_change_events", "policy_test_cases",
-    "policy_emergency_controls",  # *
-    "policy_emergency_events", "policy_integration_events", "policy_rollouts",
 })
 
 _STATEMENT_TABLE = re.compile(
