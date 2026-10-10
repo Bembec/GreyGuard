@@ -130,6 +130,20 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # own org_id, and the generated report itself is built with that org's org_id.
     "report_schedules",
     "incident_postmortems",
+    # P2.2 batch 15 (security_exports.py): export_destinations had the same uniqueness problem
+    # as service_accounts (batch 4) and secret_references (batch 11) - `name` was globally
+    # UNIQUE (case-insensitive) - reshaped to UNIQUE(name, org_id). Unlike those, it is the
+    # target of a foreign key (export_queue.destination_id), so the SQLite rebuild builds the
+    # new table under a temporary name and renames it into place, rather than renaming the old
+    # table aside - SQLite rewrites inbound foreign keys on RENAME, which would otherwise leave
+    # export_queue referencing a dropped `_pre_org` table. enqueue_export() now resolves the
+    # destination within the caller's org, so one org cannot queue events for delivery to
+    # another org's SIEM by destination_id. process_queue() is a cross-org background worker
+    # like run_due_schedules() (batch 12): its claim is deliberately unfiltered, but it only
+    # joins an export to a destination of the same org, and every later write is scoped by the
+    # claimed row's own org_id. export_queue needed only a plain ADD COLUMN.
+    "export_destinations",
+    "export_queue",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -237,7 +251,7 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "audit_integrity_chain", "audit_integrity_checks", "audit_legal_holds",
     "audit_retention_config",  # *
     "callback_evidence", "compliance_reports",
-    "execution_events", "expiring_approval_links", "export_destinations", "export_queue",
+    "execution_events", "expiring_approval_links",
     "external_incident_records",
     "incident_destinations",
     "notification_deliveries", "notification_destinations", "notification_retention_events",
