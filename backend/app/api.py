@@ -2034,10 +2034,11 @@ def observability_traces(
 
 @app.get("/security-exports")
 def security_export_control(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
+    administrator = require_platform_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
     return {
-        "destinations": list_destinations(),
-        "summary": export_summary(),
+        "destinations": list_destinations(org_id),
+        "summary": export_summary(org_id),
         "destination_types": sorted(DESTINATION_TYPES),
         "minimization_profiles": sorted(MINIMIZATION_PROFILES),
     }
@@ -2054,6 +2055,7 @@ def configure_security_export_destination(
             payload.name, payload.destination_type, payload.endpoint, payload.enabled,
             payload.signing_key_reference, payload.minimization_profile,
             payload.rate_limit_per_minute, payload.max_attempts, policy_actor(administrator),
+            organizations.resolve_org_id(administrator),
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -2066,7 +2068,8 @@ def queue_security_export(
 ):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        return enqueue_export(payload.destination_id, payload.event, policy_actor(administrator))
+        return enqueue_export(payload.destination_id, payload.event, policy_actor(administrator),
+                              organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except PermissionError as error:
