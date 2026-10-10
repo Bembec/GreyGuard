@@ -195,6 +195,8 @@ def test_complete_login_records_success_evidence_without_secrets(isolated, monke
         connection.row_factory = sqlite3.Row
         rows = [dict(row) for row in connection.execute("SELECT * FROM outbound_delivery_evidence")]
     assert any(row["event"] == "LOGIN_SUCCESS" for row in rows)
+    # SSO login evidence is install-level: no org is resolvable during the handshake.
+    assert all(row["org_id"] is None for row in rows)
     blob = json.dumps(rows)
     assert "super-secret-auth-code" not in blob
     assert begin["nonce"] not in blob

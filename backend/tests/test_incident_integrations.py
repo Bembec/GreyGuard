@@ -46,6 +46,12 @@ def test_worker_delivers_every_organizations_incidents_to_their_own_destinations
  assert sorted(sent)==sorted([("https://default.example.com",default_record["record_id"]),("https://other.example.com",other_record["record_id"])])
  for org,record in (("org_default",default_record),("org_other",other_record)):
   controls=isolated.list_controls(org);assert controls["records"][0]["status"]=="CREATED" and controls["records"][0]["external_id"]=="EXT-"+record["record_id"];assert controls["destinations"][0]["last_success_at"]
+ # Each record's delivery evidence is attributed to its own org, not the worker's.
+ # Read with stdlib sqlite3 (bypassing tenant_guard): this check deliberately spans both orgs.
+ import sqlite3
+ from backend.app import outbound_delivery
+ with sqlite3.connect(outbound_delivery.database_path) as c:evidence=c.execute("SELECT DISTINCT record_id,org_id FROM outbound_delivery_evidence WHERE record_id IN (?,?)",(default_record["record_id"],other_record["record_id"])).fetchall()
+ assert sorted(evidence)==sorted([(default_record["record_id"],"org_default"),(other_record["record_id"],"org_other")])
 def test_legacy_database_is_rebuilt_with_org_scoping(tmp_path,monkeypatch):
  import sqlite3
  path=tmp_path/"legacy.db"

@@ -181,7 +181,7 @@ def enqueue_export(destination_id, event, actor, org_id=organizations.DEFAULT_OR
             attempts,event_type,payload_json,signature,delivered_at,last_error,org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
             (export_id, destination_id, utc_now(), utc_now(), "QUEUED", 0,
              str(event.get("event_type", "SECURITY_EVENT")), serialized, signature, None, None, org_id))
-    record_evidence("SECURITY_EXPORT", export_id, "ENQUEUED", detail={"destination_id": destination_id})
+    record_evidence("SECURITY_EXPORT", export_id, "ENQUEUED", org_id=org_id, detail={"destination_id": destination_id})
     return get_export(export_id, org_id)
 
 
@@ -238,29 +238,29 @@ def process_queue(sender, limit=100, worker_id=None):
             continue
         per_destination[row["destination_id"]] = count + 1
         attempts = row["attempts"] + 1
-        record_evidence("SECURITY_EXPORT", row["export_id"], "ATTEMPT", attempt=attempts, worker_id=worker_id)
+        record_evidence("SECURITY_EXPORT", row["export_id"], "ATTEMPT", org_id=row["org_id"], attempt=attempts, worker_id=worker_id)
         try:
             sender(row["endpoint"], json.loads(row["payload_json"]), row["signature"], idempotency_key=row["export_id"])
             with sqlite3.connect(database_path) as connection:
                 connection.execute("UPDATE export_queue SET status='DELIVERED',attempts=?,delivered_at=?,last_error=NULL,claim_token=NULL,claimed_at=NULL WHERE export_id=? AND org_id=?", (attempts, utc_now(), row["export_id"], row["org_id"]))
                 connection.execute("UPDATE export_destinations SET last_success_at=?,last_error=NULL WHERE destination_id=? AND org_id=?", (utc_now(), row["destination_id"], row["org_id"]))
-            record_evidence("SECURITY_EXPORT", row["export_id"], "SUCCESS", attempt=attempts, worker_id=worker_id)
+            record_evidence("SECURITY_EXPORT", row["export_id"], "SUCCESS", org_id=row["org_id"], attempt=attempts, worker_id=worker_id)
         except SSRFBlocked as error:
             with sqlite3.connect(database_path) as connection:
                 connection.execute("UPDATE export_queue SET status='BLOCKED',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE export_id=? AND org_id=?", (attempts, safe_error(error), row["export_id"], row["org_id"]))
-            record_evidence("SECURITY_EXPORT", row["export_id"], "BLOCKED", attempt=attempts, detail={"error": str(error)}, worker_id=worker_id)
+            record_evidence("SECURITY_EXPORT", row["export_id"], "BLOCKED", org_id=row["org_id"], attempt=attempts, detail={"error": str(error)}, worker_id=worker_id)
         except PermanentDeliveryError as error:
             with sqlite3.connect(database_path) as connection:
                 connection.execute("UPDATE export_queue SET status='DEAD_LETTER',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE export_id=? AND org_id=?", (attempts, safe_error(error), row["export_id"], row["org_id"]))
                 connection.execute("UPDATE export_destinations SET last_failure_at=?,last_error=? WHERE destination_id=? AND org_id=?", (utc_now(), safe_error(error), row["destination_id"], row["org_id"]))
-            record_evidence("SECURITY_EXPORT", row["export_id"], "DEAD_LETTER", attempt=attempts, detail={"error": str(error)}, worker_id=worker_id)
+            record_evidence("SECURITY_EXPORT", row["export_id"], "DEAD_LETTER", org_id=row["org_id"], attempt=attempts, detail={"error": str(error)}, worker_id=worker_id)
         except Exception as error:
             terminal = attempts >= row["max_attempts"]
             available = (datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds(attempts))).isoformat()
             with sqlite3.connect(database_path) as connection:
                 connection.execute("UPDATE export_queue SET status=?,attempts=?,available_at=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE export_id=? AND org_id=?", ("DEAD_LETTER" if terminal else "QUEUED", attempts, available, safe_error(error), row["export_id"], row["org_id"]))
                 connection.execute("UPDATE export_destinations SET last_failure_at=?,last_error=? WHERE destination_id=? AND org_id=?", (utc_now(), safe_error(error), row["destination_id"], row["org_id"]))
-            record_evidence("SECURITY_EXPORT", row["export_id"], "DEAD_LETTER" if terminal else "RETRY", attempt=attempts, detail={"error": safe_error(error)}, worker_id=worker_id)
+            record_evidence("SECURITY_EXPORT", row["export_id"], "DEAD_LETTER" if terminal else "RETRY", org_id=row["org_id"], attempt=attempts, detail={"error": safe_error(error)}, worker_id=worker_id)
         processed += 1
     return {"processed": processed}
 

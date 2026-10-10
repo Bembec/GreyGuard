@@ -101,7 +101,7 @@ def queue_notification(destination_id,event,template_id=None,now=None,org_id=org
   delivery_id="dlv_"+uuid.uuid4().hex
   try:c.execute("INSERT INTO notification_deliveries(delivery_id,destination_id,dedupe_key,created_at,available_at,status,attempts,severity,subject,payload_json,delivered_at,last_error,org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(delivery_id,destination_id,dedupe,now.isoformat(),available.isoformat(),"QUEUED",0,severity,subject,json.dumps({"channel":d["channel"],"subject":subject,"body":body,"event":safe},separators=(",",":"),sort_keys=True),None,None,org_id))
   except sqlite3.IntegrityError:return {"status":"DEDUPLICATED","dedupe_key":dedupe}
- record_evidence("NOTIFICATION_DELIVERY",delivery_id,"ENQUEUED",detail={"destination_id":destination_id,"severity":severity})
+ record_evidence("NOTIFICATION_DELIVERY",delivery_id,"ENQUEUED",org_id=org_id,detail={"destination_id":destination_id,"severity":severity})
  with sqlite3.connect(database_path) as c:
   c.row_factory=sqlite3.Row;return dict(c.execute("SELECT * FROM notification_deliveries WHERE delivery_id=? AND org_id=?",(delivery_id,org_id)).fetchone())
 def real_sender(endpoint_reference,payload,*,idempotency_key=None):
@@ -133,25 +133,25 @@ def process_deliveries(sender,limit=100,worker_id=None):
    JOIN notification_destinations d ON d.destination_id=q.destination_id AND d.org_id=q.org_id WHERE q.claim_token=?""",(claim_token,)).fetchall()
  for row in rows:
   attempts=row["attempts"]+1
-  record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"ATTEMPT",attempt=attempts,worker_id=worker_id)
+  record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"ATTEMPT",org_id=row["org_id"],attempt=attempts,worker_id=worker_id)
   try:
    sender(row["endpoint_reference"],json.loads(row["payload_json"]),idempotency_key=row["dedupe_key"])
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE notification_deliveries SET status='DELIVERED',attempts=?,delivered_at=?,last_error=NULL,claim_token=NULL,claimed_at=NULL WHERE delivery_id=? AND org_id=?",(attempts,utc_now(),row["delivery_id"],row["org_id"]))
-   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"SUCCESS",attempt=attempts,worker_id=worker_id)
+   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"SUCCESS",org_id=row["org_id"],attempt=attempts,worker_id=worker_id)
   except SSRFBlocked as error:
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE notification_deliveries SET status='BLOCKED',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE delivery_id=? AND org_id=?",(attempts,safe_error(error),row["delivery_id"],row["org_id"]))
-   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"BLOCKED",attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
+   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"BLOCKED",org_id=row["org_id"],attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
   except PermanentDeliveryError as error:
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE notification_deliveries SET status='DEAD_LETTER',attempts=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE delivery_id=? AND org_id=?",(attempts,safe_error(error),row["delivery_id"],row["org_id"]))
-   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"DEAD_LETTER",attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
+   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"DEAD_LETTER",org_id=row["org_id"],attempt=attempts,detail={"error":str(error)},worker_id=worker_id)
   except Exception as error:
    terminal=attempts>=row["max_attempts"]
    available=(datetime.now(timezone.utc)+timedelta(seconds=backoff_seconds(attempts))).isoformat()
    with sqlite3.connect(database_path) as c:
     c.execute("UPDATE notification_deliveries SET status=?,attempts=?,available_at=?,last_error=?,claim_token=NULL,claimed_at=NULL WHERE delivery_id=? AND org_id=?",("DEAD_LETTER" if terminal else "QUEUED",attempts,available,safe_error(error),row["delivery_id"],row["org_id"]))
-   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"DEAD_LETTER" if terminal else "RETRY",attempt=attempts,detail={"error":safe_error(error)},worker_id=worker_id)
+   record_evidence("NOTIFICATION_DELIVERY",row["delivery_id"],"DEAD_LETTER" if terminal else "RETRY",org_id=row["org_id"],attempt=attempts,detail={"error":safe_error(error)},worker_id=worker_id)
   processed+=1
  return {"processed":processed}
