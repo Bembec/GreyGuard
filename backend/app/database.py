@@ -34,7 +34,8 @@ def initialize_database():
                 risk_score INTEGER NOT NULL,
                 risk_level TEXT NOT NULL,
                 agent_status TEXT NOT NULL,
-                blocked_attempts INTEGER NOT NULL
+                blocked_attempts INTEGER NOT NULL,
+                org_id TEXT NOT NULL DEFAULT 'org_default'
             )
             """
         )
@@ -89,23 +90,6 @@ def initialize_database():
             """
         )
 
-        # P2.2 agent scoping (batch A): every agent belongs to exactly one org. agent_name stays
-        # the primary key - a global namespace, like administrator emails - because an agent
-        # authenticates by name (key or certificate) before any org can be resolved; its org is
-        # then a property of its identity. Pre-existing agents predate orgs: org_default.
-        for agent_table in ("agent_identities", "agent_credential_events"):
-            agent_table_columns = {
-                column[1]
-                for column in connection.execute(
-                    f"PRAGMA table_info({agent_table})"
-                )
-            }
-            if "org_id" not in agent_table_columns:
-                connection.execute(
-                    f"ALTER TABLE {agent_table} ADD COLUMN "
-                    "org_id TEXT NOT NULL DEFAULT 'org_default'"
-                )
-
         connection.execute(
             """
             CREATE INDEX IF NOT EXISTS
@@ -147,7 +131,8 @@ def initialize_database():
                 risk_added INTEGER NOT NULL,
                 risk_score INTEGER NOT NULL,
                 result_json TEXT,
-                executed_at TEXT
+                executed_at TEXT,
+                org_id TEXT NOT NULL DEFAULT 'org_default'
             )
             """
         )
@@ -162,6 +147,7 @@ def initialize_database():
                 actor TEXT NOT NULL,
                 decision TEXT NOT NULL,
                 note TEXT,
+                org_id TEXT NOT NULL DEFAULT 'org_default',
                 FOREIGN KEY (request_id)
                     REFERENCES tool_requests(request_id)
             )
@@ -177,6 +163,7 @@ def initialize_database():
                 timestamp TEXT NOT NULL,
                 execution_status TEXT NOT NULL,
                 result_json TEXT NOT NULL,
+                org_id TEXT NOT NULL DEFAULT 'org_default',
                 FOREIGN KEY (request_id)
                     REFERENCES tool_requests(request_id)
             )
@@ -260,6 +247,32 @@ def initialize_database():
             """
         )
 
+        # P2.2 agent scoping: every agent belongs to exactly one org (batch A), and every piece
+        # of evidence an agent produces - policy decisions, tool requests, approvals, executions
+        # - belongs to that agent's org (batch B). agent_name stays the primary key of
+        # agent_identities: agent names are a global namespace, like administrator emails,
+        # because an agent authenticates by name (key or certificate) before any org can be
+        # resolved. Everything that predates orgs belongs to org_default.
+        for org_scoped_table in (
+            "audit_events",
+            "agent_identities",
+            "agent_credential_events",
+            "tool_requests",
+            "approval_events",
+            "execution_events",
+        ):
+            org_scoped_columns = {
+                column[1]
+                for column in connection.execute(
+                    f"PRAGMA table_info({org_scoped_table})"
+                )
+            }
+            if "org_id" not in org_scoped_columns:
+                connection.execute(
+                    f"ALTER TABLE {org_scoped_table} ADD COLUMN "
+                    "org_id TEXT NOT NULL DEFAULT 'org_default'"
+                )
+
 
 def save_audit_event(
     agent_name,
@@ -272,6 +285,8 @@ def save_audit_event(
     risk_level,
     agent_status,
     blocked_attempts,
+    *,
+    org_id,
 ):
     """Save one GreyGuard security event."""
 
@@ -288,9 +303,10 @@ def save_audit_event(
                 risk_score,
                 risk_level,
                 agent_status,
-                blocked_attempts
+                blocked_attempts,
+                org_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 agent_name,
@@ -303,6 +319,7 @@ def save_audit_event(
                 risk_level,
                 agent_status,
                 blocked_attempts,
+                org_id,
             ),
         )
 
@@ -310,6 +327,8 @@ def save_audit_event(
 def get_recent_audit_events(
     agent_name,
     limit=5,
+    *,
+    org_id,
 ):
     """Return recent policy events for one agent."""
 
@@ -326,12 +345,13 @@ def get_recent_audit_events(
                 risk_level,
                 agent_status
             FROM audit_events
-            WHERE agent_name = ?
+            WHERE agent_name = ? AND org_id = ?
             ORDER BY id DESC
             LIMIT ?
             """,
             (
                 agent_name,
+                org_id,
                 limit,
             ),
         )
@@ -339,7 +359,7 @@ def get_recent_audit_events(
         return cursor.fetchall()
 
 
-def get_audit_summary(agent_name):
+def get_audit_summary(agent_name, *, org_id):
     """Return policy-audit statistics for one agent."""
 
     with sqlite3.connect(database_path) as connection:
@@ -380,9 +400,9 @@ def get_audit_summary(agent_name):
                     0
                 )
             FROM audit_events
-            WHERE agent_name = ?
+            WHERE agent_name = ? AND org_id = ?
             """,
-            (agent_name,),
+            (agent_name, org_id),
         ).fetchone()
 
     return {
@@ -835,6 +855,8 @@ def save_tool_request(
     execution_status,
     risk_added,
     risk_score,
+    *,
+    org_id,
 ):
     """Store a new tool request."""
 
@@ -864,7 +886,8 @@ def save_tool_request(
                     risk_added,
                     risk_score,
                     result_json,
-                    executed_at
+                    executed_at,
+                    org_id
                 )
                 VALUES (
                     ?,
@@ -881,7 +904,8 @@ def save_tool_request(
                     ?,
                     ?,
                     NULL,
-                    NULL
+                    NULL,
+                    ?
                 )
                 """,
                 (
@@ -898,6 +922,7 @@ def save_tool_request(
                     execution_status,
                     risk_added,
                     risk_score,
+                    org_id,
                 ),
             )
 
@@ -907,7 +932,7 @@ def save_tool_request(
     return True
 
 
-def get_tool_request(request_id):
+def get_tool_request(request_id, *, org_id):
     """Return one stored tool request."""
 
     with sqlite3.connect(database_path) as connection:
@@ -930,11 +955,12 @@ def get_tool_request(request_id):
                 risk_added,
                 risk_score,
                 result_json,
-                executed_at
+                executed_at,
+                org_id
             FROM tool_requests
-            WHERE request_id = ?
+            WHERE request_id = ? AND org_id = ?
             """,
-            (request_id,),
+            (request_id, org_id),
         ).fetchone()
 
     return serialize_tool_request(row)
@@ -945,11 +971,13 @@ def get_tool_requests(
     approval_status=None,
     execution_status=None,
     limit=50,
+    *,
+    org_id,
 ):
     """Return filtered tool requests."""
 
-    conditions = []
-    parameters = []
+    conditions = ["org_id = ?"]
+    parameters = [org_id]
 
     if agent_name is not None:
         conditions.append(
@@ -969,13 +997,10 @@ def get_tool_requests(
         )
         parameters.append(execution_status)
 
-    where_clause = ""
-
-    if conditions:
-        where_clause = (
-            "WHERE "
-            + " AND ".join(conditions)
-        )
+    where_clause = (
+        "WHERE "
+        + " AND ".join(conditions)
+    )
 
     parameters.append(limit)
 
@@ -995,7 +1020,8 @@ def get_tool_requests(
             risk_added,
             risk_score,
             result_json,
-            executed_at
+            executed_at,
+            org_id
         FROM tool_requests
         {where_clause}
         ORDER BY timestamp DESC
@@ -1022,6 +1048,8 @@ def decide_tool_request(
     actor,
     decision,
     note=None,
+    *,
+    org_id,
 ):
     """Approve or deny one pending tool request."""
 
@@ -1052,6 +1080,7 @@ def decide_tool_request(
                 updated_at = ?
             WHERE
                 request_id = ?
+                AND org_id = ?
                 AND approval_status = 'PENDING'
                 AND execution_status = 'NOT_STARTED'
             """,
@@ -1060,6 +1089,7 @@ def decide_tool_request(
                 execution_status,
                 timestamp,
                 request_id,
+                org_id,
             ),
         )
 
@@ -1073,9 +1103,10 @@ def decide_tool_request(
                 timestamp,
                 actor,
                 decision,
-                note
+                note,
+                org_id
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 request_id,
@@ -1083,6 +1114,7 @@ def decide_tool_request(
                 actor,
                 normalized_decision,
                 note,
+                org_id,
             ),
         )
 
@@ -1092,6 +1124,8 @@ def decide_tool_request(
 def claim_tool_request_execution(
     request_id,
     timestamp,
+    *,
+    org_id,
 ):
     """Atomically claim a request for one execution."""
 
@@ -1104,6 +1138,7 @@ def claim_tool_request_execution(
                 updated_at = ?
             WHERE
                 request_id = ?
+                AND org_id = ?
                 AND execution_status = 'NOT_STARTED'
                 AND approval_status IN (
                     'NOT_REQUIRED',
@@ -1113,6 +1148,7 @@ def claim_tool_request_execution(
             (
                 timestamp,
                 request_id,
+                org_id,
             ),
         )
 
@@ -1124,6 +1160,8 @@ def complete_tool_request_execution(
     timestamp,
     execution_status,
     result,
+    *,
+    org_id,
 ):
     """Finish an execution and save its evidence."""
 
@@ -1158,6 +1196,7 @@ def complete_tool_request_execution(
                 updated_at = ?
             WHERE
                 request_id = ?
+                AND org_id = ?
                 AND execution_status = 'RUNNING'
             """,
             (
@@ -1166,6 +1205,7 @@ def complete_tool_request_execution(
                 timestamp,
                 timestamp,
                 request_id,
+                org_id,
             ),
         )
 
@@ -1178,15 +1218,17 @@ def complete_tool_request_execution(
                 request_id,
                 timestamp,
                 execution_status,
-                result_json
+                result_json,
+                org_id
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             """,
             (
                 request_id,
                 timestamp,
                 normalized_status,
                 result_json,
+                org_id,
             ),
         )
 
@@ -1197,6 +1239,8 @@ def save_blocked_execution_result(
     request_id,
     timestamp,
     result,
+    *,
+    org_id,
 ):
     """Attach evidence to a blocked request."""
 
@@ -1214,12 +1258,14 @@ def save_blocked_execution_result(
                 updated_at = ?
             WHERE
                 request_id = ?
+                AND org_id = ?
                 AND execution_status = 'BLOCKED'
             """,
             (
                 result_json,
                 timestamp,
                 request_id,
+                org_id,
             ),
         )
 
@@ -1228,6 +1274,8 @@ def save_blocked_execution_result(
 
 def get_approval_events(
     request_id,
+    *,
+    org_id,
 ):
     """Return approval history for a request."""
 
@@ -1242,12 +1290,13 @@ def get_approval_events(
                 timestamp,
                 actor,
                 decision,
-                note
+                note,
+                org_id
             FROM approval_events
-            WHERE request_id = ?
+            WHERE request_id = ? AND org_id = ?
             ORDER BY id
             """,
-            (request_id,),
+            (request_id, org_id),
         ).fetchall()
 
     return [
@@ -1258,6 +1307,8 @@ def get_approval_events(
 
 def get_execution_events(
     request_id,
+    *,
+    org_id,
 ):
     """Return execution history for a request."""
 
@@ -1271,12 +1322,13 @@ def get_execution_events(
                 request_id,
                 timestamp,
                 execution_status,
-                result_json
+                result_json,
+                org_id
             FROM execution_events
-            WHERE request_id = ?
+            WHERE request_id = ? AND org_id = ?
             ORDER BY id
             """,
-            (request_id,),
+            (request_id, org_id),
         ).fetchall()
 
     events = []
@@ -1291,22 +1343,23 @@ def get_execution_events(
     return events
 
 
-def get_tool_request_details(request_id):
+def get_tool_request_details(request_id, *, org_id):
     """Return a request with approval and execution history."""
 
     request = get_tool_request(
-        request_id
+        request_id,
+        org_id=org_id,
     )
 
     if request is None:
         return None
 
     request["approval_events"] = (
-        get_approval_events(request_id)
+        get_approval_events(request_id, org_id=org_id)
     )
 
     request["execution_events"] = (
-        get_execution_events(request_id)
+        get_execution_events(request_id, org_id=org_id)
     )
 
     return request
@@ -1321,12 +1374,25 @@ if __name__ == "__main__":
     print(database_path)
 
 
+# Sentinel for get_administrator_audit_events(org_id=ALL_ORGS): an object, so it can never be
+# produced from request input the way a magic string could.
+ALL_ORGS = object()
+
+
 def get_administrator_audit_events(
     event_type=None,
     agent_name=None,
     limit=100,
+    *,
+    org_id,
 ):
-    """Return a unified administrator evidence timeline."""
+    """Return a unified administrator evidence timeline for one org.
+
+    Every event carries the org_id it belongs to. org_id=ALL_ORGS is reserved for install-level
+    background derivation (alerts.sync_alerts_from_events()), never for an administrator's view.
+    Authentication events live in a global, pre-auth table; an org sees those whose agent belongs
+    to it. Attempts against agent names that exist in no org belong to no tenant and appear only
+    in the ALL_ORGS view."""
 
     normalized_type = (
         str(event_type).strip().upper()
@@ -1341,13 +1407,22 @@ def get_administrator_audit_events(
     safe_limit = max(1, min(int(limit), 500))
 
     events = []
+    every_org = org_id is ALL_ORGS
+    # Each query below is either scoped to one org or - only for ALL_ORGS - deliberately spans
+    # every org_id; the SQL comment says which, for tenant_guard and for the reader.
+    scope = (
+        "1 = 1 /* every org_id: install-level background derivation */"
+        if every_org else "{alias}org_id = ?"
+    )
+    scope_parameters = () if every_org else (org_id,)
 
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
 
         policy_rows = connection.execute(
-            """
+            f"""
             SELECT
+                org_id,
                 id,
                 timestamp,
                 agent_name,
@@ -1360,32 +1435,41 @@ def get_administrator_audit_events(
                 agent_status,
                 blocked_attempts
             FROM audit_events
+            WHERE {scope.format(alias="")}
             ORDER BY id DESC
             LIMIT ?
             """,
-            (safe_limit,),
+            (*scope_parameters, safe_limit),
         ).fetchall()
 
         authentication_rows = connection.execute(
-            """
+            f"""
             SELECT
-                id,
-                timestamp,
-                claimed_agent_name,
-                authenticated_agent_name,
-                action,
-                outcome,
-                reason
-            FROM authentication_events
-            ORDER BY id DESC
+                identities.org_id AS org_id,
+                events.id,
+                events.timestamp,
+                events.claimed_agent_name,
+                events.authenticated_agent_name,
+                events.action,
+                events.outcome,
+                events.reason
+            FROM authentication_events AS events
+            LEFT JOIN agent_identities AS identities
+                ON identities.agent_name = COALESCE(
+                    events.authenticated_agent_name,
+                    events.claimed_agent_name
+                )
+            WHERE {scope.format(alias="identities.")}
+            ORDER BY events.id DESC
             LIMIT ?
             """,
-            (safe_limit,),
+            (*scope_parameters, safe_limit),
         ).fetchall()
 
         approval_rows = connection.execute(
-            """
+            f"""
             SELECT
+                approvals.org_id,
                 approvals.id,
                 approvals.request_id,
                 approvals.timestamp,
@@ -1398,15 +1482,18 @@ def get_administrator_audit_events(
             LEFT JOIN tool_requests AS requests
                 ON requests.request_id =
                    approvals.request_id
+                AND requests.org_id = approvals.org_id
+            WHERE {scope.format(alias="approvals.")}
             ORDER BY approvals.id DESC
             LIMIT ?
             """,
-            (safe_limit,),
+            (*scope_parameters, safe_limit),
         ).fetchall()
 
         execution_rows = connection.execute(
-            """
+            f"""
             SELECT
+                executions.org_id,
                 executions.id,
                 executions.request_id,
                 executions.timestamp,
@@ -1418,10 +1505,12 @@ def get_administrator_audit_events(
             LEFT JOIN tool_requests AS requests
                 ON requests.request_id =
                    executions.request_id
+                AND requests.org_id = executions.org_id
+            WHERE {scope.format(alias="executions.")}
             ORDER BY executions.id DESC
             LIMIT ?
             """,
-            (safe_limit,),
+            (*scope_parameters, safe_limit),
         ).fetchall()
 
     for row in policy_rows:
@@ -1438,6 +1527,7 @@ def get_administrator_audit_events(
 
         events.append({
             "event_id": f"policy-{row['id']}",
+            "org_id": row["org_id"],
             "event_type": "POLICY",
             "timestamp": row["timestamp"],
             "agent_name": row["agent_name"],
@@ -1471,6 +1561,7 @@ def get_administrator_audit_events(
 
         events.append({
             "event_id": f"authentication-{row['id']}",
+            "org_id": row["org_id"],
             "event_type": "AUTHENTICATION",
             "timestamp": row["timestamp"],
             "agent_name": (
@@ -1504,6 +1595,7 @@ def get_administrator_audit_events(
 
         events.append({
             "event_id": f"approval-{row['id']}",
+            "org_id": row["org_id"],
             "event_type": "APPROVAL",
             "timestamp": row["timestamp"],
             "agent_name": row["agent_name"],
@@ -1535,6 +1627,7 @@ def get_administrator_audit_events(
 
         events.append({
             "event_id": f"execution-{row['id']}",
+            "org_id": row["org_id"],
             "event_type": "EXECUTION",
             "timestamp": row["timestamp"],
             "agent_name": row["agent_name"],

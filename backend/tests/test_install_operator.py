@@ -69,6 +69,14 @@ GATED_ROUTES = {
     "workload identity": lambda t: api.register_workload_identity(None, t),
     "revoke workload": lambda t: api.revoke_workload_identity_route("wid_x", None, t),
     "elevation decision": lambda t: api.review_elevation_request("elv_x", None, t),
+    # One hash chain and one retention policy for the whole audit log: any org's admin applying
+    # retention would delete every other org's audit history.
+    "audit integrity": lambda t: api.audit_integrity_controls(t),
+    "verify audit chain": lambda t: api.verify_audit_chain(t),
+    "configure audit retention": lambda t: api.configure_audit_retention(None, t),
+    "create legal hold": lambda t: api.add_audit_legal_hold(None, t),
+    "release legal hold": lambda t: api.release_audit_legal_hold("hold_x", t),
+    "apply audit retention": lambda t: api.execute_audit_retention(None, t),
 }
 
 

@@ -30,7 +30,7 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30,
     owners: dict[str, str] = {}
 
     def owned(agent_name) -> bool:
-        # Agents are org-scoped by identity; tool requests are owned by their requesting agent.
+        # Agents are org-scoped by identity (tool requests and audit evidence are filtered in SQL).
         # Alerts are not attributed to an org yet (a later P2.2 agent batch).
         name = str(agent_name or "")
         if name not in owners:
@@ -51,10 +51,8 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30,
                 "path": f"/agents/{name}",
             })
 
-    requests = get_tool_requests(limit=200)
+    requests = get_tool_requests(limit=200, org_id=org_id)
     for item in requests:
-        if not owned(item.get("agent_name")):
-            continue
         if not _matches(normalized, item.get("request_id"), item.get("agent_name"), item.get("action"), item.get("target"), item.get("approval_status"), item.get("execution_status")):
             continue
         kind = "APPROVAL" if item.get("approval_status") in {"PENDING", "APPROVED", "DENIED"} else "REQUEST"
@@ -74,7 +72,7 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30,
                 "path": f"/incidents?alert={alert.get('alert_id')}",
             })
 
-    audit = get_administrator_audit_events(limit=200)
+    audit = get_administrator_audit_events(limit=200, org_id=org_id)
     audit_events = audit.get("events", audit) if isinstance(audit, dict) else audit
     for event in audit_events:
         if _matches(normalized, event.get("event_id"), event.get("event_type"), event.get("agent_name"), event.get("action"), event.get("outcome"), event.get("summary")):

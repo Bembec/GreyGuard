@@ -142,3 +142,102 @@ def test_legacy_identities_are_backfilled_to_the_default_org(tmp_path, monkeypat
     assert database.get_agent_identity("legacy_bot")["org_id"] == "org_default"
     assert database.get_credential_history("legacy_bot", org_id="org_default")["total"] == 1
     assert database.get_credential_history("legacy_bot", org_id="org_other")["total"] == 0
+
+
+# --- P2.2 agent scoping, batch B: agent evidence (tool requests, approvals, executions, audit) --
+
+def list_requests(token):
+    # Route functions called directly: pass every Query parameter explicitly.
+    return api.list_tool_requests(agent_name=None, approval_status=None, execution_status=None, limit=50, x_admin_pin=token)
+
+
+def submit(agent, action="write_note"):
+    # write_note is ASK by default, so the request waits for an administrator's approval.
+    return main.submit_tool_request(agent, action, "note.txt", {"content": "x"})
+
+
+def test_tool_requests_and_their_evidence_belong_to_the_agents_org(tenants):
+    register(tenants["theirs"], "theirs_agent")
+    pending = submit("theirs_agent")
+    assert pending["org_id"] == tenants["other_org"] and pending["approval_status"] == "PENDING"
+    assert [r["request_id"] for r in list_requests(tenants["theirs"])["requests"]] == [pending["request_id"]]
+    assert list_requests(tenants["ours"])["requests"] == []
+
+
+def test_another_orgs_admin_cannot_approve_a_pending_request(tenants):
+    register(tenants["theirs"], "theirs_agent")
+    pending = submit("theirs_agent")
+    with pytest.raises(HTTPException) as error:
+        api.review_tool_request(pending["request_id"], api.ToolApprovalDecision(decision="APPROVED"), tenants["ours"])
+    assert error.value.status_code == 404
+    assert database.get_tool_request(pending["request_id"], org_id=tenants["other_org"])["approval_status"] == "PENDING"
+    # The owning org's decision is recorded, with its approval evidence in the same org.
+    decided = api.review_tool_request(pending["request_id"], api.ToolApprovalDecision(decision="DENIED"), tenants["theirs"])
+    assert decided["approval_status"] == "DENIED"
+    assert [e["org_id"] for e in decided["approval_events"]] == [tenants["other_org"]]
+
+
+def test_the_evidence_timeline_is_scoped_and_every_event_names_its_org(tenants):
+    register(tenants["ours"], "ours_agent")
+    register(tenants["theirs"], "theirs_agent")
+    submit("ours_agent", "read_file")
+    submit("theirs_agent", "read_file")
+    ours = database.get_administrator_audit_events(limit=500, org_id=organizations.DEFAULT_ORG_ID)["events"]
+    theirs = database.get_administrator_audit_events(limit=500, org_id=tenants["other_org"])["events"]
+    assert ours and {e["agent_name"] for e in ours} == {"ours_agent"}
+    assert {e["org_id"] for e in ours} == {organizations.DEFAULT_ORG_ID}
+    assert theirs and {e["agent_name"] for e in theirs} == {"theirs_agent"}
+    every = database.get_administrator_audit_events(limit=500, org_id=database.ALL_ORGS)["events"]
+    assert {e["agent_name"] for e in every} >= {"ours_agent", "theirs_agent"}
+    # The administrator-facing route uses the caller's own org.
+    routed = api.administrator_audit_events(event_type=None, agent_name=None, limit=500, x_admin_pin=tenants["theirs"])["events"]
+    assert {e["agent_name"] for e in routed} == {"theirs_agent"}
+
+
+def test_an_orgs_compliance_evidence_excludes_other_orgs_agents(tenants):
+    from backend.app import compliance_reports
+    register(tenants["ours"], "ours_agent")
+    register(tenants["theirs"], "theirs_agent")
+    submit("ours_agent", "read_file")
+    submit("theirs_agent", "read_file")
+    evidence = compliance_reports.build_evidence({}, tenants["other_org"])
+    assert {e["agent_name"] for e in evidence["audit_events"]} == {"theirs_agent"}
+
+
+def test_an_agent_reads_its_own_request_and_cannot_probe_another_orgs(tenants):
+    from fastapi.testclient import TestClient
+    ours = register(tenants["ours"], "ours_agent")
+    theirs = register(tenants["theirs"], "theirs_agent")
+    their_request = submit("theirs_agent", "read_file")
+    client = TestClient(api.app, raise_server_exceptions=False)
+    own = client.get(f"/tool-requests/{their_request['request_id']}",
+                     headers={"X-Agent-Name": "theirs_agent", "X-Agent-Key": theirs["credential"]})
+    # Before batch B this route failed with a 500 for every existing request.
+    assert own.status_code == 200 and own.json()["request_id"] == their_request["request_id"]
+    probe = client.get(f"/tool-requests/{their_request['request_id']}",
+                       headers={"X-Agent-Name": "ours_agent", "X-Agent-Key": ours["credential"]})
+    assert probe.status_code == 404
+    unauthenticated = client.get(f"/tool-requests/{their_request['request_id']}",
+                                 headers={"X-Agent-Name": "theirs_agent", "X-Agent-Key": "gg_wrong"})
+    assert unauthenticated.status_code == 401
+
+
+def test_legacy_agent_evidence_is_backfilled_to_the_default_org(tmp_path, monkeypatch):
+    path = tmp_path / "legacy-evidence.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute("""CREATE TABLE tool_requests (request_id TEXT PRIMARY KEY, agent_name TEXT NOT NULL,
+            timestamp TEXT NOT NULL, updated_at TEXT NOT NULL, action TEXT NOT NULL, target TEXT,
+            payload_json TEXT NOT NULL, dry_run INTEGER NOT NULL DEFAULT 0, policy_decision TEXT NOT NULL,
+            approval_status TEXT NOT NULL, execution_status TEXT NOT NULL, risk_added INTEGER NOT NULL,
+            risk_score INTEGER NOT NULL, result_json TEXT, executed_at TEXT)""")
+        connection.execute("""CREATE TABLE approval_events (id INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id TEXT NOT NULL, timestamp TEXT NOT NULL, actor TEXT NOT NULL, decision TEXT NOT NULL,
+            note TEXT, FOREIGN KEY (request_id) REFERENCES tool_requests(request_id))""")
+        connection.execute("INSERT INTO tool_requests VALUES('req_legacy','legacy_bot','2026-01-01','2026-01-01',"
+                           "'write_note','n','{}',0,'ASK','APPROVED','SUCCEEDED',10,10,NULL,NULL)")
+        connection.execute("INSERT INTO approval_events(request_id,timestamp,actor,decision) VALUES('req_legacy','2026-01-01','owner','APPROVED')")
+    monkeypatch.setattr(database, "database_path", path)
+    database.initialize_database()
+    details = database.get_tool_request_details("req_legacy", org_id="org_default")
+    assert details["org_id"] == "org_default" and [e["org_id"] for e in details["approval_events"]] == ["org_default"]
+    assert database.get_tool_request_details("req_legacy", org_id="org_other") is None

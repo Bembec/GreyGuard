@@ -197,6 +197,21 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # another org owns is refused as "unavailable" without confirming who owns it.
     "agent_identities",
     "agent_credential_events",
+    # P2.2 agent scoping, batch B (database.py/main.py): every piece of evidence an agent
+    # produces belongs to that agent's org - policy decisions (audit_events), tool requests, and
+    # their approval and execution events. The org is always derived from the agent's identity
+    # (main.agent_org_id()) at write time, never from anything the caller supplies; every
+    # database function takes org_id as a required keyword. The unified evidence timeline
+    # (get_administrator_audit_events()) is scoped the same way and stamps each event with its
+    # org_id; org_id=ALL_ORGS - an object sentinel no request can produce - is reserved for the
+    # install-level alert derivation. The authentication_events part of that timeline (a global,
+    # pre-auth table) is filtered by agent ownership. Before this batch an org's compliance
+    # report, live event stream, audit view and approval queue showed every org's agent activity,
+    # and one org's admin could approve or deny another org's pending tool request.
+    "audit_events",
+    "tool_requests",
+    "approval_events",
+    "execution_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -292,6 +307,17 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     # enterprise identity tables and administrator account management - so the reclassification
     # is honest: no tenant can change it.
     "outbound_allowed_private_hosts",
+    # P2.2 agent batch B: the audit-integrity subsystem (audit_integrity.py) is install-wide by
+    # nature - one hash chain over the whole audit log, and one retention policy that deletes from
+    # it - so its tables are global, and every /audit-integrity route now requires
+    # install_operator. Before this, any org's PLATFORM_ADMIN could lower retention, turn off
+    # immutability, release other orgs' legal holds and apply retention: deleting every org's
+    # audit history. Its three statements against audit_events (an org-scoped table) carry
+    # explicit cross-org SQL comments.
+    "audit_integrity_chain",
+    "audit_integrity_checks",
+    "audit_legal_holds",
+    "audit_retention_config",
 })
 
 # Tables that exist today but have not yet had a tenant-scoping decision made - not a silent
@@ -310,11 +336,9 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
 # adapter_configs got, not a plain ADD COLUMN - flagged now so whichever batch tackles them
 # doesn't rediscover that the hard way.
 PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
-    "alert_notes", "approval_events", "audit_events",
-    "audit_integrity_chain", "audit_integrity_checks", "audit_legal_holds",
-    "audit_retention_config",  # *
+    "alert_notes",
     "callback_evidence", "compliance_reports",
-    "execution_events", "expiring_approval_links",
+    "expiring_approval_links",
     "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones",
@@ -342,7 +366,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "policy_emergency_controls",  # *
     "policy_emergency_events", "policy_integration_events", "policy_rollouts",
     "security_alerts", "security_notifications",
-    "tool_requests",
 })
 
 _STATEMENT_TABLE = re.compile(

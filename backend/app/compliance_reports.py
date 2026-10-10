@@ -95,7 +95,7 @@ def build_evidence(filters: dict[str, Any], org_id: str = organizations.DEFAULT_
     severities = {str(value).upper() for value in filters.get("severities", [])}
     event_types = {str(value).upper() for value in filters.get("event_types", [])}
 
-    events = get_administrator_audit_events(limit=500)["events"]
+    events = get_administrator_audit_events(limit=500, org_id=org_id)["events"]
     events = [
         event for event in events
         if _within(event.get("timestamp"), date_from, date_to)

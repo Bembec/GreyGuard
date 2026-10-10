@@ -91,7 +91,7 @@ test("an org PLATFORM_ADMIN who is not an install operator cannot reach install-
   // Tenant-scoped admin pages stay available to the org's PLATFORM_ADMIN...
   await expect(page.locator('a[href="/security-exports"]').first()).toBeAttached({ timeout: 15_000 })
   // ...but install-wide ones are neither listed nor reachable directly.
-  for (const path of ["/team", "/observability", "/enterprise-identity", "/abuse-protection"]) {
+  for (const path of ["/team", "/observability", "/enterprise-identity", "/abuse-protection", "/audit-integrity"]) {
     await expect(page.locator(`a[href="${path}"]`)).toHaveCount(0)
   }
   await page.goto("/observability")

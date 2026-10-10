@@ -201,7 +201,7 @@ export const navigationItems: NavigationItem[] = [
     label: "Audit Integrity",
     path: "/audit-integrity",
     description: "Cryptographic verification, retention and legal holds",
-    requiredRole: "PLATFORM_ADMIN",
+    requiresInstallOperator: true,
     group: "evidence",
     icon: FileLock2,
   },

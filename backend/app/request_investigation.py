@@ -32,8 +32,8 @@ def explain_decision(decision: str, approval: str, execution: str) -> str:
     return "The request remains governed by its recorded policy, approval and execution states."
 
 
-def build_request_investigation(request_id: str) -> dict | None:
-    details = get_tool_request_details(request_id)
+def build_request_investigation(request_id: str, *, org_id: str) -> dict | None:
+    details = get_tool_request_details(request_id, org_id=org_id)
     if details is None:
         return None
     safe = redact_evidence(details)

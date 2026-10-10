@@ -5,7 +5,7 @@ from . import main
 from .database import get_administrator_audit_events, get_tool_requests
 
 
-def build_agent_investigation(agent_name: str, evidence_limit: int = 100) -> dict:
+def build_agent_investigation(agent_name: str, evidence_limit: int = 100, *, org_id: str) -> dict:
     normalized = main.normalize_agent_name(agent_name)
     state = main.get_agent_state(normalized)
     try:
@@ -14,7 +14,7 @@ def build_agent_investigation(agent_name: str, evidence_limit: int = 100) -> dic
         identity = None
 
     evidence = get_administrator_audit_events(
-        agent_name=normalized, limit=max(1, min(int(evidence_limit), 200))
+        agent_name=normalized, limit=max(1, min(int(evidence_limit), 200)), org_id=org_id
     )["events"]
     risk_history = [
         {
@@ -45,7 +45,7 @@ def build_agent_investigation(agent_name: str, evidence_limit: int = 100) -> dic
             "risk_added": item["risk_added"], "risk_score": item["risk_score"],
             "path": f"/requests/{item['request_id']}",
         }
-        for item in get_tool_requests(agent_name=normalized, limit=200)
+        for item in get_tool_requests(agent_name=normalized, limit=200, org_id=org_id)
     ]
     return {
         "agent": {
