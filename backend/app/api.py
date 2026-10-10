@@ -72,6 +72,7 @@ from .enterprise_sso import (
     list_enabled_providers_for_login,
 )
 from . import organizations
+from . import entitlements
 
 
 from .policy_control import (
@@ -334,6 +335,7 @@ async def lifespan(_app: FastAPI):
         initialize_notification_delivery()
         initialize_incident_integrations()
         initialize_execution_isolation()
+        entitlements.initialize_entitlements()
         initialize_isolation_operations()
         initialize_outbound_delivery()
         initialize_enterprise_sso()
@@ -1388,6 +1390,71 @@ def administrator_revoke_session(session_id: str, x_admin_pin: str | None = Head
     return {"revoked": True, "session_id": session_id}
 
 
+class PlanAssignmentRequest(BaseModel):
+    plan: Literal["UNASSIGNED", "FOUNDATION", "ENTERPRISE", "DEDICATED"]
+    status: Literal["ACTIVE", "TRIAL", "EXPIRED", "SUSPENDED"] = "ACTIVE"
+    trial_days: int | None = Field(default=None, ge=1, le=entitlements.MAX_TRIAL_DAYS)
+
+
+class EntitlementOverrideRequest(BaseModel):
+    key: str = Field(min_length=3, max_length=100)
+    value: bool | int | None = None
+    reason: str = Field(min_length=10, max_length=500)
+    expires_in_days: int | None = Field(default=None, ge=1, le=365)
+
+
+@app.get("/entitlements")
+def current_entitlements(x_admin_pin: str | None = Header(default=None)):
+    """The administrator's own org's plan, features, limits and usage (read-only for every role,
+    so reviewers and auditors can see what governs them)."""
+    return entitlements.get_entitlements(organizations.resolve_org_id(require_admin(x_admin_pin)))
+
+
+@app.get("/entitlements/{org_id}")
+def organization_entitlements(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    require_install_operator(x_admin_pin)
+    _require_existing_org(org_id)
+    return {**entitlements.get_entitlements(org_id), "history": entitlements.entitlement_history(org_id)}
+
+
+@app.put("/entitlements/{org_id}")
+def assign_organization_plan(org_id: str, payload: PlanAssignmentRequest, x_admin_pin: str | None = Header(default=None)):
+    """Plans are assigned by install operators, never by the org itself."""
+    administrator = require_install_operator(x_admin_pin)
+    _require_existing_org(org_id)
+    try:
+        return entitlements.assign_plan(org_id, payload.plan, payload.status, policy_actor(administrator), payload.trial_days)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/entitlements/{org_id}/overrides", status_code=201)
+def add_entitlement_override(org_id: str, payload: EntitlementOverrideRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    _require_existing_org(org_id)
+    try:
+        return entitlements.add_override(org_id, payload.key, payload.value, payload.reason,
+                                         policy_actor(administrator), payload.expires_in_days)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.delete("/entitlements/{org_id}/overrides/{override_id}")
+def revoke_entitlement_override(org_id: str, override_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    try:
+        return entitlements.revoke_override(org_id, override_id, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+def _require_existing_org(org_id):
+    try:
+        organizations.get_organization(org_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Organization not found.") from error
+
+
 @app.get("/administrators")
 def administrators(x_admin_pin: str | None = Header(default=None)):
     actor = require_install_operator(x_admin_pin)
@@ -1578,6 +1645,12 @@ def require_install_operator(x_admin_pin):
     if not administrator.get("install_operator"):
         raise HTTPException(status_code=403, detail="Install operator access is required.")
     return administrator
+
+
+@app.exception_handler(entitlements.EntitlementError)
+async def entitlement_refused(_request: Request, error: entitlements.EntitlementError):
+    """Plan, limit and restricted-mode refusals are 403s that say exactly what the plan allows."""
+    return JSONResponse(status_code=403, content={"detail": str(error), "reason": "ENTITLEMENT"})
 
 
 def alert_scope(administrator):
@@ -2077,6 +2150,9 @@ def configure_security_export_destination(
     x_admin_pin: str | None = Header(default=None),
 ):
     administrator = require_platform_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    entitlements.require_feature(org_id, "siem_export")
+    entitlements.require_new_integration_capacity(org_id, "export_destinations", payload.name)
     try:
         return save_destination(
             payload.name, payload.destination_type, payload.endpoint, payload.enabled,
@@ -2153,6 +2229,7 @@ def notification_delivery_controls(x_admin_pin: str | None = Header(default=None
 @app.post("/notification-delivery/destinations",status_code=201)
 def configure_notification_destination(payload: NotificationDestinationRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
+    entitlements.require_new_integration_capacity(organizations.resolve_org_id(administrator),"notification_destinations",payload.name)
     try:return save_notification_destination(payload.name,payload.channel,payload.endpoint_reference,payload.enabled,payload.minimum_severity,payload.quiet_start_hour,payload.quiet_end_hour,payload.critical_bypass,payload.escalation_minutes,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
@@ -2179,7 +2256,9 @@ def incident_integration_configuration(x_admin_pin: str | None = Header(default=
 
 @app.post("/incident-integrations/destinations",status_code=201)
 def configure_incident_destination(payload: IncidentDestinationRequest,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin)
+    administrator=require_platform_admin(x_admin_pin);org_id=organizations.resolve_org_id(administrator)
+    entitlements.require_feature(org_id,"incident_integrations")
+    entitlements.require_new_integration_capacity(org_id,"incident_destinations",payload.name)
     try:return save_incident_destination(payload.name,payload.system_type,payload.endpoint,payload.credential_reference,payload.project_or_table,payload.enabled,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
@@ -2407,6 +2486,7 @@ def report_governance_overview(x_admin_pin: str | None = Header(default=None)):
 @app.post("/report-governance/schedules",status_code=201)
 def schedule_security_report(payload: ReportScheduleRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
+    entitlements.require_feature(organizations.resolve_org_id(administrator),"scheduled_reports")
     try:return create_schedule(payload.title,payload.frequency,payload.next_run_at,policy_actor(administrator),org_id=organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
@@ -2734,6 +2814,7 @@ def register_agent_identity(
     """Register an agent and issue a credential."""
 
     administrator = require_admin(x_admin_pin)
+    entitlements.require_capacity(organizations.resolve_org_id(administrator), "agents")
 
     try:
         return main.issue_agent_credential(

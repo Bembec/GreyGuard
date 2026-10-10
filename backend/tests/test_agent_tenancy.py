@@ -13,7 +13,7 @@ import pytest
 from fastapi import HTTPException
 
 from backend.app import (
-    admin_auth, alerts, api, compliance_reports, database, incident_integrations, main, notifications,
+    admin_auth, alerts, api, compliance_reports, database, entitlements, incident_integrations, main, notifications,
     organizations, policy_control, policy_integrations,
 )
 
@@ -24,7 +24,7 @@ PASSWORD = "SecureDemo!123"
 def tenants(tmp_path, monkeypatch):
     path = tmp_path / "tenancy.db"
     for module in (admin_auth, organizations, database, alerts, notifications, policy_control, policy_integrations,
-                   compliance_reports, incident_integrations):
+                   compliance_reports, incident_integrations, entitlements):
         monkeypatch.setattr(module, "database_path", path)
     monkeypatch.setattr(main, "state_path", tmp_path / "state.json")
     monkeypatch.delenv("GREYGUARD_BOOTSTRAP_EMAIL", raising=False)

@@ -262,6 +262,11 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "compliance_reports",
     "expiring_approval_links",
     "callback_evidence",
+    # P2.3 (entitlements.py): each org's plan assignment, its audited overrides and the
+    # entitlement event log - org-scoped from creation.
+    "org_entitlements",
+    "entitlement_overrides",
+    "entitlement_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a

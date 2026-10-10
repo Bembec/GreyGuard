@@ -19,6 +19,7 @@ import {
   useState,
 } from "react"
 
+import { PlanUsagePanel } from "../components/PlanUsagePanel"
 import { useAuth } from "../context/AuthContext"
 import {
   applySettings,
@@ -436,6 +437,8 @@ export default function SettingsPage() {
             End administrator session
           </button>
         </section>
+
+        <PlanUsagePanel />
 
         <section className="settings-panel">
           <div className="settings-panel-heading">

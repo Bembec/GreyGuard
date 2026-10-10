@@ -53,8 +53,8 @@ def test_every_schema_table_has_an_explicit_tenant_scoping_status():
     module's own database_path global individually (see db_compat.py survey notes) for no
     extra confidence - the migration files are what actually ships.
 
-    PENDING_TENANT_SCOPING must shrink to empty by the end of P2.2 - this test does not enforce
-    that (P2.2 isn't done), only that nothing has fallen through every net at once.
+    P2.2 is complete, so PENDING_TENANT_SCOPING must stay empty: every new table needs a real
+    decision - org-scoped or deliberately global - in the same commit that creates it.
     """
     import re
     from pathlib import Path
@@ -73,6 +73,7 @@ def test_every_schema_table_has_an_explicit_tenant_scoping_status():
     assert missing == set(), f"Tables with no tenant-scoping decision recorded at all: {missing}"
     stale = (scoped | global_ | pending) - tables
     assert stale == set(), f"Registries reference tables that no longer exist in any migration: {stale}"
+    assert pending == frozenset(), f"Tables left undecided after P2.2: {pending}"
 
 
 def test_two_org_contamination_fixture_proves_scoped_queries_never_cross_orgs(tmp_path, monkeypatch):
