@@ -2147,20 +2147,20 @@ def queue_external_notification(payload: ExternalNotificationRequest,x_admin_pin
 
 @app.get("/incident-integrations")
 def incident_integration_configuration(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return incident_integration_controls()
+    administrator=require_platform_admin(x_admin_pin);return incident_integration_controls(organizations.resolve_org_id(administrator))
 
 
 @app.post("/incident-integrations/destinations",status_code=201)
 def configure_incident_destination(payload: IncidentDestinationRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return save_incident_destination(payload.name,payload.system_type,payload.endpoint,payload.credential_reference,payload.project_or_table,payload.enabled,policy_actor(administrator))
+    try:return save_incident_destination(payload.name,payload.system_type,payload.endpoint,payload.credential_reference,payload.project_or_table,payload.enabled,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/incident-integrations/incidents",status_code=202)
 def create_external_incident(payload: ExternalIncidentRequest,x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
-    try:return queue_incident(payload.destination_id,payload.alert)
+    administrator=require_platform_admin(x_admin_pin)
+    try:return queue_incident(payload.destination_id,payload.alert,organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
