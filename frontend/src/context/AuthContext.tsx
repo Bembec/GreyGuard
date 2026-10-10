@@ -39,6 +39,9 @@ export interface Administrator {
   active_org_id?: string | null
   active_org_name?: string | null
   governance_role?: "OWNER" | "BILLING_ADMIN" | "MEMBER" | null
+  /** Global account flag for install-wide controls (accounts, SSO, observability, rate limits) -
+   * independent of the per-org role above, which any org owner can hold. */
+  install_operator?: boolean
 }
 
 interface AuthContextValue {

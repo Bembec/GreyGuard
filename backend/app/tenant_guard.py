@@ -267,6 +267,17 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     "privilege_elevations",
     "break_glass_activations",
     "enterprise_identity_events",
+    # Install-operator phase (follows P2.2 batch 18): outbound_allowed_private_hosts is the SSRF
+    # private-destination allowlist, consulted by is_private_destination_allowed() on every org's
+    # outbound send. Every org's workers share one install network, so it is an install-wide
+    # network control, not tenant data - per-org scoping would still let any org open a path into
+    # the install's private network for its own destinations. Batch 18 left it pending because
+    # its write endpoints were gated by PLATFORM_ADMIN, which P2.1 made a per-org role. They now
+    # require the global install_operator account flag (api.require_install_operator()), as do
+    # every other install-wide control above - observability_config, rate_limit_policies, the
+    # enterprise identity tables and administrator account management - so the reclassification
+    # is honest: no tenant can change it.
+    "outbound_allowed_private_hosts",
 })
 
 # Tables that exist today but have not yet had a tenant-scoping decision made - not a silent
@@ -294,18 +305,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones",
-    # outbound_allowed_private_hosts (outbound_delivery.py) was surveyed for P2.2 batch 18 and
-    # deliberately left here. It is not tenant data: is_private_destination_allowed() is
-    # consulted on every org's outbound send, and every org's workers share one install network,
-    # so the allowlist is an install-wide network control - per-org scoping would still let any
-    # org open a path into the install's private network for its own destinations. But it cannot
-    # honestly be reclassified as global either: its write endpoints are gated by
-    # require_platform_admin(), and PLATFORM_ADMIN is now resolved from the caller's *org*
-    # membership (P2.1), so any org's admin can change an SSRF control that applies to every
-    # tenant. Correctly classifying it needs an install-level operator role that does not exist
-    # yet. observability_config (reclassified global in batch 9) has the same latent write-gate
-    # gap and should be revisited together with it.
-    "outbound_allowed_private_hosts",
     # policy_versions, policy_change_events, policy_test_cases, policy_emergency_controls (*)
     # and policy_emergency_events (policy_control.py) were surveyed for P2.2 batch 13 and
     # deliberately NOT scoped - a bigger finding than a table-shape problem. Enforcement never

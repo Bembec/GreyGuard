@@ -24,10 +24,10 @@ export default function AbuseProtectionPage(){
  const updateDraft=(category:string,field:keyof RateLimitPolicy,value:number|boolean)=>setDrafts(current=>({...current,[category]:{...current[category],[field]:value}}))
  const save=async(policy:RateLimitPolicy)=>{setBusy(policy.category);setMessage("");try{const response=await fetch(`${API}/abuse-protection/policies/${policy.category}`,{method:"PUT",headers,body:JSON.stringify({enabled:policy.enabled,request_limit:policy.request_limit,window_seconds:policy.window_seconds,block_seconds:policy.block_seconds,max_failed_attempts:policy.max_failed_attempts})});const body=await response.json();if(!response.ok)throw new Error(body.detail??"Policy update failed.");setMessage(`${formatProtectionCategory(policy.category)} protection policy updated.`);await load()}catch(error){setMessage(error instanceof Error?error.message:"Request failed.")}finally{setBusy("")}}
  const summary=data?.summary
- // GET /abuse-protection itself calls require_platform_admin() server-side (backend/app/api.py)
- // - this is not merely a mutation-gated page, the entire resource is PLATFORM_ADMIN-only, so a
+ // GET /abuse-protection itself calls require_install_operator() server-side (backend/app/api.py)
+ // - this is not merely a mutation-gated page, the entire resource is install-operator-only, so a
  // page-level redirect (not a partial read-only render) is the correct gate.
- if(administrator?.role!=="PLATFORM_ADMIN")return <Navigate to="/dashboard" replace/>
+ if(!administrator?.install_operator)return <Navigate to="/dashboard" replace/>
  return <main className="abuse-page"><section className="abuse-hero"><div><p><ShieldAlert size={15}/> Defensive controls</p><h1>Abuse Protection</h1><span>Throttle excessive traffic, lock repeated failures, and preserve suspicious burst evidence.</span></div><button onClick={()=>void load()}><RefreshCw size={17}/> Refresh</button></section>
  {message&&<p className="abuse-message">{message}</p>}
  {loading&&<LoadingState label="Loading abuse protection" rows={3}/>}

@@ -88,7 +88,7 @@ export default function TeamAccessPage() {
     setEdit({ display_name: item.display_name, role: item.role, status: item.status, password: "" })
   }
 
-  if (administrator?.role !== "PLATFORM_ADMIN") return <main className="team-page"><section className="team-denied"><Ban size={34}/><h1>Platform administrator access required</h1><p>Your role cannot manage operator identities.</p></section></main>
+  if (!administrator?.install_operator) return <main className="team-page"><section className="team-denied"><Ban size={34}/><h1>Install operator access required</h1><p>Your role cannot manage operator identities.</p></section></main>
 
   return <main className="team-page">
     <section className="team-hero"><div><p><ShieldEllipsis size={15}/> Identity administration</p><h1>Team & Access</h1><span>Create accountable operators and enforce least-privilege roles.</span></div><button type="button" onClick={()=>setCreating(true)}><Plus size={17}/> Add administrator</button></section>

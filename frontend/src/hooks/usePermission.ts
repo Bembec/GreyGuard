@@ -5,6 +5,7 @@ export type PermissionCheck =
   | { anyRole: Administrator["role"][] }
   | { permission: string }
   | { anyPermission: string[] }
+  | { installOperator: true }
 
 /**
  * Plain (non-hook) matcher, so a list of items can be permission-filtered in a .map()/.filter()
@@ -19,6 +20,7 @@ export function matchesPermission(administrator: Administrator | null, check?: P
   if ("role" in check) return administrator.role === check.role
   if ("anyRole" in check) return check.anyRole.includes(administrator.role)
   if ("permission" in check) return administrator.permissions.includes(check.permission)
+  if ("installOperator" in check) return administrator.install_operator === true
   return check.anyPermission.some((permission) => administrator.permissions.includes(permission))
 }
 

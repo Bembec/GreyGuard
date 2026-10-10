@@ -513,6 +513,7 @@ class AdministratorUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=100)
     role: Literal["PLATFORM_ADMIN", "SECURITY_ANALYST", "AUDITOR"] | None = None
     status: Literal["ACTIVE", "DISABLED"] | None = None
+    install_operator: bool | None = None
 
 
 class AdministratorPasswordReset(BaseModel):
@@ -1029,7 +1030,7 @@ def require_admin(x_admin_pin: str | None):
     # The shared PIN bypasses named accounts and MFA, so it is never honoured in production.
     legacy_pin_allowed = os.getenv("GREYGUARD_ENV", "development").strip().lower() != "production"
     if legacy_pin_allowed and configured_pin and x_admin_pin and hmac.compare_digest(x_admin_pin, configured_pin):
-        return {"admin_id": "legacy", "email": "legacy", "display_name": "Legacy Administrator", "role": "PLATFORM_ADMIN", "permissions": ["admin:manage", "approval:manage", "identity:manage", "incident:manage", "read"]}
+        return {"admin_id": "legacy", "email": "legacy", "display_name": "Legacy Administrator", "role": "PLATFORM_ADMIN", "install_operator": True, "permissions": ["admin:manage", "approval:manage", "identity:manage", "incident:manage", "read"]}
     raise HTTPException(status_code=401, detail="Administrator authentication failed.")
 
 
@@ -1265,7 +1266,7 @@ def switch_active_organization(payload: ActiveOrgSwitch, x_admin_pin: str | None
 
 @app.post("/organizations", status_code=201)
 def create_organization_route(payload: OrganizationCreate, x_admin_pin: str | None = Header(default=None)):
-    actor = require_admin(x_admin_pin)
+    actor = require_install_operator(x_admin_pin)
     try:
         return organizations.create_organization(payload.name, actor["admin_id"], payload.slug)
     except ValueError as error:
@@ -1386,17 +1387,13 @@ def administrator_revoke_session(session_id: str, x_admin_pin: str | None = Head
 
 @app.get("/administrators")
 def administrators(x_admin_pin: str | None = Header(default=None)):
-    actor = require_admin(x_admin_pin)
-    if not has_permission(actor, "admin:manage"):
-        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    actor = require_install_operator(x_admin_pin)
     return {"administrators": list_administrators(), "count": len(list_administrators())}
 
 
 @app.post("/administrators", status_code=201)
 def register_administrator(registration: AdministratorCreate, x_admin_pin: str | None = Header(default=None)):
-    actor = require_admin(x_admin_pin)
-    if not has_permission(actor, "admin:manage"):
-        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    actor = require_install_operator(x_admin_pin)
     try:
         created = create_administrator(registration.email, registration.display_name, registration.role, registration.password)
     except ValueError as error:
@@ -1412,11 +1409,10 @@ def register_administrator(registration: AdministratorCreate, x_admin_pin: str |
 
 @app.put("/administrators/{admin_id}")
 def edit_administrator(admin_id: str, update: AdministratorUpdate, x_admin_pin: str | None = Header(default=None)):
-    actor = require_admin(x_admin_pin)
-    if not has_permission(actor, "admin:manage"):
-        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    actor = require_install_operator(x_admin_pin)
     try:
-        return update_administrator(admin_id, update.display_name, update.role, update.status)
+        return update_administrator(admin_id, update.display_name, update.role, update.status,
+                                    update.install_operator)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
@@ -1425,9 +1421,7 @@ def edit_administrator(admin_id: str, update: AdministratorUpdate, x_admin_pin: 
 
 @app.post("/administrators/{admin_id}/password")
 def reset_admin_password(admin_id: str, reset: AdministratorPasswordReset, x_admin_pin: str | None = Header(default=None)):
-    actor = require_admin(x_admin_pin)
-    if not has_permission(actor, "admin:manage"):
-        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    actor = require_install_operator(x_admin_pin)
     try:
         return reset_administrator_password(admin_id, reset.new_password)
     except KeyError as error:
@@ -1438,9 +1432,7 @@ def reset_admin_password(admin_id: str, reset: AdministratorPasswordReset, x_adm
 
 @app.post("/administrators/{admin_id}/sessions/revoke")
 def revoke_admin_sessions(admin_id: str, x_admin_pin: str | None = Header(default=None)):
-    actor = require_admin(x_admin_pin)
-    if not has_permission(actor, "admin:manage"):
-        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
+    actor = require_install_operator(x_admin_pin)
     try:
         return {"admin_id": admin_id, "revoked_sessions": revoke_administrator_sessions(admin_id)}
     except KeyError as error:
@@ -1567,6 +1559,21 @@ def require_platform_admin(x_admin_pin):
     administrator = require_admin(x_admin_pin)
     if administrator["role"] != "PLATFORM_ADMIN":
         raise HTTPException(status_code=403, detail="Platform Admin approval is required.")
+    return administrator
+
+
+def require_install_operator(x_admin_pin):
+    """Gate for install-wide controls no single tenant may own: administrator accounts, org
+    creation, SSO configuration, rate limiting, observability and the SSRF allowlist.
+
+    PLATFORM_ADMIN is not enough here: since P2.1 it is resolved from the caller's active org
+    membership, and any administrator can create an org (and become its PLATFORM_ADMIN) - so
+    gating these on it let any tenant's admin reset another org owner's password or open the
+    install's private network to its own destinations. install_operator is a global account flag
+    that no org-level action can grant."""
+    administrator = require_admin(x_admin_pin)
+    if not administrator.get("install_operator"):
+        raise HTTPException(status_code=403, detail="Install operator access is required.")
     return administrator
 
 
@@ -2000,7 +2007,7 @@ def create_adapter_request(
 
 @app.get("/observability/config")
 def observability_configuration(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
+    require_install_operator(x_admin_pin)
     return get_observability_config()
 
 
@@ -2009,7 +2016,7 @@ def configure_observability(
     payload: ObservabilityConfigurationRequest,
     x_admin_pin: str | None = Header(default=None),
 ):
-    administrator = require_platform_admin(x_admin_pin)
+    administrator = require_install_operator(x_admin_pin)
     return update_observability_config(
         payload.tracing_enabled, payload.metrics_enabled,
         payload.structured_logs_enabled, payload.sample_rate,
@@ -2019,7 +2026,7 @@ def configure_observability(
 
 @app.get("/observability/metrics")
 def observability_metrics(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
+    require_install_operator(x_admin_pin)
     return Response(content=prometheus_metrics(), media_type="text/plain; version=0.0.4")
 
 
@@ -2028,7 +2035,7 @@ def observability_traces(
     limit: int = Query(default=200, ge=1, le=1000),
     x_admin_pin: str | None = Header(default=None),
 ):
-    require_platform_admin(x_admin_pin)
+    require_install_operator(x_admin_pin)
     return otlp_export(limit)
 
 
@@ -2191,19 +2198,19 @@ def receive_signed_incident_callback(payload: SignedCallbackRequest,x_admin_pin:
 
 @app.get("/outbound-delivery/private-allowlist")
 def outbound_private_allowlist(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return {"hosts":list_allowed_private_destinations()}
+    require_install_operator(x_admin_pin);return {"hosts":list_allowed_private_destinations()}
 
 
 @app.post("/outbound-delivery/private-allowlist",status_code=201)
 def allow_outbound_private_destination(payload: PrivateDestinationAllowRequest,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin)
+    administrator=require_install_operator(x_admin_pin)
     try:return allow_private_destination(payload.host,payload.reason,policy_actor(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.delete("/outbound-delivery/private-allowlist/{host}")
 def revoke_outbound_private_destination(host: str,x_admin_pin: str | None = Header(default=None)):
-    administrator=require_platform_admin(x_admin_pin)
+    administrator=require_install_operator(x_admin_pin)
     try:return revoke_private_destination(host,policy_actor(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
 
@@ -2578,7 +2585,7 @@ def revise_threat_register_record(threat_id: str,payload: ThreatRegisterRequest,
 @app.get("/abuse-protection")
 def abuse_protection_overview(x_admin_pin: str | None = Header(default=None)):
     """Return throttling policy, block metrics, and recent defensive evidence."""
-    require_platform_admin(x_admin_pin)
+    require_install_operator(x_admin_pin)
     return {
         "summary": abuse_summary(),
         "policies": list_rate_limit_policies(),
@@ -2592,7 +2599,7 @@ def administrator_update_rate_limit_policy(
     payload: RateLimitPolicyRequest,
     x_admin_pin: str | None = Header(default=None),
 ):
-    administrator = require_platform_admin(x_admin_pin)
+    administrator = require_install_operator(x_admin_pin)
     try:
         return update_rate_limit_policy(
             category,
@@ -3584,10 +3591,10 @@ def sandbox_resources(
 
 
 def _platform_admin(token):
-    actor = require_admin(token)
-    if not has_permission(actor, "admin:manage"):
-        raise HTTPException(status_code=403, detail="Platform administrator role is required.")
-    return actor
+    # Enterprise identity (SSO providers, role mappings, workload identities, elevation
+    # decisions) is install-wide configuration: a role mapping can grant PLATFORM_ADMIN to anyone
+    # an IdP vouches for, so it must not be editable from inside a single tenant.
+    return require_install_operator(token)
 
 
 @app.get("/enterprise-identity")
