@@ -1,12 +1,14 @@
 import sqlite3
 import pytest
-from backend.app import admin_auth
+from backend.app import admin_auth, organizations
 
 
 @pytest.fixture()
 def isolated(tmp_path, monkeypatch):
     path = tmp_path / "rbac.db"
     monkeypatch.setattr(admin_auth, "database_path", path)
+    # setup_first_administrator() also writes the first org membership.
+    monkeypatch.setattr(organizations, "database_path", path)
     monkeypatch.delenv("GREYGUARD_BOOTSTRAP_EMAIL", raising=False)
     monkeypatch.delenv("GREYGUARD_BOOTSTRAP_PASSWORD", raising=False)
     admin_auth.initialize_admin_auth()
