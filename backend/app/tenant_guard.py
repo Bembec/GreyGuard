@@ -183,6 +183,20 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # evidence without deciding which org it belongs to. No reader exists in application code yet;
     # the column makes a future per-org evidence view possible without a second migration.
     "outbound_delivery_evidence",
+    # P2.2 agent scoping, batch A (database.py/main.py): agent_identities and
+    # agent_credential_events. agent_name stays the primary key - agent names are a global
+    # namespace, like administrator emails, because an agent authenticates by name (key or
+    # certificate) before any org can be resolved - so get_agent_identity() is the one
+    # deliberately unfiltered lookup (documented in its SQL), and an agent's org is a property
+    # of its identity (main.agent_org_id()). Every mutation and history read is scoped by
+    # org_id, passed as a required keyword at the database layer. This closed a real
+    # cross-tenant takeover: rotate/revoke/scopes looked agents up by name alone, so one org's
+    # PLATFORM_ADMIN could rotate another org's agent credential and receive the new one. Every
+    # administrator-facing /agents route now goes through api.require_agent_in_org(), which
+    # returns the same 404 for another org's agent as for a missing one; registering a name
+    # another org owns is refused as "unavailable" without confirming who owns it.
+    "agent_identities",
+    "agent_credential_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -296,8 +310,7 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
 # adapter_configs got, not a plain ADD COLUMN - flagged now so whichever batch tackles them
 # doesn't rediscover that the hard way.
 PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
-    "agent_credential_events",
-    "agent_identities", "alert_notes", "approval_events", "audit_events",
+    "alert_notes", "approval_events", "audit_events",
     "audit_integrity_chain", "audit_integrity_checks", "audit_legal_holds",
     "audit_retention_config",  # *
     "callback_evidence", "compliance_reports",

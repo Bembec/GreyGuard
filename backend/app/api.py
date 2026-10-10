@@ -56,6 +56,7 @@ from .admin_auth import (
     validate_session,
 )
 from .database import (
+    count_agent_identities,
     get_audit_summary,
     get_recent_authentication_events,
     get_recent_audit_events,
@@ -1465,9 +1466,7 @@ def health():
         "registered_agents": len(
             main.agent_states
         ),
-        "registered_identities": len(
-            main.list_public_agent_identities()
-        ),
+        "registered_identities": count_agent_identities(),
         "controlled_tools": len(
             main.get_supported_tools()
         ),
@@ -1575,6 +1574,18 @@ def require_install_operator(x_admin_pin):
     if not administrator.get("install_operator"):
         raise HTTPException(status_code=403, detail="Install operator access is required.")
     return administrator
+
+
+def require_agent_in_org(agent_name, administrator):
+    """The normalized agent name, if that agent belongs to the administrator's active org.
+
+    Agent names are a global namespace, so every administrator-facing /agents route must check
+    ownership explicitly: otherwise one org's admin could rotate another org's agent credential
+    and receive the new one. Another org's agent gets the same 404 as a missing one."""
+    normalized_name = main.normalize_agent_name(agent_name)
+    if main.agent_org_id(normalized_name) != organizations.resolve_org_id(administrator):
+        raise HTTPException(status_code=404, detail="Agent not found.")
+    return normalized_name
 
 
 @app.post("/policy-versions/{policy_id}/submit")
@@ -1977,11 +1988,10 @@ def create_adapter_request(
         x_ssl_client_cert=x_ssl_client_cert,
     )
     try:
-        # Agents have no org concept yet (agent_identities is not tenant-scoped until a later
-        # P2.2 batch) - every agent-facing adapter request is provisionally attributed to the
-        # default org until that lands, the same documented fallback used for the legacy admin
-        # PIN identity (see organizations.resolve_org_id()).
-        translated = translate_request(adapter_id, payload, organizations.DEFAULT_ORG_ID)
+        # An agent-facing request belongs to the authenticated agent's own org, resolved from its
+        # identity - never from anything the caller supplies.
+        translated = translate_request(adapter_id, payload,
+                                       main.agent_org_id(authentication["identity"]["agent_name"]))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except PermissionError as error:
@@ -2658,9 +2668,10 @@ def list_agents(
         default=None,
     ),
 ):
-    """Return every agent to an administrator."""
+    """Return the administrator's org's agents."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
 
     return [
         serialize_agent(
@@ -2670,6 +2681,7 @@ def list_agents(
         for agent_name, state in sorted(
             main.agent_states.items()
         )
+        if main.agent_org_id(agent_name) == org_id
     ]
 
 
@@ -2680,7 +2692,7 @@ def agent_investigation(
     x_admin_pin: str | None = Header(default=None),
 ):
     """Return a redacted, administrator-scoped agent investigation view."""
-    require_admin(x_admin_pin)
+    agent_name = require_agent_in_org(agent_name, require_admin(x_admin_pin))
     try:
         return build_agent_investigation(agent_name, limit)
     except KeyError as error:
@@ -2708,6 +2720,7 @@ def register_agent_identity(
             ),
             scopes=registration.scopes,
             actor=policy_actor(administrator),
+            org_id=organizations.resolve_org_id(administrator),
         )
 
     except ValueError as error:
@@ -2726,12 +2739,9 @@ def get_agent(
 ):
     """Return one agent to an administrator."""
 
-    require_admin(x_admin_pin)
-
-    normalized_name = (
-        main.normalize_agent_name(
-            agent_name
-        )
+    normalized_name = require_agent_in_org(
+        agent_name,
+        require_admin(x_admin_pin),
     )
 
     try:
@@ -2761,12 +2771,13 @@ def update_agent_scopes(
 ):
     """Replace an agent's scopes."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     try:
         identity = main.set_agent_scopes(
             agent_name=agent_name,
             scopes=update.scopes,
+            org_id=organizations.resolve_org_id(administrator),
         )
 
     except KeyError as error:
@@ -2804,6 +2815,7 @@ def rotate_credential(
         return main.rotate_agent_credential(
             agent_name,
             actor=policy_actor(administrator),
+            org_id=organizations.resolve_org_id(administrator),
         )
 
     except KeyError as error:
@@ -2830,6 +2842,7 @@ def revoke_credential(
         return main.revoke_agent_credential(
             agent_name,
             actor=policy_actor(administrator),
+            org_id=organizations.resolve_org_id(administrator),
         )
 
     except KeyError as error:
@@ -2848,13 +2861,14 @@ def agent_credential_history(
 ):
     """Return one page of an agent's credential issue/rotate/revoke evidence."""
 
-    require_admin(x_admin_pin)
+    administrator = require_admin(x_admin_pin)
 
     try:
         return main.get_agent_credential_history(
             agent_name,
             limit=limit,
             offset=offset,
+            org_id=organizations.resolve_org_id(administrator),
         )
 
     except KeyError as error:
@@ -3261,12 +3275,9 @@ def authentication_events(
 ):
     """Return authentication events to an admin."""
 
-    require_admin(x_admin_pin)
-
-    normalized_name = (
-        main.normalize_agent_name(
-            agent_name
-        )
+    normalized_name = require_agent_in_org(
+        agent_name,
+        require_admin(x_admin_pin),
     )
 
     return get_recent_authentication_events(
@@ -3284,12 +3295,9 @@ def reset_agent(
 ):
     """Administratively reset one agent."""
 
-    require_admin(x_admin_pin)
-
-    normalized_name = (
-        main.normalize_agent_name(
-            agent_name
-        )
+    normalized_name = require_agent_in_org(
+        agent_name,
+        require_admin(x_admin_pin),
     )
 
     try:
@@ -3482,7 +3490,8 @@ def global_search(
 ):
     """Search permission-filtered control-plane records."""
     administrator = require_admin(x_admin_pin)
-    return search_control_plane(q, administrator.get("permissions", []), limit)
+    return search_control_plane(q, administrator.get("permissions", []), limit,
+                                organizations.resolve_org_id(administrator))
 
 
 @app.put("/notifications/{notification_id}/read")

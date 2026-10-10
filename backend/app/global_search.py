@@ -18,7 +18,8 @@ def _matches(query: str, *values: Any) -> bool:
     return query in searchable
 
 
-def search_control_plane(query: str, permissions: list[str], limit: int = 30) -> dict:
+def search_control_plane(query: str, permissions: list[str], limit: int = 30,
+                         org_id: str = "org_default") -> dict:
     """Return bounded results only from sources the operator may read."""
     normalized = str(query).strip().lower()
     safe_limit = max(1, min(int(limit), 50))
@@ -26,7 +27,19 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30) ->
         return {"query": query.strip(), "results": [], "count": 0}
 
     results: list[dict] = []
+    owners: dict[str, str] = {}
+
+    def owned(agent_name) -> bool:
+        # Agents are org-scoped by identity; tool requests are owned by their requesting agent.
+        # Alerts are not attributed to an org yet (a later P2.2 agent batch).
+        name = str(agent_name or "")
+        if name not in owners:
+            owners[name] = main.agent_org_id(name)
+        return owners[name] == org_id
+
     for name, state in sorted(main.agent_states.items()):
+        if not owned(name):
+            continue
         try:
             identity = main.get_public_agent_identity(name)
         except KeyError:
@@ -40,6 +53,8 @@ def search_control_plane(query: str, permissions: list[str], limit: int = 30) ->
 
     requests = get_tool_requests(limit=200)
     for item in requests:
+        if not owned(item.get("agent_name")):
+            continue
         if not _matches(normalized, item.get("request_id"), item.get("agent_name"), item.get("action"), item.get("target"), item.get("approval_status"), item.get("execution_status")):
             continue
         kind = "APPROVAL" if item.get("approval_status") in {"PENDING", "APPROVED", "DENIED"} else "REQUEST"

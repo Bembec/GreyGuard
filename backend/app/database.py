@@ -69,7 +69,8 @@ def initialize_database():
                     DEFAULT 'ACTIVE',
                 created_at TEXT NOT NULL,
                 rotated_at TEXT,
-                revoked_at TEXT
+                revoked_at TEXT,
+                org_id TEXT NOT NULL DEFAULT 'org_default'
             )
             """
         )
@@ -82,10 +83,28 @@ def initialize_database():
                 agent_name TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 event_type TEXT NOT NULL,
-                actor TEXT NOT NULL
+                actor TEXT NOT NULL,
+                org_id TEXT NOT NULL DEFAULT 'org_default'
             )
             """
         )
+
+        # P2.2 agent scoping (batch A): every agent belongs to exactly one org. agent_name stays
+        # the primary key - a global namespace, like administrator emails - because an agent
+        # authenticates by name (key or certificate) before any org can be resolved; its org is
+        # then a property of its identity. Pre-existing agents predate orgs: org_default.
+        for agent_table in ("agent_identities", "agent_credential_events"):
+            agent_table_columns = {
+                column[1]
+                for column in connection.execute(
+                    f"PRAGMA table_info({agent_table})"
+                )
+            }
+            if "org_id" not in agent_table_columns:
+                connection.execute(
+                    f"ALTER TABLE {agent_table} ADD COLUMN "
+                    "org_id TEXT NOT NULL DEFAULT 'org_default'"
+                )
 
         connection.execute(
             """
@@ -382,6 +401,8 @@ def create_agent_identity(
     credential_hash,
     scopes,
     timestamp,
+    *,
+    org_id,
 ):
     """Store a new agent identity."""
 
@@ -403,7 +424,8 @@ def create_agent_identity(
                     credential_status,
                     created_at,
                     rotated_at,
-                    revoked_at
+                    revoked_at,
+                    org_id
                 )
                 VALUES (
                     ?,
@@ -413,7 +435,8 @@ def create_agent_identity(
                     'ACTIVE',
                     ?,
                     NULL,
-                    NULL
+                    NULL,
+                    ?
                 )
                 """,
                 (
@@ -422,6 +445,7 @@ def create_agent_identity(
                     credential_hash,
                     scopes_json,
                     timestamp,
+                    org_id,
                 ),
             )
 
@@ -432,14 +456,21 @@ def create_agent_identity(
 
 
 def get_agent_identity(agent_name):
-    """Return one stored agent identity."""
+    """Return one stored agent identity, including the org that owns it.
+
+    Deliberately not filtered by org: agent names are a global namespace, and this is how an
+    agent's org is *found* - agent authentication runs before any org is known. Callers acting
+    for an administrator must compare the returned org_id with the administrator's own org
+    (see main.agent_org_id())."""
 
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
 
         row = connection.execute(
             """
+            -- global agent-name lookup, no org_id filter: see get_agent_identity() docstring
             SELECT
+                org_id,
                 agent_name,
                 credential_salt,
                 credential_hash,
@@ -472,8 +503,18 @@ def get_agent_identity(agent_name):
     return identity
 
 
-def get_agent_identities():
-    """Return all identities without credential hashes."""
+def count_agent_identities():
+    """Install-wide identity count for the health endpoint."""
+
+    with sqlite3.connect(database_path) as connection:
+        return connection.execute(
+            "-- install-wide count across every org_id, for /health only\n"
+            "SELECT COUNT(*) FROM agent_identities"
+        ).fetchone()[0]
+
+
+def get_agent_identities(org_id):
+    """Return one org's identities without credential hashes."""
 
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
@@ -488,8 +529,10 @@ def get_agent_identities():
                 rotated_at,
                 revoked_at
             FROM agent_identities
+            WHERE org_id = ?
             ORDER BY agent_name
-            """
+            """,
+            (org_id,),
         ).fetchall()
 
     identities = []
@@ -515,6 +558,8 @@ def get_agent_identities():
 def update_agent_scopes(
     agent_name,
     scopes,
+    *,
+    org_id,
 ):
     """Replace the scopes assigned to an agent."""
 
@@ -527,11 +572,12 @@ def update_agent_scopes(
             """
             UPDATE agent_identities
             SET scopes_json = ?
-            WHERE agent_name = ?
+            WHERE agent_name = ? AND org_id = ?
             """,
             (
                 scopes_json,
                 agent_name,
+                org_id,
             ),
         )
 
@@ -543,6 +589,8 @@ def rotate_agent_credential(
     credential_salt,
     credential_hash,
     timestamp,
+    *,
+    org_id,
 ):
     """Replace and reactivate an agent credential."""
 
@@ -556,13 +604,14 @@ def rotate_agent_credential(
                 credential_status = 'ACTIVE',
                 rotated_at = ?,
                 revoked_at = NULL
-            WHERE agent_name = ?
+            WHERE agent_name = ? AND org_id = ?
             """,
             (
                 credential_salt,
                 credential_hash,
                 timestamp,
                 agent_name,
+                org_id,
             ),
         )
 
@@ -572,6 +621,8 @@ def rotate_agent_credential(
 def revoke_agent_credential(
     agent_name,
     timestamp,
+    *,
+    org_id,
 ):
     """Revoke an agent credential."""
 
@@ -582,11 +633,12 @@ def revoke_agent_credential(
             SET
                 credential_status = 'REVOKED',
                 revoked_at = ?
-            WHERE agent_name = ?
+            WHERE agent_name = ? AND org_id = ?
             """,
             (
                 timestamp,
                 agent_name,
+                org_id,
             ),
         )
 
@@ -598,6 +650,8 @@ def record_credential_history_event(
     event_type,
     actor,
     timestamp,
+    *,
+    org_id,
 ):
     """Append an immutable credential lifecycle event. Never store a credential or its hash
     here - this table exists only to answer who issued, rotated, or revoked a credential and
@@ -607,10 +661,10 @@ def record_credential_history_event(
         connection.execute(
             """
             INSERT INTO agent_credential_events
-            (agent_name, timestamp, event_type, actor)
-            VALUES (?, ?, ?, ?)
+            (agent_name, timestamp, event_type, actor, org_id)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (agent_name, timestamp, event_type, actor),
+            (agent_name, timestamp, event_type, actor, org_id),
         )
 
 
@@ -618,6 +672,8 @@ def get_credential_history(
     agent_name,
     limit=20,
     offset=0,
+    *,
+    org_id,
 ):
     """Return one page of credential lifecycle evidence, newest first."""
 
@@ -627,15 +683,15 @@ def get_credential_history(
             """
             SELECT id, agent_name, timestamp, event_type, actor
             FROM agent_credential_events
-            WHERE agent_name = ?
+            WHERE agent_name = ? AND org_id = ?
             ORDER BY id DESC
             LIMIT ? OFFSET ?
             """,
-            (agent_name, limit, offset),
+            (agent_name, org_id, limit, offset),
         ).fetchall()
         total = connection.execute(
-            "SELECT COUNT(*) FROM agent_credential_events WHERE agent_name = ?",
-            (agent_name,),
+            "SELECT COUNT(*) FROM agent_credential_events WHERE agent_name = ? AND org_id = ?",
+            (agent_name, org_id),
         ).fetchone()[0]
 
     return {

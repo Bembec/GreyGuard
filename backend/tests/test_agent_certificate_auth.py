@@ -27,6 +27,7 @@ def _register_agent(agent_name="cert_agent", scopes=("read_file",), status=None)
         credential_hash="b" * 64,
         scopes=list(scopes),
         timestamp=main.current_timestamp(),
+        org_id="org_default",
     )
     if status and status != "ACTIVE":
         with sqlite3.connect(database.database_path) as connection:
