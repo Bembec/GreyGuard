@@ -29,7 +29,7 @@ def test_simulation_creates_a_real_labelled_alert(isolated):
  isolated.set_enabled(True,"owner");result=isolated.run_simulation("sim-keylogger","owner","org_default")
  assert result["alert_created"] is True and result["evidence_preserved"] is True
  with isolated.sqlite3.connect(isolated.database_path) as c:
-  row=c.execute("SELECT summary,event_type,evidence_json FROM security_alerts WHERE alert_id=?",(result["alert_id"],)).fetchone()
+  row=c.execute("SELECT summary,event_type,evidence_json FROM security_alerts WHERE alert_id=? AND org_id=?",(result["alert_id"],"org_default")).fetchone()
  assert row is not None and row[1]=="SIMULATION" and row[0].startswith("SIMULATION ONLY")
  assert json.loads(row[2])["simulated"] is True
 def test_each_run_creates_its_own_alert(isolated):

@@ -12,7 +12,7 @@ import sqlite3
 import pytest
 from fastapi import HTTPException
 
-from backend.app import admin_auth, api, database, main, organizations
+from backend.app import admin_auth, alerts, api, database, main, notifications, organizations
 
 PASSWORD = "SecureDemo!123"
 
@@ -20,7 +20,7 @@ PASSWORD = "SecureDemo!123"
 @pytest.fixture()
 def tenants(tmp_path, monkeypatch):
     path = tmp_path / "tenancy.db"
-    for module in (admin_auth, organizations, database):
+    for module in (admin_auth, organizations, database, alerts, notifications):
         monkeypatch.setattr(module, "database_path", path)
     monkeypatch.setattr(main, "state_path", tmp_path / "state.json")
     monkeypatch.delenv("GREYGUARD_BOOTSTRAP_EMAIL", raising=False)
@@ -241,3 +241,104 @@ def test_legacy_agent_evidence_is_backfilled_to_the_default_org(tmp_path, monkey
     details = database.get_tool_request_details("req_legacy", org_id="org_default")
     assert details["org_id"] == "org_default" and [e["org_id"] for e in details["approval_events"]] == ["org_default"]
     assert database.get_tool_request_details("req_legacy", org_id="org_other") is None
+
+
+
+# --- P2.2 agent scoping, batch C: alerts, alert notes, notifications, notification retention ----
+
+def alert_list(token):
+    return api.administrator_alerts(status=None, severity=None, agent_name=None, limit=100, x_admin_pin=token)["alerts"]
+
+
+def inbox(token):
+    return api.administrator_notifications(unread_only=False, severity=None, limit=100, x_admin_pin=token)["notifications"]
+
+
+def blocked_activity(tenants):
+    # send_email is BLOCK by default policy: HIGH-severity evidence, so it raises an alert.
+    register(tenants["ours"], "ours_agent")
+    register(tenants["theirs"], "theirs_agent")
+    submit("ours_agent", "send_email")
+    submit("theirs_agent", "send_email")
+
+
+def test_alerts_belong_to_the_org_of_their_evidence(tenants):
+    blocked_activity(tenants)
+    ours, theirs = alert_list(tenants["ours"]), alert_list(tenants["theirs"])
+    assert ours and {a["agent_name"] for a in ours} == {"ours_agent"}
+    assert {a["org_id"] for a in ours} == {organizations.DEFAULT_ORG_ID}
+    assert theirs and {a["agent_name"] for a in theirs} == {"theirs_agent"}
+    summary = api.administrator_alert_summary(tenants["theirs"])
+    assert summary["total"] == len(theirs)
+
+
+def test_another_orgs_alert_cannot_be_read_updated_or_annotated(tenants):
+    blocked_activity(tenants)
+    their_alert = alert_list(tenants["theirs"])[0]
+    token = tenants["ours"]
+    assert not_found(lambda: api.administrator_alert(their_alert["alert_id"], token))
+    assert not_found(lambda: api.administrator_update_alert(
+        their_alert["alert_id"], api.AlertUpdateRequest(status="DISMISSED", note="not ours"), token))
+    assert not_found(lambda: api.administrator_add_alert_note(
+        their_alert["alert_id"], api.AlertNoteRequest(note="probe"), token))
+    untouched = api.administrator_alert(their_alert["alert_id"], tenants["theirs"])
+    assert untouched["status"] == "OPEN" and untouched["notes"] == []
+    noted = api.administrator_add_alert_note(their_alert["alert_id"], api.AlertNoteRequest(note="triage"), tenants["theirs"])
+    assert noted["note"] == "triage"
+    assert [n["note"] for n in api.administrator_alert(their_alert["alert_id"], tenants["theirs"])["notes"]] == ["triage"]
+
+
+def test_install_level_alerts_are_visible_only_to_install_operators(tenants):
+    # Repeated failures against an agent name that exists in no org belong to no tenant.
+    main.record_authentication_event(claimed_agent_name="ghost_agent", authenticated_agent_name=None,
+                                     action="read_file", outcome="AUTHENTICATION_FAILED", reason="Unknown agent.")
+    operator = admin_auth.create_administrator("op@greyguard.local", "Op", "PLATFORM_ADMIN", PASSWORD, install_operator=True)
+    organizations.ensure_membership(organizations.DEFAULT_ORG_ID, operator["admin_id"], "PLATFORM_ADMIN", "OWNER")
+    operator_token = admin_auth.authenticate(operator["email"], PASSWORD)["access_token"]
+    ghost_alerts = [a for a in alert_list(operator_token) if a["agent_name"] == "ghost_agent"]
+    assert ghost_alerts and ghost_alerts[0]["org_id"] is None
+    assert "ghost_agent" not in {a["agent_name"] for a in alert_list(tenants["ours"])}
+    assert "ghost_agent" not in {a["agent_name"] for a in alert_list(tenants["theirs"])}
+    # The operator's inbox carries the install-level notification too; a tenant's does not.
+    assert any(n["org_id"] is None for n in inbox(operator_token))
+    assert all(n["org_id"] == organizations.DEFAULT_ORG_ID for n in inbox(tenants["ours"]))
+
+
+def test_notifications_and_retention_are_per_org(tenants):
+    blocked_activity(tenants)
+    ours, theirs = inbox(tenants["ours"]), inbox(tenants["theirs"])
+    assert ours and {n["org_id"] for n in ours} == {organizations.DEFAULT_ORG_ID}
+    assert theirs and {n["org_id"] for n in theirs} == {tenants["other_org"]}
+    # Age every notification, then apply only the other org's (shortest) policy.
+    with sqlite3.connect(database.database_path) as connection:
+        connection.execute("UPDATE security_notifications SET created_at = '2020-01-01T00:00:00+00:00'")
+    api.administrator_update_notification_retention(api.NotificationRetentionUpdate(retention_days=7), tenants["theirs"])
+    assert api.administrator_cleanup_notifications(tenants["theirs"])["deleted"] == len(theirs)
+    with sqlite3.connect(database.database_path) as connection:
+        remaining = {row[0] for row in connection.execute("SELECT DISTINCT org_id FROM security_notifications")}
+    assert remaining == {organizations.DEFAULT_ORG_ID}
+    assert api.administrator_notification_retention(tenants["ours"])["policy"]["retention_days"] == notifications.DEFAULT_RETENTION_DAYS
+    assert api.administrator_notification_retention(tenants["theirs"])["policy"]["retention_days"] == 7
+    assert api.administrator_notification_retention(tenants["ours"])["history"] == []
+
+
+def test_legacy_retention_singleton_and_alerts_move_to_the_default_org(tmp_path, monkeypatch):
+    path = tmp_path / "legacy-alerts.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute("""CREATE TABLE notification_retention_policy (id INTEGER PRIMARY KEY CHECK (id = 1),
+            retention_days INTEGER NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL)""")
+        connection.execute("INSERT INTO notification_retention_policy VALUES(1, 30, '2026-01-01', 'owner')")
+        connection.execute("""CREATE TABLE security_alerts (alert_id TEXT PRIMARY KEY, source_event_id TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, agent_name TEXT, request_id TEXT, event_type TEXT NOT NULL,
+            action TEXT, outcome TEXT NOT NULL, severity TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'OPEN', title TEXT NOT NULL,
+            summary TEXT NOT NULL, assigned_to TEXT, resolution_note TEXT, evidence_json TEXT NOT NULL)""")
+        connection.execute("INSERT INTO security_alerts(alert_id,source_event_id,created_at,updated_at,event_type,outcome,severity,title,summary,evidence_json)"
+                           " VALUES('alr_legacy','policy-1','2026-01-01','2026-01-01','POLICY','BLOCK','HIGH','t','s','{}')")
+    for module in (alerts, notifications):
+        monkeypatch.setattr(module, "database_path", path)
+    alerts.initialize_alert_database()
+    notifications.initialize_notification_database()
+    assert notifications.get_retention_policy("org_default")["retention_days"] == 30
+    assert notifications.get_retention_policy("org_other")["retention_days"] == notifications.DEFAULT_RETENTION_DAYS
+    assert alerts.get_alert("alr_legacy", org_id="org_default")["org_id"] == "org_default"
+    assert alerts.get_alert("alr_legacy", org_id="org_other") is None

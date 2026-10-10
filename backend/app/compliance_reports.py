@@ -103,7 +103,7 @@ def build_evidence(filters: dict[str, Any], org_id: str = organizations.DEFAULT_
         and (not event_types or str(event.get("event_type", "")).upper() in event_types)
     ]
     alerts = [
-        alert for alert in get_alerts(limit=500)["alerts"]
+        alert for alert in get_alerts(limit=500, org_id=org_id)["alerts"]
         if _within(alert.get("created_at"), date_from, date_to)
         and (not severities or str(alert.get("severity", "")).upper() in severities)
     ]
