@@ -105,3 +105,14 @@ test("an org PLATFORM_ADMIN who is not an install operator cannot reach install-
   })
   expect(status).toBe(403)
 })
+
+test("the Team page marks install operators and exposes the operator toggle", async ({ page }) => {
+  await signIn(page, process.env.GREYGUARD_E2E_EMAIL!, process.env.GREYGUARD_E2E_PASSWORD!)
+  await page.goto("/team")
+  const operatorCard = page.locator(".team-card", { hasText: process.env.GREYGUARD_E2E_EMAIL! })
+  await expect(operatorCard.getByText("Install operator")).toBeVisible({ timeout: 15_000 })
+  const orgAdminCard = page.locator(".team-card", { hasText: ORG_ADMIN_EMAIL })
+  await expect(orgAdminCard.getByText("Install operator")).toHaveCount(0)
+  await orgAdminCard.click()
+  await expect(page.getByRole("checkbox", { name: /Install operator/i })).not.toBeChecked()
+})
