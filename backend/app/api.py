@@ -2120,27 +2120,27 @@ def execute_audit_retention(payload: RetentionExecutionRequest,x_admin_pin: str 
 
 @app.get("/notification-delivery")
 def notification_delivery_controls(x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin);return notification_delivery_configuration()
+    administrator=require_platform_admin(x_admin_pin);return notification_delivery_configuration(organizations.resolve_org_id(administrator))
 
 
 @app.post("/notification-delivery/destinations",status_code=201)
 def configure_notification_destination(payload: NotificationDestinationRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return save_notification_destination(payload.name,payload.channel,payload.endpoint_reference,payload.enabled,payload.minimum_severity,payload.quiet_start_hour,payload.quiet_end_hour,payload.critical_bypass,payload.escalation_minutes,policy_actor(administrator))
+    try:return save_notification_destination(payload.name,payload.channel,payload.endpoint_reference,payload.enabled,payload.minimum_severity,payload.quiet_start_hour,payload.quiet_end_hour,payload.critical_bypass,payload.escalation_minutes,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/notification-delivery/templates",status_code=201)
 def configure_notification_template(payload: NotificationTemplateRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    try:return save_notification_template(payload.name,payload.event_type,payload.subject_template,payload.body_template,policy_actor(administrator))
+    try:return save_notification_template(payload.name,payload.event_type,payload.subject_template,payload.body_template,policy_actor(administrator),organizations.resolve_org_id(administrator))
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
 @app.post("/notification-delivery/queue",status_code=202)
 def queue_external_notification(payload: ExternalNotificationRequest,x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
-    try:return queue_notification(payload.destination_id,payload.event,payload.template_id)
+    administrator=require_platform_admin(x_admin_pin)
+    try:return queue_notification(payload.destination_id,payload.event,payload.template_id,org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:raise HTTPException(status_code=404,detail=str(error)) from error
     except PermissionError as error:raise HTTPException(status_code=403,detail=str(error)) from error
 

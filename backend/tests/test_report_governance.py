@@ -72,9 +72,10 @@ def test_schedule_notifies_configured_destination(isolated,monkeypatch):
  past=(datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(minutes=5)).isoformat()
  item=report_governance.create_schedule("Notified report","DAILY",past,"admin",notify_destination_id="ndst_1")
  notified=[]
- report_governance.run_due_schedules(generator=_stub_generator,exporter=_stub_exporter,notifier=lambda dest,event:notified.append((dest,event)))
+ report_governance.run_due_schedules(generator=_stub_generator,exporter=_stub_exporter,notifier=lambda dest,event,org_id:notified.append((dest,event,org_id)))
  assert notified and notified[0][0]=="ndst_1"
  assert notified[0][1]["event_type"]=="REPORT_READY"
+ assert notified[0][2]=="org_default"
 
 def test_monthly_frequency_advances_correctly():
  assert report_governance._next_run_after("2026-01-31T08:00:00+00:00","MONTHLY").startswith("2026-02-28")
