@@ -159,6 +159,20 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "notification_destinations",
     "notification_deliveries",
     "notification_templates",
+    # P2.2 batch 17 (incident_integrations.py): incident_destinations had the same globally
+    # UNIQUE (case-insensitive) `name` as export_destinations (batch 15), reshaped to
+    # UNIQUE(name, org_id) with the same build-new/drop/rename-into-place SQLite rebuild.
+    # queue_incident() now resolves the destination within the caller's org, so one org cannot
+    # open tickets in another org's Jira/ServiceNow project with that org's credential by
+    # destination_id. process_incidents() follows process_queue()'s cross-org worker design: an
+    # unfiltered, documented claim that only joins a record to a destination of the same org, and
+    # every later write scoped by the claimed row's own org_id. external_incident_records needed
+    # only a plain ADD COLUMN - its UNIQUE(destination_id, source_alert_id) is already
+    # effectively per-org, since destination_ids are random. expiring_approval_links and
+    # callback_evidence live in the same module but stay pending: approval links act on
+    # tool_requests (itself still pending), and callbacks are not yet tied to a record's org.
+    "incident_destinations",
+    "external_incident_records",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -267,8 +281,6 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "audit_retention_config",  # *
     "callback_evidence", "compliance_reports",
     "execution_events", "expiring_approval_links",
-    "external_incident_records",
-    "incident_destinations",
     "notification_retention_events",
     "notification_retention_policy",  # *
     "notification_retention_tombstones",
