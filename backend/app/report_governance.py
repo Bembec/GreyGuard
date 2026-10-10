@@ -106,7 +106,7 @@ def run_due_schedules(generator=None,exporter=None,notifier=None,limit=10,worker
      claim_token=NULL,claimed_at=NULL WHERE schedule_id=? AND org_id=?""",(next_run,now,row["schedule_id"],row["org_id"]))
    record_evidence("REPORT_SCHEDULE",row["schedule_id"],"SUCCESS",detail={"report_id":report["report_id"]},worker_id=worker_id)
    if notifier and row["notify_destination_id"]:
-    try:notifier(row["notify_destination_id"],{"event_type":"REPORT_READY","severity":"INFO","title":f"{row['title']} is ready","summary":f"Report {report['report_id']} was generated and signed.","source_id":report["report_id"]})
+    try:notifier(row["notify_destination_id"],{"event_type":"REPORT_READY","severity":"INFO","title":f"{row['title']} is ready","summary":f"Report {report['report_id']} was generated and signed.","source_id":report["report_id"]},org_id=row["org_id"])
     except Exception as error:record_evidence("REPORT_SCHEDULE",row["schedule_id"],"NOTIFY_FAILED",detail={"error":safe_error(error)},worker_id=worker_id)
    results.append({"schedule_id":row["schedule_id"],"report_id":report["report_id"],"signature":manifest["signature"]})
   except Exception as error:

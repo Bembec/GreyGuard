@@ -18,7 +18,7 @@ import socket
 import sys
 
 from .incident_integrations import process_incidents, real_sender as send_incident
-from .notification_delivery import process_deliveries, real_sender as send_notification
+from .notification_delivery import process_deliveries, queue_notification, real_sender as send_notification
 from .report_governance import run_due_schedules
 from .security_exports import process_queue, real_sender as send_export
 
@@ -62,7 +62,10 @@ def _run_tick() -> None:
         ("notification_delivery", lambda: process_deliveries(send_notification, limit=limit, worker_id=WORKER_ID)),
         ("incident_integrations", lambda: process_incidents(send_incident, limit=limit, worker_id=WORKER_ID)),
         ("security_exports", lambda: process_queue(send_export, limit=limit, worker_id=WORKER_ID)),
-        ("report_governance", lambda: run_due_schedules(notifier=send_notification, limit=limit, worker_id=WORKER_ID)),
+        # The notifier queues a governed notification (destination lookup, severity filter,
+        # quiet hours, dedupe) within the schedule's own org; it is not the raw HTTP transport,
+        # which expects an https:// endpoint rather than a notify_destination_id.
+        ("report_governance", lambda: run_due_schedules(notifier=queue_notification, limit=limit, worker_id=WORKER_ID)),
     ):
         try:
             action()

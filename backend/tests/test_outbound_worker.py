@@ -76,3 +76,15 @@ def test_start_worker_returns_nothing_when_disabled(monkeypatch):
     monkeypatch.delenv("GREYGUARD_DELIVERY_WORKER_ENABLED", raising=False)
     task, stop_event = worker.start_worker()
     assert task is None and stop_event is None
+
+
+def test_report_schedules_notify_through_the_governed_queue_not_the_raw_transport(monkeypatch):
+    # Regression: the raw HTTP transport was once passed as the notifier, so every scheduled
+    # report notification was POSTed to its notify_destination_id as if it were a URL.
+    captured = {}
+    monkeypatch.setattr(worker, "process_deliveries", lambda *a, **k: None)
+    monkeypatch.setattr(worker, "process_incidents", lambda *a, **k: None)
+    monkeypatch.setattr(worker, "process_queue", lambda *a, **k: None)
+    monkeypatch.setattr(worker, "run_due_schedules", lambda notifier, limit, worker_id: captured.update(notifier=notifier))
+    worker._run_tick()
+    assert captured["notifier"] is worker.queue_notification

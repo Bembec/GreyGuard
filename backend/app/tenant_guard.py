@@ -144,6 +144,21 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # claimed row's own org_id. export_queue needed only a plain ADD COLUMN.
     "export_destinations",
     "export_queue",
+    # P2.2 batch 16 (notification_delivery.py): notification_destinations and
+    # notification_templates both had a globally UNIQUE `name`, reshaped to UNIQUE(name, org_id)
+    # with the same build-new/drop/rename-into-place rebuild as batch 15. notification_deliveries
+    # needed only a plain ADD COLUMN (its UNIQUE(destination_id, dedupe_key) is already per-org,
+    # since destination_ids are random). queue_notification() resolves both the destination and
+    # the template within the caller's org; process_deliveries() is the same cross-org worker
+    # shape as batch 15's process_queue(). Real bug found and fixed on the way: outbound_worker
+    # passed the raw HTTP transport as run_due_schedules()'s notifier, so every scheduled
+    # report-ready notification was POSTed to its destination_id as if it were a URL and
+    # dead-ended in NOTIFY_FAILED evidence. The worker now passes queue_notification, and
+    # run_due_schedules() passes the schedule's own org_id, so the destination is looked up
+    # within the schedule's org.
+    "notification_destinations",
+    "notification_deliveries",
+    "notification_templates",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -254,9 +269,9 @@ PENDING_TENANT_SCOPING: frozenset[str] = frozenset({
     "execution_events", "expiring_approval_links",
     "external_incident_records",
     "incident_destinations",
-    "notification_deliveries", "notification_destinations", "notification_retention_events",
+    "notification_retention_events",
     "notification_retention_policy",  # *
-    "notification_retention_tombstones", "notification_templates",
+    "notification_retention_tombstones",
     "outbound_allowed_private_hosts", "outbound_delivery_evidence",
     # policy_versions, policy_change_events, policy_test_cases, policy_emergency_controls (*)
     # and policy_emergency_events (policy_control.py) were surveyed for P2.2 batch 13 and
