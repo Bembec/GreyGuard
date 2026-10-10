@@ -1515,6 +1515,7 @@ def create_policy_version_draft(
             max_risk_score=payload.max_risk_score,
             change_summary=payload.change_summary,
             created_by=policy_actor(administrator),
+            org_id=organizations.resolve_org_id(administrator),
         )
     except (ValueError, RuntimeError) as error:
         raise HTTPException(
@@ -1542,6 +1543,7 @@ def update_policy_version_draft(
             max_risk_score=payload.max_risk_score,
             change_summary=payload.change_summary,
             actor=policy_actor(administrator),
+            org_id=organizations.resolve_org_id(administrator),
         )
     except KeyError as error:
         raise HTTPException(
@@ -1603,7 +1605,7 @@ def require_agent_in_org(agent_name, administrator):
 def submit_policy_version(policy_id: str, x_admin_pin: str | None = Header(default=None)):
     administrator = require_policy_editor(x_admin_pin)
     try:
-        return submit_policy(policy_id, policy_actor(administrator))
+        return submit_policy(policy_id, policy_actor(administrator), org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
@@ -1614,25 +1616,22 @@ def submit_policy_version(policy_id: str, x_admin_pin: str | None = Header(defau
 def approve_policy_version(policy_id: str, x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        policy = approve_policy(policy_id, policy_actor(administrator))
+        # Publishing is enforcement: the agent's org's published policy is read on every
+        # decision (main.evaluate_action()), so there is no process-wide copy to update - before
+        # P2.2's policy batch, approval overwrote one shared in-memory policy for every org, and a
+        # restart silently reverted enforcement to the built-in rules.
+        return approve_policy(policy_id, policy_actor(administrator), org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    main.permissions.clear()
-    main.permissions.update(policy["permissions"])
-    main.risk_weights.clear()
-    main.risk_weights.update(policy["risk_weights"])
-    main.max_blocked_attempts = policy["max_blocked_attempts"]
-    main.max_risk_score = policy["max_risk_score"]
-    return policy
 
 
 @app.post("/policy-versions/{policy_id}/reject")
 def reject_policy_version(policy_id: str, note: str = Query(default="Policy change rejected."), x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        return reject_policy(policy_id, policy_actor(administrator), note)
+        return reject_policy(policy_id, policy_actor(administrator), note, org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
@@ -1643,7 +1642,7 @@ def reject_policy_version(policy_id: str, note: str = Query(default="Policy chan
 def rollback_policy_version(policy_id: str, x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        return create_rollback_draft(policy_id, policy_actor(administrator))
+        return create_rollback_draft(policy_id, policy_actor(administrator), org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -1652,31 +1651,31 @@ def rollback_policy_version(policy_id: str, x_admin_pin: str | None = Header(def
 def policy_versions(
     x_admin_pin: str | None = Header(default=None),
 ):
-    """Return all policy versions, newest first."""
+    """Return the administrator's org's policy versions, newest first."""
 
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
 
     return {
-        "versions": list_policy_versions(),
-        "published": get_published_policy(),
+        "versions": list_policy_versions(org_id=org_id),
+        "published": get_published_policy(org_id=org_id),
     }
 
 
 @app.post("/policy-versions/{policy_id}/simulate")
 def simulate_policy_version(policy_id: str, payload: PolicySimulationRequest, x_admin_pin: str | None = Header(default=None)):
     """Safely preview a decision with no enforcement side effects."""
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
     try:
-        return simulate_policy(policy_id, payload.action, payload.has_scope, payload.suspended, payload.current_risk)
+        return simulate_policy(policy_id, payload.action, payload.has_scope, payload.suspended, payload.current_risk, org_id=org_id)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.get("/policy-versions/{policy_id}/conflicts")
 def policy_version_conflicts(policy_id: str, x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
     try:
-        return detect_policy_conflicts(policy_id)
+        return detect_policy_conflicts(policy_id, org_id=org_id)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
@@ -1685,7 +1684,7 @@ def policy_version_conflicts(policy_id: str, x_admin_pin: str | None = Header(de
 def create_policy_test(policy_id: str, payload: PolicyTestCaseRequest, x_admin_pin: str | None = Header(default=None)):
     administrator = require_policy_editor(x_admin_pin)
     try:
-        return add_policy_test_case(policy_id, payload.name, payload.action, payload.expected_decision, payload.has_scope, payload.suspended)
+        return add_policy_test_case(policy_id, payload.name, payload.action, payload.expected_decision, payload.has_scope, payload.suspended, org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
@@ -1694,51 +1693,50 @@ def create_policy_test(policy_id: str, payload: PolicyTestCaseRequest, x_admin_p
 
 @app.post("/policy-versions/{policy_id}/tests/run")
 def execute_policy_tests(policy_id: str, x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
     try:
-        return run_policy_tests(policy_id)
+        return run_policy_tests(policy_id, org_id=org_id)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.get("/policy-emergency-controls")
 def policy_emergency_control_state(x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    return get_emergency_controls()
+    return get_emergency_controls(org_id=organizations.resolve_org_id(require_admin(x_admin_pin)))
 
 
 @app.put("/policy-emergency-controls")
 def configure_policy_emergency_controls(payload: PolicyEmergencyRequest, x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
-    return update_emergency_controls(payload.global_deny, payload.disabled_agents, payload.disabled_tools, payload.disabled_integrations, policy_actor(administrator))
+    # Emergency controls are per org: global_deny stops this org's agents, never another org's.
+    return update_emergency_controls(payload.global_deny, payload.disabled_agents, payload.disabled_tools, payload.disabled_integrations, policy_actor(administrator), org_id=organizations.resolve_org_id(administrator))
 
 
 @app.get("/policy-adapters")
 def policy_adapters(x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    return {"adapters": list_policy_adapters(), "network_authority_automatic": False}
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
+    return {"adapters": list_policy_adapters(org_id=org_id), "network_authority_automatic": False}
 
 
 @app.put("/policy-adapters/{adapter_type}")
 def update_policy_adapter(adapter_type: str, payload: PolicyAdapterRequest, x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        return configure_policy_adapter(adapter_type, payload.enabled, payload.endpoint, payload.owner, payload.purpose, policy_actor(administrator))
+        return configure_policy_adapter(adapter_type, payload.enabled, payload.endpoint, payload.owner, payload.purpose, policy_actor(administrator), org_id=organizations.resolve_org_id(administrator))
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/policy-rollouts")
 def policy_rollouts(x_admin_pin: str | None = Header(default=None)):
-    require_admin(x_admin_pin)
-    return {"rollouts": list_rollouts()}
+    return {"rollouts": list_rollouts(org_id=organizations.resolve_org_id(require_admin(x_admin_pin)))}
 
 
 @app.post("/policy-rollouts", status_code=201)
 def create_policy_rollout(payload: PolicyRolloutCreateRequest, x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        return create_rollout(payload.policy_id, payload.percentage, payload.agent_allowlist, policy_actor(administrator))
+        return create_rollout(payload.policy_id, payload.percentage, payload.agent_allowlist, policy_actor(administrator), org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
@@ -1749,7 +1747,7 @@ def create_policy_rollout(payload: PolicyRolloutCreateRequest, x_admin_pin: str 
 def change_policy_rollout(rollout_id: str, payload: PolicyRolloutUpdateRequest, x_admin_pin: str | None = Header(default=None)):
     administrator = require_platform_admin(x_admin_pin)
     try:
-        return update_rollout(rollout_id, payload.status, payload.percentage, policy_actor(administrator))
+        return update_rollout(rollout_id, payload.status, payload.percentage, policy_actor(administrator), org_id=organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except ValueError as error:
@@ -1758,9 +1756,9 @@ def change_policy_rollout(rollout_id: str, payload: PolicyRolloutUpdateRequest, 
 
 @app.get("/policy-versions/{policy_id}/bundle")
 def signed_policy_bundle(policy_id: str, x_admin_pin: str | None = Header(default=None)):
-    require_platform_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_platform_admin(x_admin_pin))
     try:
-        return export_signed_policy_bundle(policy_id)
+        return export_signed_policy_bundle(policy_id, org_id=org_id)
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
     except RuntimeError as error:
@@ -1781,12 +1779,12 @@ def policy_version(
     policy_id: str,
     x_admin_pin: str | None = Header(default=None),
 ):
-    """Return one stored policy version."""
+    """Return one of the administrator's org's policy versions."""
 
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
 
     try:
-        return get_policy_version(policy_id)
+        return get_policy_version(policy_id, org_id=org_id)
     except KeyError as error:
         raise HTTPException(
             status_code=404,
@@ -1801,12 +1799,12 @@ def policy_version_history(
 ):
     """Return the immutable history of one policy."""
 
-    require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(require_admin(x_admin_pin))
 
     try:
         return {
             "policy_id": policy_id,
-            "events": get_policy_history(policy_id),
+            "events": get_policy_history(policy_id, org_id=org_id),
         }
     except KeyError as error:
         raise HTTPException(
@@ -2634,16 +2632,23 @@ def administrator_update_rate_limit_policy(
 
 
 @app.get("/permissions")
-def permissions():
-    """Return GreyGuard's action policy."""
+def permissions(x_admin_pin: str | None = Header(default=None)):
+    """Return the administrator's org's enforced action policy.
 
-    published_policy = get_published_policy()
+    Before P2.2's policy batch this route was unauthenticated and returned the process-wide
+    in-memory rules - which, after a restart, were the built-in defaults even when a different
+    policy had been approved. It now returns exactly what main.evaluate_action() enforces for
+    the caller's org."""
+
+    published_policy = get_published_policy(
+        org_id=organizations.resolve_org_id(require_admin(x_admin_pin))
+    )
 
     return {
-        "policy_id": published_policy["policy_id"] if published_policy else None,
-        "version_number": published_policy["version_number"] if published_policy else None,
-        "permissions": main.permissions,
-        "risk_weights": main.risk_weights,
+        "policy_id": published_policy["policy_id"],
+        "version_number": published_policy["version_number"],
+        "permissions": published_policy["permissions"],
+        "risk_weights": published_policy["risk_weights"],
         "available_scopes": sorted(
             main.permissions.keys()
         ),
@@ -2651,10 +2656,10 @@ def permissions():
             main.get_supported_tools()
         ),
         "max_blocked_attempts": (
-            main.max_blocked_attempts
+            published_policy["max_blocked_attempts"]
         ),
         "max_risk_score": (
-            main.max_risk_score
+            published_policy["max_risk_score"]
         ),
     }
 

@@ -72,10 +72,30 @@ async function readResponse<T>(
   return data;
 }
 
+function adminHeaders() {
+  const adminPin =
+    sessionStorage.getItem("greyguard_admin_pin");
+
+  if (!adminPin) {
+    throw new Error(
+      "Administrator session is missing. Sign in again.",
+    );
+  }
+
+  return {
+    "Content-Type": "application/json",
+    "X-Admin-Pin": adminPin,
+  };
+}
+
+// /permissions returns the caller's own org's enforced policy, so it needs the session.
 async function fetchPolicies():
 Promise<PolicyResponse> {
   const response = await fetch(
     `${API_BASE_URL}/permissions`,
+    {
+      headers: adminHeaders(),
+    },
   );
 
   return readResponse<PolicyResponse>(response);
