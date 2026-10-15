@@ -66,3 +66,13 @@ test("the collapsed sidebar opens a mega-menu with every workspace and page in a
   await item.click()
   await expect(page).toHaveURL(/\/isolation-operations$/)
 })
+
+test("the tab bar stays above a page's own background layers", async ({ page }) => {
+  // Live Operations paints a fixed, full-viewport atmosphere inside its own stacking context; it
+  // once covered the tab bar. A hit test cannot see that layer (it ignores pointer events), so this
+  // checks the stacking rule that keeps the shell's bands on top.
+  await openWithSession(page, session, "/live")
+  const tabs = page.getByRole("navigation", { name: "Live Monitoring sections" })
+  await expect(tabs).toBeVisible()
+  expect(await tabs.evaluate((element) => { const style = getComputedStyle(element); return [style.position, Number(style.zIndex) >= 1] })).toEqual(["relative", true])
+})

@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   Activity,
   AlertTriangle,
@@ -15,9 +17,9 @@ import {
   Search,
   ShieldAlert,
   ShieldCheck,
-  Signal,
   WifiOff,
   XCircle,
+  RadioTower,
 } from "lucide-react";
 import {
   useEffect,
@@ -545,7 +547,7 @@ export default function LiveOperationsPage() {
   }
 
   return (
-    <main className="live-page">
+    <main className="live-page gg-page-pad">
       <div className="live-page__atmosphere">
         <span className="live-orbit live-orbit--one" />
         <span className="live-orbit live-orbit--two" />
@@ -553,23 +555,12 @@ export default function LiveOperationsPage() {
         <span className="live-grid-glow" />
       </div>
 
-      <section className="live-hero">
-        <div className="live-hero__copy">
-          <div className="live-eyebrow">
-            <Signal size={15} />
-            Continuous control-plane telemetry
-          </div>
-
-          <h1>Live Operations Center</h1>
-
-          <p>
-            Observe policy decisions, authentication,
-            approvals and controlled execution evidence
-            as GreyGuard records them.
-          </p>
-        </div>
-
-        <div
+      <PageHeader
+        eyebrow="Live Monitoring"
+        title="Live operations"
+        icon={<RadioTower size={22} />}
+        description="Policy decisions, authentication, approvals and controlled execution, streamed as GreyGuard records them."
+        actions={<div
           className={[
             "live-connection",
             `live-connection--${connectionStatus.toLowerCase()}`,
@@ -600,8 +591,16 @@ export default function LiveOperationsPage() {
           ) : (
             <WifiOff size={22} />
           )}
-        </div>
-      </section>
+        </div>}
+      />
+
+      <Guidance id="live-operations" title="Reading the live stream">
+        <ul>
+          <li>The connection badge shows whether the stream is live, paused or reconnecting. Events missed during a reconnect are recovered.</li>
+          <li>Filter by decision or agent to follow one thread of activity. Open an event to go to its request or agent.</li>
+          <li>For prioritized signals that need follow-up, use Notifications; for incidents, the Incident Center.</li>
+        </ul>
+      </Guidance>
 
       <section className="live-metrics">
         <article className="live-metric">

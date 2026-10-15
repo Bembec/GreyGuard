@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   AlertOctagon,
   Gauge,
@@ -6,6 +8,7 @@ import {
   ShieldOff,
   TrendingUp,
   Users,
+  Radar,
 } from "lucide-react";
 import {
   useMemo,
@@ -278,7 +281,7 @@ export default function RiskCenterPage() {
     || policiesQuery.isLoading
   ) {
     return (
-      <main className="risk-center-page">
+      <main className="risk-center-page gg-page-pad">
         <div className="risk-orbit" />
         <LoadingState label="Loading live risk intelligence" rows={5} />
       </main>
@@ -294,36 +297,33 @@ export default function RiskCenterPage() {
       ?? policiesQuery.error;
 
     return (
-      <main className="risk-center-page">
+      <main className="risk-center-page gg-page-pad">
         <ErrorState message={error instanceof Error ? error.message : "GreyGuard could not load risk data."} onRetry={() => { void agentsQuery.refetch(); void policiesQuery.refetch(); }} />
       </main>
     );
   }
 
   return (
-    <main className="risk-center-page">
+    <main className="risk-center-page gg-page-pad">
       <div className="risk-grid-background" />
       <div className="risk-orbit risk-orbit-one" />
       <div className="risk-orbit risk-orbit-two" />
 
-      <header className="risk-hero">
-        <div>
-          <span className="risk-eyebrow">
-            Risk intelligence
-          </span>
-          <h1>Risk Center</h1>
-          <p>
-            Monitor accumulated agent risk,
-            blocked attempts, suspension thresholds
-            and administrative recovery.
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Risk & Threats"
+        title="Risk Center"
+        icon={<Radar size={22} />}
+        description="Accumulated agent risk, blocked attempts, suspension thresholds and recovery after investigation."
+        actions={<span className="gg-muted" style={{ fontSize: "0.74rem" }}>Refreshes every 10 seconds{agentsQuery.dataUpdatedAt ? ` · updated ${new Date(agentsQuery.dataUpdatedAt).toLocaleTimeString()}` : ""}</span>}
+      />
 
-        <div className="risk-live-status">
-          <span />
-          Live control-plane telemetry
-        </div>
-      </header>
+      <Guidance id="risk-center" title="How risk and suspension work">
+        <ol>
+          <li>Blocked and refused actions add risk to the agent that attempted them.</li>
+          <li>When an agent crosses the risk or block threshold it is suspended automatically, and every further request is refused.</li>
+          <li>After investigating, a Platform Administrator can reset the agent's risk to restore it. The reset is recorded.</li>
+        </ol>
+      </Guidance>
 
       <section className="risk-summary-grid">
         <article className="risk-summary-card">

@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   CheckCircle2,
   ChevronDown,
@@ -292,7 +294,7 @@ export default function AuthenticationPage() {
     || agentsQuery.isLoading
   ) {
     return (
-      <main className="authentication-page auth-centered">
+      <main className="authentication-page auth-centered gg-page-pad">
         <LoadingState label="Verifying identity evidence" rows={5} />
       </main>
     );
@@ -307,35 +309,34 @@ export default function AuthenticationPage() {
       ?? agentsQuery.error;
 
     return (
-      <main className="authentication-page auth-centered">
+      <main className="authentication-page auth-centered gg-page-pad">
         <ErrorState message={error instanceof Error ? error.message : "GreyGuard could not load identity evidence."} onRetry={() => { void authenticationQuery.refetch(); void agentsQuery.refetch(); }} />
       </main>
     );
   }
 
   return (
-    <main className="authentication-page">
+    <main className="authentication-page gg-page-pad">
       <div className="auth-identity-grid" />
       <div className="auth-scan-line" />
       <div className="auth-glow auth-glow-one" />
       <div className="auth-glow auth-glow-two" />
 
-      <header className="auth-hero">
-        <div>
-          <span>Identity assurance</span>
-          <h1>Authentication Intelligence</h1>
-          <p>
-            Investigate identity claims, credential
-            verification, scope boundaries and denied
-            access across GreyGuard’s independent agents.
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Live Monitoring"
+        title="Authentication"
+        icon={<Fingerprint size={22} />}
+        description="Identity claims, credential verification, scope checks and denied access across every agent."
+        actions={<span className="gg-muted" style={{ fontSize: "0.74rem" }}>Refreshes every 15 seconds{authenticationQuery.dataUpdatedAt ? ` · updated ${new Date(authenticationQuery.dataUpdatedAt).toLocaleTimeString()}` : ""}</span>}
+      />
 
-        <div className="auth-live">
-          <i />
-          Live identity telemetry
-        </div>
-      </header>
+      <Guidance id="authentication" title="What to look for">
+        <ul>
+          <li>Repeated failures for one agent can mean a revoked or leaked credential: open the agent and rotate or revoke it.</li>
+          <li>Scope denials mean an agent tried an action it was never granted. Check whether the scope is genuinely needed before granting it.</li>
+          <li>Every event here is also kept in the Audit Trail.</li>
+        </ul>
+      </Guidance>
 
       <section className="auth-stat-grid">
         <article>

@@ -876,3 +876,41 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* Form dialogs: a record edited in place, over the page. */
+.gg-dialog {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: var(--gg-overlay);
+  backdrop-filter: blur(6px);
+}
+
+.gg-dialog__panel {
+  display: grid;
+  gap: 0.9rem;
+  width: min(820px, 100%);
+  max-height: 90vh;
+  padding: 1.25rem 1.35rem;
+  overflow: auto;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-panel-solid);
+  box-shadow: var(--gg-shadow-md);
+}
+
+.gg-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.gg-dialog__header h2 {
+  margin: 0.2rem 0 0;
+  color: var(--gg-text-primary);
+  font-size: 1.05rem;
+}

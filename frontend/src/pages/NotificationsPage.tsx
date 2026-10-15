@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   AlertTriangle,
   BellRing,
@@ -151,20 +153,27 @@ export default function NotificationsPage() {
     navigate(notification.resource_path)
   }
 
-  return <main className="notifications-page">
-    <section className="notifications-hero">
-      <div>
-        <p><BellRing size={15} /> Security awareness</p>
-        <h1>Notification Center</h1>
-        <span>Prioritized security signals connected directly to investigation evidence.</span>
-      </div>
-      <div className="notifications-actions">
+  return <main className="notifications-page gg-page-pad">
+    <PageHeader
+        eyebrow="Live Monitoring"
+        title="Notifications"
+        icon={<BellRing size={22} />}
+        description="Prioritized security signals, each linked to the evidence behind it. Refreshes every 15 seconds."
+        actions={<div className="notifications-actions">
         {canManage && <button type="button" onClick={() => markAll.mutate()} disabled={!summary.data?.unread || markAll.isPending}>
           <CheckCheck size={17} /> Mark all reviewed
         </button>}
         <button type="button" onClick={() => void refresh()}><RefreshCw size={17} /> Refresh</button>
-      </div>
-    </section>
+      </div>}
+      />
+
+      <Guidance id="notifications" title="Working the inbox">
+        <ol>
+          <li>Start with critical and high signals. Open one to go to the agent, request or incident it concerns.</li>
+          <li>Mark a signal reviewed once it is handled, or mark all reviewed after triage.</li>
+          <li>Signals that need ownership and a response are tracked in the Incident Center.</li>
+        </ol>
+      </Guidance>
 
     <section className="notifications-metrics" aria-label="Notification summary">
       <article><Inbox /><div><strong>{summary.data?.unread ?? 0}</strong><span>Unread</span></div></article>

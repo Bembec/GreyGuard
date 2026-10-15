@@ -879,3 +879,12 @@
   background: rgba(251, 191, 36, 0.08);
   color: #fbbf24;
 }
+
+/* Shell bands above the page stay above any page's own decorative layers (some pages paint a
+   fixed, full-viewport background inside their own stacking context). */
+.workspace-tabs,
+.gg-offline,
+.capacity-banner {
+  position: relative;
+  z-index: 2;
+}
