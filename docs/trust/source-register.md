@@ -37,7 +37,7 @@ Every statement in the Trust Center source pages, the evidence it rests on, who 
 | TC-IAM-8 | A route-generated acceptance suite tests every route for cross-org leaks | `backend/tests/test_tenant_acceptance.py`, `docs/testing-and-assurance.md` | Engineering | 2026-10-15 |
 | TC-SDL-1 | CI runs the test suites and container builds on pull requests and pushes to main | `.github/workflows/ci.yml` | Engineering | 2026-10-15 |
 | TC-SDL-2 | Security checks (pip-audit, npm audit, Bandit, CodeQL, Gitleaks, Trivy, SBOM, E2E) run on pull requests and weekly | `.github/workflows/security.yml` | Engineering | 2026-10-15 |
-| TC-SDL-3 | The 2026-10-12 scheduled run failed in three jobs; the causes are fixed and pass locally; GitHub confirmation pending | `.github/workflows/security.yml`, `.gitleaksignore`, `docs/roadmap/addendum-reconciliation.md` | Engineering | 2026-10-15 |
+| TC-SDL-3 | The 2026-10-12 failures and two later workflow defects are fixed; all five jobs passed on GitHub on PR #16 | `.github/workflows/security.yml`, `.gitleaksignore`, `docs/roadmap/addendum-reconciliation.md` | Engineering | 2026-10-15 |
 | TC-SDL-4 | The final review gate blocks fixable critical/high findings; unfixed ones expire after 30 days | `docs/final-security-review.md`, `scripts/run_final_security_review.py` | Engineering | 2026-10-15 |
 | TC-SDL-5 | Releases come from protected tags with provenance and an Ed25519-signed manifest | `.github/workflows/release.yml`, `docs/deployment-operations-part2.md`, `scripts/create_release_manifest.py` | Engineering | 2026-10-15 |
 | TC-SDL-6 | Dependabot opens update pull requests for Python, npm and Actions | `.github/dependabot.yml` | Engineering | 2026-10-15 |
@@ -60,12 +60,13 @@ Every statement in the Trust Center source pages, the evidence it rests on, who 
 | TC-SUB-2 | Outbound connections go only to operator- or customer-configured endpoints | `backend/app/outbound_delivery.py`, `backend/app/secret_providers.py`, `backend/app/enterprise_sso.py` | Engineering | 2026-10-15 |
 | TC-SUB-3 | Only a sandbox billing provider exists, refused in production; card data is never stored | `backend/app/billing.py`, `docs/deployment-models.md` | Engineering | 2026-10-15 |
 | TC-SUB-4 | Email delivery is not built and refuses to send | `backend/app/notification_delivery.py` | Engineering | 2026-10-15 |
-| TC-SUB-5 | Hosted-offering vendors are not chosen; none is claimed | `docs/roadmap/p6-decision-package.md` | Project owner | 2026-10-15 |
+| TC-SUB-5 | Hosted-offering vendors are not selected (TBD); none is claimed until contracted (T6) | `docs/roadmap/p6-decision-package.md` | Project owner | 2026-10-15 |
 | TC-SUB-6 | Source, CI and registry are on GitHub, which does not process data from a running install | `.github/workflows/release.yml` | Engineering | 2026-10-15 |
 | TC-VD-1 | Private reports via GitHub Security Advisories; five-business-day acknowledgement target | `SECURITY.md` | Project owner | 2026-10-15 |
-| TC-VD-2 | security.txt waits for a named security contact (T3) | `docs/roadmap/p6-decision-package.md` | Project owner | 2026-10-15 |
+| TC-VD-2 | security.txt is served, names the private advisory page and expires 2027-04-15; a mailbox can be added before launch (T3) | `frontend/public/.well-known/security.txt`, `deployment/nginx.conf`, `backend/tests/test_security_txt.py`, `docs/roadmap/p6-decision-package.md` | Project owner | 2026-10-15 |
+| TC-VD-4 | Private vulnerability reporting was off on the repository on 2026-10-15 | `docs/roadmap/addendum-reconciliation.md` | Project owner | 2026-10-15 |
 | TC-VD-3 | Safe-harbour terms are for counsel and not offered yet | `docs/roadmap/p6-decision-package.md` | Project owner | 2026-10-15 |
 | TC-CERT-1 | No certification or insurance is held or claimed; no compliance claim is made | `docs/roadmap/GreyGuard_Final_Product_Commercial_and_Launch_Roadmap_Addendum.md` | Project owner | 2026-10-15 |
 | TC-CERT-2 | No independent penetration test yet; one is to be commissioned before the first paid pilot | `docs/roadmap/p6-decision-package.md`, `docs/threat-and-vulnerability-register.md` | Project owner | 2026-10-15 |
-| TC-ER-1 | The evidence-request process waits for T8 | `docs/roadmap/p6-decision-package.md` | Project owner | 2026-10-15 |
+| TC-ER-1 | Public evidence without NDA; sensitive evidence with approval and an NDA where it applies; all audited outside the repository (T8) | `docs/roadmap/p6-decision-package.md` | Project owner | 2026-10-15 |
 | TC-ER-2 | The listed evidence exists or is produced by repository scripts | `scripts/generate_sbom.py`, `scripts/create_release_manifest.py`, `scripts/run_final_security_review.py`, `docs/threat-and-vulnerability-register.md`, `backend/tests/test_tenant_acceptance.py` | Engineering | 2026-10-15 |

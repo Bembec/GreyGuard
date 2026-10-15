@@ -13,6 +13,7 @@ Short answers to the questions that buyer security questionnaires usually ask, g
 | G3 | Do you maintain a threat or risk register? | Yes | 30 threats with controls, residual risk, owner and review date. | [TC-ARCH-8] |
 | G4 | Do you have documented information-security policies and a named security owner? | Owner to answer | | |
 | G5 | Do you carry cyber insurance? | No | Not claimed. | [TC-CERT-1] |
+| G6 | Will you share security evidence? | Yes | Public evidence freely. Sensitive evidence with approval, and under NDA where it is detailed or customer-related. Every disclosure is audited. | [TC-ER-1] |
 
 ## Personnel
 
@@ -59,11 +60,11 @@ Short answers to the questions that buyer security questionnaires usually ask, g
 | # | Question | Answer | Detail | Statements |
 |---|---|---|---|---|
 | V1 | Is code tested and scanned before release? | Yes | Test suites and builds on every pull request; dependency, static, secret and vulnerability scans. | [TC-SDL-1] [TC-SDL-2] |
-| V2 | Are those scans currently passing? | Partial | Three jobs failed on 2026-10-12. The causes are fixed and pass locally; confirmation on GitHub is pending. | [TC-SDL-3] |
+| V2 | Are those scans currently passing? | Yes | All five passed on GitHub on 2026-10-15, after fixes to failures seen on 2026-10-12. | [TC-SDL-3] |
 | V3 | How are vulnerabilities in releases handled? | Yes | Fixable critical and high findings block release; unfixed ones expire after 30 days. | [TC-SDL-4] |
 | V4 | Do you provide an SBOM and signed releases? | Yes | CycloneDX SBOM; Ed25519-signed release manifest; build provenance. | [TC-SDL-5] |
 | V5 | Are dependencies kept up to date? | Yes | Dependabot update pull requests. | [TC-SDL-6] |
-| V6 | Do you have a vulnerability-disclosure process? | Yes | Private reports via GitHub Security Advisories; security.txt pending a contact. | [TC-VD-1] [TC-VD-2] |
+| V6 | Do you have a vulnerability-disclosure process? | Yes | Private reports via GitHub Security Advisories, published in security.txt; the repository's reporting setting must be on. | [TC-VD-1] [TC-VD-2] [TC-VD-4] |
 
 ## Logging and incident response
 
@@ -97,6 +98,6 @@ Short answers to the questions that buyer security questionnaires usually ask, g
 
 | # | Question | Answer | Detail | Statements |
 |---|---|---|---|---|
-| T1 | Which subprocessors do you use? | Owner to answer | Hosted-offering vendors are not yet chosen (T6). The software itself has no built-in destination. | [TC-SUB-1] [TC-SUB-5] |
+| T1 | Which subprocessors do you use? | Owner to answer | Hosted-offering vendors are not selected (TBD) (T6). The software itself has no built-in destination. | [TC-SUB-1] [TC-SUB-5] |
 | T2 | Does the software send data to third parties? | No | Only to endpoints the operator or customer configures. | [TC-SUB-1] [TC-SUB-2] |
 | T3 | Do you store payment card data? | No | No payment processor is integrated, and card data is never stored. | [TC-SUB-3] |

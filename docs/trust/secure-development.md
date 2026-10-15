@@ -19,7 +19,12 @@
 - **Gitleaks** reported two findings: a deliberately fake token in a test of GreyGuard's own secret scanner, and a placeholder in the example environment file. Both are listed as false positives by fingerprint. No real secret was found.
 - **Trivy** did not run, because the pinned action version no longer existed upstream. The action is now pinned to a commit SHA.
 
-All five jobs pass locally after the fix. Passing on GitHub is to be confirmed by the next run, and this section is updated when it does.
+The first GitHub run after that fix exposed two more workflow defects:
+
+- the Gitleaks action now needs the workflow's GitHub token to scan pull requests;
+- the Trivy severity setting had been read as `HIGH` only, so critical findings were never gated.
+
+Both were fixed through pull request #16. **On that pull request, all five security jobs passed on GitHub on 2026-10-15,** with Trivy gating on both high and critical findings [TC-SDL-3].
 
 ## Release assurance
 
