@@ -6,15 +6,15 @@
 |---|---|---|---|
 | D1 | Target buyer | **Approved (provisional)** | Organizations of 500–5,000 employees, regulated or audit-heavy, moving agents with real tool access into production. Economic buyer: the CISO. |
 | D2 | Pilot model | **Approved (provisional)** | Paid, 90 days, Enterprise TRIAL, hosted, fixed scope as in section 2. |
-| D3 | Pilot fee | **Undecided** | To be set after preliminary buyer interviews and cost modelling. No amount appears in code or documents. |
+| D3 | Pilot fee | **Pending** | To be set after cost modelling and buyer interviews. No fee or price field exists in code or documents, and none will be added before then. |
 | D4 | SSO | **Approved (provisional)** | Included in every edition; not gated. |
 | D5 | Editions | **Approved (provisional)** | Foundation, Enterprise and Dedicated remain working labels for interviews. |
 | D6 | Provisional limits | **Partly decided** | Request and delivery volumes are **monitored soft limits that can never interrupt security operations**, and this is now enforced in code (`MONITORED_ONLY_METERS`). Agent and integration limits are **neither changed nor confirmed**; their values and basis are shown in [section 4](#4-provisional-limits) for your review. |
 | D7 | Pricing metric | **Approved (provisional)** | An annual subscription banded by governed agents. No figures until interviews and the cost model. |
 | D8 | Trials | **Approved (provisional)** | No self-serve trial at launch; sales-assisted pilots only. |
 | D9 | Deployment lead | **Approved as the working direction, with conditions** | Hosted-first, **subject to verified** infrastructure cost, capacity, backup, recovery and support readiness. Customer-hosted gateways stay **pilot-only until packaged**. Dedicated and self-hosted come later. |
-| D10 | Design partners | **Objective approved** | Recruit 2–4 under written terms. Candidates will be selected later. |
-| D11 | Proceed to P5 | **Approved** | Build the product onboarding experience and its documentation. No prices, payment credentials or live billing. |
+| D10 | Design partners | **Objective approved; candidates pending** | Recruit 2–4 under written terms. Candidates will be selected once suitable design partners are identified. |
+| D11 | Proceed to P5 | **Approved; P5 delivered and approved** | Getting Started, pilot tracking and counts-only adoption analytics (commit `f15bfbe`). No prices, payment credentials or live billing. |
 
 ### Conditions D9 still needs evidence for
 
