@@ -1,0 +1,527 @@
+{
+  "format": "greyguard-claims/1",
+  "claims": [
+    {
+      "id": "GG-GATE-1",
+      "group": "gate",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Each agent has its own identity, and identity never implies permission: an agent can only request the actions it has been granted.",
+      "scope": "Agents registered with GreyGuard. Enforced server-side per request; the SDKs also check declared scopes before sending.",
+      "evidence": [
+        "backend/tests/test_control_loop.py::test_an_identity_is_not_a_permission_an_ungranted_scope_is_denied",
+        "sdk/javascript/src",
+        "frontend/src/test/javascriptSdk.test.ts::blocks undeclared scopes before transmission",
+        "docs/agent-integration.md"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-GATE-2",
+      "group": "gate",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Policy decides ALLOW, ASK or BLOCK for every requested action, and an action with no rule is blocked.",
+      "scope": "The organization's published policy, or a staged rollout of a newer version for selected agents.",
+      "evidence": [
+        "backend/tests/test_security_foundation.py::test_unknown_action_defaults_to_block",
+        "backend/tests/test_policy_governance.py::test_unknown_action_fails_closed",
+        "backend/tests/test_agent_tenancy.py::test_each_org_enforces_its_own_published_policy",
+        "docs/policy-governance.md"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-GATE-3",
+      "group": "gate",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "An action that needs approval waits for a person and does not run until approved. A denied action never runs.",
+      "scope": "Actions whose policy decision is ASK.",
+      "evidence": [
+        "backend/tests/test_control_loop.py::test_an_ask_request_waits_for_a_person_and_does_not_run_until_approved",
+        "backend/tests/test_control_loop.py::test_a_denied_request_never_runs"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-GATE-4",
+      "group": "gate",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "A policy change takes effect only after a second administrator approves it.",
+      "scope": "Policy versions edited in GreyGuard. The author cannot approve their own change.",
+      "evidence": [
+        "backend/tests/test_policy_governance.py::test_four_eyes_approval_blocks_creator",
+        "docs/policy-governance.md"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-GATE-5",
+      "group": "gate",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Emergency global deny refuses every agent action in an organization at once, without affecting other organizations.",
+      "scope": "One organization's agents, until the control is lifted.",
+      "evidence": [
+        "backend/tests/test_agent_tenancy.py::test_one_orgs_emergency_global_deny_does_not_stop_other_orgs"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-GATE-6",
+      "group": "gate",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Agent credentials can be rotated or revoked at any time, and their history is kept without ever storing the credential itself.",
+      "scope": "Agent credentials issued by GreyGuard.",
+      "evidence": [
+        "backend/tests/test_credential_history.py::test_rotating_a_credential_records_a_rotated_event",
+        "backend/tests/test_credential_history.py::test_history_never_contains_a_credential_or_its_hash"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-WATCH-1",
+      "group": "watch",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Blocked actions add risk to the agent that attempted them, and an agent that reaches its threshold is suspended automatically. A suspended agent is refused everything.",
+      "scope": "Thresholds come from the published policy (by default 3 blocked attempts or a risk score of 100).",
+      "evidence": [
+        "backend/tests/test_control_loop.py::test_blocked_attempts_suspend_the_agent_and_a_suspended_agent_is_refused",
+        "backend/tests/test_control_loop.py::test_a_blocked_action_adds_its_risk_weight"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-WATCH-2",
+      "group": "watch",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Security decisions stream live to the console, and events missed during a reconnect are recovered.",
+      "scope": "Events still within the live stream's retention window.",
+      "evidence": [
+        "backend/tests/test_live_events.py::test_recovery_returns_only_newer_events",
+        "backend/tests/test_live_events.py::test_stream_redacts_nested_credentials"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-WATCH-3",
+      "group": "watch",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "High-severity evidence opens an incident with an owner, notes and a workflow to resolution.",
+      "scope": "High and critical events. Duplicate events do not open duplicate incidents.",
+      "evidence": [
+        "backend/tests/test_alerts.py::test_high_event_creates_alert",
+        "backend/tests/test_alerts.py::test_alert_workflow_and_note"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-WATCH-4",
+      "group": "watch",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "A simulation lab checks that prohibited actions are refused, using predefined scenarios against fictional targets with no real effect.",
+      "scope": "The lab is disabled by default and accepts only its predefined scenarios.",
+      "evidence": [
+        "backend/tests/test_adversarial_simulations.py::test_simulation_has_no_side_effects",
+        "backend/tests/test_adversarial_simulations.py::test_arbitrary_scenarios_are_rejected"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-RESP-1",
+      "group": "respond",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Containment is recoverable: after investigation, an administrator can reset a suspended agent and restore it.",
+      "scope": "Agents suspended by risk or blocked-attempt thresholds.",
+      "evidence": [
+        "backend/tests/test_control_loop.py::test_suspension_is_recoverable_by_an_administrator_reset"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-RESP-2",
+      "group": "respond",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "A capability can be retired safely: it is fail-closed first, and each recovery step needs recorded evidence, in order.",
+      "scope": "Registered high-risk capabilities, including an emergency shutdown of all of them.",
+      "evidence": [
+        "backend/tests/test_capability_removal.py::test_begin_removal_immediately_fails_closed",
+        "backend/tests/test_capability_removal.py::test_completion_requires_evidence",
+        "backend/tests/test_capability_removal.py::test_emergency_shutdown_creates_audited_workflow"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-RESP-3",
+      "group": "respond",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Isolated execution runs only predefined jobs in hardened containers, is off by default, and can terminate every job at once.",
+      "scope": "Self-hosted installs with Docker available; arbitrary commands are rejected.",
+      "evidence": [
+        "backend/tests/test_execution_isolation.py::test_isolation_is_disabled_by_default",
+        "backend/tests/test_execution_isolation.py::test_arbitrary_job_is_rejected",
+        "backend/tests/test_execution_isolation.py::test_docker_command_enforces_all_boundaries"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-RESP-4",
+      "group": "respond",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Incidents can be sent to Jira or ServiceNow, and approval links sent with them work only once.",
+      "scope": "Destinations an administrator registers and enables; credentials are held as external references.",
+      "evidence": [
+        "backend/tests/test_incident_integrations.py::test_approval_link_is_single_use",
+        "backend/tests/test_incident_integrations.py::test_signed_callback_rejects_tampering"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-EVID-1",
+      "group": "evidence",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Audit records are hash-chained, and verification detects tampering.",
+      "scope": "Records sealed into the audit chain.",
+      "evidence": [
+        "backend/tests/test_audit_integrity.py::test_chain_verifies_and_detects_source_tampering",
+        "docs/audit-integrity-and-retention.md"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-EVID-2",
+      "group": "evidence",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Legal holds stop evidence from being deleted by retention.",
+      "scope": "Evidence covered by an active hold.",
+      "evidence": [
+        "backend/tests/test_audit_integrity.py::test_legal_hold_blocks_retention_deletion"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-EVID-3",
+      "group": "evidence",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Every request has an evidence bundle explaining the decision, exportable with secrets redacted.",
+      "scope": "Tool requests made through GreyGuard.",
+      "evidence": [
+        "backend/tests/test_request_investigation.py::test_request_bundle_redacts_secrets",
+        "backend/tests/test_request_investigation.py::test_blocked_decision_has_explanation"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-EVID-4",
+      "group": "evidence",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Compliance reports are sealed snapshots with an integrity check, and scheduled reports carry a signed manifest.",
+      "scope": "Reports generated in GreyGuard. The control mappings are evidence references, not certifications.",
+      "evidence": [
+        "backend/tests/test_compliance_reports.py::test_report_snapshot_and_integrity",
+        "backend/tests/test_report_governance.py::test_manifest_signature_and_tamper_detection"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-EVID-5",
+      "group": "evidence",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Security evidence can be exported to a SIEM, minimized and redacted before it is queued, from destinations that start disabled.",
+      "scope": "Destinations an administrator registers and enables.",
+      "evidence": [
+        "backend/tests/test_security_exports.py::test_destinations_start_disabled_and_store_no_credentials",
+        "backend/tests/test_security_exports.py::test_minimization_and_redaction_happen_before_queueing"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-CONN-1",
+      "group": "connect",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Python and JavaScript SDKs submit agent actions to GreyGuard, keep credentials out of logs and never retry a policy decision.",
+      "scope": "The SDKs in this repository; the SDK never executes an action itself.",
+      "evidence": [
+        "backend/tests/test_python_sdk.py::test_client_repr_and_structured_logs_redact_credentials",
+        "backend/tests/test_python_sdk.py::test_policy_evaluation_is_not_retried",
+        "frontend/src/test/javascriptSdk.test.ts::does not retry state-sensitive policy evaluation"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-CONN-2",
+      "group": "connect",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "A versioned REST API exposes every route under /api/v1.",
+      "scope": "The public API contract published with each release.",
+      "evidence": [
+        "backend/tests/test_api_compatibility.py::test_every_route_is_reachable_under_api_v1_without_deprecation"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-CONN-3",
+      "group": "connect",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Adapters accept tool requests in Model Context Protocol, LangChain, LangGraph, CrewAI, AutoGen and generic JSON formats, each disabled until an administrator enables it.",
+      "scope": "Request-format translation only. It does not imply endorsement by, or a partnership with, any of these projects.",
+      "evidence": [
+        "backend/tests/test_adapter_control.py::test_adapters_are_disabled_by_default",
+        "backend/tests/test_adapter_control.py::test_kill_switch_blocks_translation",
+        "backend/app/adapter_control.py"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-CONN-4",
+      "group": "connect",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Gateways enforce signed policy bundles close to the agent, and deny everything once a bundle passes its offline allowance.",
+      "scope": "Enterprise plan; gateways enrolled to one organization.",
+      "evidence": [
+        "backend/tests/test_gateways.py::test_a_node_enrolls_once_and_enforces_a_verified_bundle",
+        "backend/tests/test_gateways.py::test_bundles_expire_after_the_offline_allowance_and_then_deny_everything"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-CONN-5",
+      "group": "connect",
+      "kind": "capability",
+      "availability": "planned",
+      "claim": "Monitor-only connection: observe an agent's actions without enforcing decisions.",
+      "scope": "Not built. Must not be described as available.",
+      "evidence": [],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-CONN-6",
+      "group": "connect",
+      "kind": "limitation",
+      "availability": "verified",
+      "claim": "GreyGuard governs only agents that are registered with it and send their actions through it.",
+      "scope": "All deployments. Agents that bypass GreyGuard are not covered.",
+      "evidence": [
+        "docs/agent-integration.md"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-PLAT-1",
+      "group": "platform",
+      "kind": "capability",
+      "availability": "verified",
+      "claim": "Organizations are isolated: an automated suite checks that no route returns or changes another organization's data.",
+      "scope": "Every API route, generated from the route table.",
+      "evidence": [
+        "backend/tests/test_tenant_acceptance.py::test_no_route_returns_another_orgs_data",
+        "backend/tests/test_tenant_acceptance.py::test_no_route_changes_another_orgs_data",
+        "backend/tests/test_tenant_guard.py"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-PLAT-2",
+      "group": "platform",
+      "kind": "limitation",
+      "availability": "verified",
+      "claim": "GreyGuard runs on a single host and is not highly available, and there is no SLA or committed recovery time.",
+      "scope": "All current deployment models.",
+      "evidence": [
+        "docs/reliability.md",
+        "docs/trust/availability-and-recovery.md"
+      ],
+      "owner": "Project owner",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-PLAT-3",
+      "group": "platform",
+      "kind": "limitation",
+      "availability": "verified",
+      "claim": "GreyGuard does not encrypt the live database; encryption at rest is the operator's responsibility.",
+      "scope": "Self-hosted and hosted installs.",
+      "evidence": [
+        "docs/deployment-models.md",
+        "docs/trust/data-protection.md"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-TRUST-1",
+      "group": "trust",
+      "kind": "limitation",
+      "availability": "verified",
+      "claim": "No independent penetration test has been performed and GreyGuard holds no security certification.",
+      "scope": "Until a report or certificate exists; this claim must change when one does.",
+      "evidence": [
+        "docs/trust/certifications.md"
+      ],
+      "owner": "Project owner",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    }
+  ]
+}
