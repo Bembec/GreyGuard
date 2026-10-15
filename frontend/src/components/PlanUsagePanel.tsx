@@ -13,6 +13,7 @@ export type Entitlements = {
   status: "ACTIVE" | "TRIAL" | "EXPIRED" | "SUSPENDED"
   trial_ends_at: string | null
   restricted: boolean
+  restriction_reasons: string[]
   features: string[]
   mandatory_protections: string[]
   limits: Record<string, Limit>
@@ -27,15 +28,45 @@ const METER_LABELS: Record<string, string> = {
   integrations: "Integrations",
 }
 
+export type Billing = {
+  enabled: boolean
+  linked: boolean
+  billing_state?: "ACTIVE" | "PAST_DUE" | "CANCELED"
+  grace_ends_at?: string | null
+}
+
+const RESTRICTION_LABELS: Record<string, string> = {
+  PLAN_EXPIRED: "the plan has expired",
+  PLAN_SUSPENDED: "the plan is suspended",
+  PAYMENT_OVERDUE: "payment is overdue",
+  SUBSCRIPTION_CANCELED: "the subscription is cancelled",
+  LICENSE_LAPSED: "this install's licence has lapsed",
+  LICENSE_MISSING: "this install has no valid licence",
+}
+
 const readable = (value: string) => value.replaceAll("_", " ")
+
+export function restrictionSummary(reasons: string[]): string {
+  return reasons.map((reason) => RESTRICTION_LABELS[reason] ?? readable(reason).toLowerCase()).join(" and ")
+}
+
+export function billingSummary(billing: Billing): string | null {
+  if (!billing.linked) return null
+  if (billing.billing_state === "PAST_DUE") {
+    return billing.grace_ends_at
+      ? `Payment overdue · grace until ${new Date(billing.grace_ends_at).toLocaleDateString()}`
+      : "Payment overdue"
+  }
+  return billing.billing_state === "CANCELED" ? "Subscription cancelled" : "Active"
+}
 
 export function meterSummary(used: number, limit: Limit): string {
   const cap = limit.hard ?? limit.soft
   return cap === null ? `${used.toLocaleString()} · unlimited` : `${used.toLocaleString()} of ${cap.toLocaleString()}`
 }
 
-async function fetchEntitlements(): Promise<Entitlements> {
-  const response = await fetch(`${API_BASE_URL}/entitlements`, {
+async function fetchJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: { "X-Admin-Pin": sessionStorage.getItem("greyguard_admin_pin") ?? "" },
   })
   if (!response.ok) throw new Error(`Plan details could not be loaded (${response.status}).`)
@@ -45,8 +76,10 @@ async function fetchEntitlements(): Promise<Entitlements> {
 /** Read-only view of the active org's plan, limits and usage. Plans are assigned by install
  * operators; every role can see what governs its org. */
 export function PlanUsagePanel() {
-  const entitlements = useQuery({ queryKey: ["entitlements"], queryFn: fetchEntitlements })
+  const entitlements = useQuery({ queryKey: ["entitlements"], queryFn: () => fetchJson<Entitlements>("/entitlements") })
+  const billing = useQuery({ queryKey: ["billing"], queryFn: () => fetchJson<Billing>("/billing") })
   const data = entitlements.data
+  const billingLine = billing.data ? billingSummary(billing.data) : null
 
   return (
     <section className="settings-panel">
@@ -68,8 +101,8 @@ export function PlanUsagePanel() {
         <>
           {data.restricted && (
             <p className="plan-notice" role="status">
-              This plan is {data.status.toLowerCase()}. New agents and integrations are paused; evidence,
-              exports and every security control remain available.
+              Restricted because {restrictionSummary(data.restriction_reasons)}. New agents and integrations are
+              paused; evidence, exports and every security control remain available.
             </p>
           )}
           <div className="environment-list">
@@ -86,6 +119,12 @@ export function PlanUsagePanel() {
                   : ""}
               </code>
             </div>
+            {billingLine && (
+              <div>
+                <span>Billing</span>
+                <code>{billingLine}</code>
+              </div>
+            )}
             {Object.entries(data.limits).map(([meter, limit]) => (
               <div key={meter}>
                 <span>

@@ -379,6 +379,10 @@ def required_permission(method: str, path: str) -> str:
         return "read"
     if path.startswith("/compliance-reports"):
         return "read"
+    # Billing contact changes are governed by the org's governance role (owner or billing
+    # administrator), checked in the route, not by the operational role.
+    if path == "/billing/contact":
+        return "read"
     if method.upper() == "GET":
         return "read"
     if path.startswith("/alerts") or path.startswith("/notifications"):
