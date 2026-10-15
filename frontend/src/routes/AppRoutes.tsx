@@ -27,6 +27,7 @@ import AuthenticationPage from "../pages/AuthenticationPage"
 import SandboxPage from "../pages/SandboxPage"
 
 import SettingsPage from "../pages/SettingsPage"
+import GettingStartedPage from "../pages/GettingStartedPage"
 import TeamAccessPage from "../pages/TeamAccessPage"
 import SecretsPage from "../pages/SecretsPage"
 import NotificationsPage from "../pages/NotificationsPage"
@@ -156,6 +157,8 @@ export function AppRoutes() {
           path="/team"
           element={<TeamAccessPage />}
         />
+
+        <Route path="/getting-started" element={<GettingStartedPage />} />
 
         <Route path="/secrets" element={<SecretsPage />} />
 

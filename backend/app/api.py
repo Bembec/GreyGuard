@@ -79,6 +79,8 @@ from . import licensing
 from . import org_lifecycle
 from . import gateways
 from . import service_status
+from . import product_analytics
+from . import pilots
 
 
 from .policy_control import (
@@ -347,6 +349,8 @@ async def lifespan(_app: FastAPI):
         org_lifecycle.initialize_org_lifecycle()
         gateways.initialize_gateways()
         service_status.initialize_service_status()
+        product_analytics.initialize_product_analytics()
+        pilots.initialize_pilots()
         initialize_isolation_operations()
         initialize_outbound_delivery()
         initialize_enterprise_sso()
@@ -1608,6 +1612,7 @@ class OrganizationOnboardRequest(BaseModel):
     owner_email: str = Field(min_length=3, max_length=254)
     plan: Literal["FOUNDATION", "ENTERPRISE", "DEDICATED"] | None = None
     trial_days: int | None = Field(default=None, ge=1, le=entitlements.MAX_TRIAL_DAYS)
+    pilot: bool = Field(default=False, description="Start the standard paid-pilot template (Enterprise, 90-day trial); overrides plan and trial_days.")
 
 
 class OffboardingRequest(BaseModel):
@@ -1645,8 +1650,12 @@ def _lifecycle_call(function, *args):
 def onboard_organization(payload: OrganizationOnboardRequest, x_admin_pin: str | None = Header(default=None)):
     """Create a customer org without joining it, invite its first owner, optionally assign a plan."""
     administrator = require_install_operator(x_admin_pin)
-    return _lifecycle_call(org_lifecycle.onboard, payload.name, payload.slug, payload.owner_email,
-                           administrator["admin_id"], policy_actor(administrator), payload.plan, payload.trial_days)
+    result = _lifecycle_call(org_lifecycle.onboard, payload.name, payload.slug, payload.owner_email,
+                             administrator["admin_id"], policy_actor(administrator),
+                             None if payload.pilot else payload.plan, None if payload.pilot else payload.trial_days)
+    if payload.pilot:
+        result["pilot"] = _pilot_call(pilots.start_pilot, result["organization"]["org_id"], policy_actor(administrator))
+    return result
 
 
 @app.get("/organizations/{org_id}/lifecycle")
@@ -1843,6 +1852,81 @@ def schedule_status_maintenance(payload: StatusMaintenanceRequest, x_admin_pin: 
     administrator = require_install_operator(x_admin_pin)
     return _status_call(service_status.schedule_maintenance, payload.title, payload.components, payload.starts_at,
                         payload.ends_at, payload.message, policy_actor(administrator))
+
+
+class PageViewRequest(BaseModel):
+    path: str = Field(min_length=2, max_length=90)
+
+
+class AnalyticsSettingRequest(BaseModel):
+    enabled: bool
+
+
+@app.post("/analytics/page-view", status_code=204)
+def record_product_page_view(payload: PageViewRequest, x_admin_pin: str | None = Header(default=None)):
+    """Counts one view of a fixed navigation path for the caller's org - nothing else is recorded."""
+    product_analytics.record_page_view(organizations.resolve_org_id(require_admin(x_admin_pin)), payload.path)
+    return Response(status_code=204)
+
+
+@app.get("/organizations/{org_id}/adoption")
+def organization_adoption(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    require_org_owner(org_id, x_admin_pin)
+    return product_analytics.adoption(org_id)
+
+
+@app.put("/organizations/{org_id}/analytics")
+def set_organization_analytics(org_id: str, payload: AnalyticsSettingRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_org_owner(org_id, x_admin_pin)
+    return product_analytics.set_org_enabled(org_id, payload.enabled, policy_actor(administrator))
+
+
+class PilotConfirmationRequest(BaseModel):
+    criterion: Literal["evidence_accepted", "no_service_incident"]
+    note: str = Field(min_length=10, max_length=1000)
+
+
+class PilotDecisionRequest(BaseModel):
+    outcome: Literal["CONVERT", "EXTEND", "OFFBOARD"]
+    reason: str = Field(min_length=10, max_length=1000)
+    extend_days: int | None = Field(default=None, ge=1, le=pilots.MAX_EXTENSION_DAYS)
+
+
+def _pilot_call(function, *args):
+    try:
+        return function(*args)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except (pilots.PilotError, org_lifecycle.LifecycleError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.get("/organizations/{org_id}/pilot")
+def organization_pilot(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    """The org's pilot and its measured success criteria; members and install operators."""
+    administrator = require_admin(x_admin_pin)
+    if not administrator.get("install_operator") and organizations.get_membership(org_id, administrator["admin_id"]) is None:
+        raise HTTPException(status_code=403, detail="You are not a member of that organization.")
+    return {"pilot": _pilot_call(pilots.pilot_status, org_id)}
+
+
+@app.post("/organizations/{org_id}/pilot", status_code=201)
+def start_organization_pilot(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    _require_existing_org(org_id)
+    return _pilot_call(pilots.start_pilot, org_id, policy_actor(administrator))
+
+
+@app.post("/organizations/{org_id}/pilot/confirmations")
+def confirm_organization_pilot_criterion(org_id: str, payload: PilotConfirmationRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    return _pilot_call(pilots.confirm, org_id, payload.criterion, payload.note, policy_actor(administrator))
+
+
+@app.post("/organizations/{org_id}/pilot/decision")
+def decide_organization_pilot(org_id: str, payload: PilotDecisionRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    return _pilot_call(pilots.decide, org_id, payload.outcome, payload.reason, policy_actor(administrator), payload.extend_days)
 
 
 def _require_existing_org(org_id):

@@ -280,6 +280,11 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # out of per-process memory. Looked up by the globally unique agent name, then scoped by the
     # org_id read back off the row; every change is scoped by org_id.
     "agent_runtime_states",
+    # P5 (product_analytics.py): an org's daily page-view counts and its analytics opt-out.
+    "product_usage_daily",
+    "product_analytics_settings",
+    # P5 (pilots.py): an org's paid-pilot record and its confirmations. No fee or price is stored.
+    "org_pilots",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a

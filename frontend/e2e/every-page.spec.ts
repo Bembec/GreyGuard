@@ -61,3 +61,8 @@ test("the public status page works without signing in",async({page})=>{
  await expect(page.getByText("Control-plane API")).toBeVisible({timeout:15_000})
  await expect(page.getByText(/not a service outage/)).toBeVisible()
 })
+test("getting started shows the computed readiness steps",async({page})=>{
+ await expectHealthyPage(page,"/getting-started")
+ await expect(page.getByRole("heading",{name:"Readiness steps"})).toBeVisible({timeout:15_000})
+ await expect(page.getByText(/steps complete|Ready for production/).first()).toBeVisible()
+})
