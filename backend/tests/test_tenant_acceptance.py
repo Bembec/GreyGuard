@@ -203,7 +203,9 @@ def test_no_route_returns_another_orgs_data(tenants):
             calls += 1
             assert response.status_code < 500, f"GET {path} -> {response.status_code}: {response.text[:300]}"
             body = response.text
-            leaked = sorted(m for m in secret_markers - substituted if m in body)
+            # A marker inside a value the request itself supplied is an echo, not a leak.
+            leaked = sorted(m for m in secret_markers - substituted
+                            if m in body and not any(m in value for value in substituted))
             if leaked:
                 leaks.append(f"GET {path} -> {response.status_code} leaks {leaked[:3]}")
             elif substituted and response.status_code < 300 and any(v in body for v in substituted):

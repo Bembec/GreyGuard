@@ -274,6 +274,90 @@ def initialize_database():
                 )
 
 
+# --- Agent runtime state ---------------------------------------------------------------------
+# Risk score, blocked attempts and suspension used to live in each server process's memory and a
+# state file, so two processes diverged: an agent suspended by one was still allowed by the other.
+# They now live here, and every change is one atomic UPDATE, so any number of processes or replicas
+# see the same state and never lose each other's increments.
+
+RUNTIME_COLUMNS = "agent_name, org_id, agent_status, risk_score, blocked_attempts"
+
+
+def initialize_agent_runtime_states():
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("""CREATE TABLE IF NOT EXISTS agent_runtime_states (
+            agent_name TEXT PRIMARY KEY, org_id TEXT NOT NULL DEFAULT 'org_default',
+            agent_status TEXT NOT NULL DEFAULT 'ACTIVE', risk_score INTEGER NOT NULL DEFAULT 0,
+            blocked_attempts INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)""")
+
+
+def _runtime(row):
+    return {"agent_status": row[2], "risk_score": row[3], "blocked_attempts": row[4]} if row else None
+
+
+def get_runtime_state(agent_name):
+    """One agent's runtime state, or None. Agent names are a global namespace, so the lookup is by
+    name; the org_id is read back off the row."""
+    with sqlite3.connect(database_path) as connection:
+        return _runtime(connection.execute(
+            f"SELECT {RUNTIME_COLUMNS} FROM agent_runtime_states WHERE agent_name = ?", (agent_name,)).fetchone())
+
+
+def list_runtime_states():
+    """Every agent's runtime state across the install; callers filter by owner (see api.py)."""
+    with sqlite3.connect(database_path) as connection:
+        rows = connection.execute(
+            f"-- install-wide listing across every org_id; callers filter\nSELECT {RUNTIME_COLUMNS} FROM agent_runtime_states ORDER BY agent_name").fetchall()
+    return [(row[0], _runtime(row)) for row in rows]
+
+
+def ensure_runtime_state(agent_name, org_id, state=None):
+    """Create an agent's runtime state if it has none. Never overwrites existing state."""
+    state = state or {}
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "INSERT OR IGNORE INTO agent_runtime_states (agent_name, org_id, agent_status, risk_score, blocked_attempts, updated_at)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (agent_name, org_id, state.get("agent_status", "ACTIVE"), int(state.get("risk_score", 0)),
+             int(state.get("blocked_attempts", 0)), _now()))
+
+
+def record_runtime_decision(agent_name, org_id, risk_added, blocked, block_limit, risk_limit):
+    """Apply one decision's risk and block counts and decide suspension, atomically. Returns the
+    new state, or None if the agent was suspended in the meantime (the caller then refuses)."""
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute(
+            """UPDATE agent_runtime_states SET
+                risk_score = risk_score + ?,
+                blocked_attempts = blocked_attempts + ?,
+                agent_status = CASE WHEN blocked_attempts + ? >= ? OR risk_score + ? >= ?
+                                    THEN 'SUSPENDED' ELSE agent_status END,
+                updated_at = ?
+            WHERE agent_name = ? AND org_id = ? AND agent_status != 'SUSPENDED'
+            RETURNING """ + RUNTIME_COLUMNS,
+            (risk_added, blocked, blocked, block_limit, risk_added, risk_limit, _now(), agent_name, org_id)).fetchone()
+    return _runtime(row)
+
+
+def reset_runtime_state(agent_name, org_id):
+    """Reactivate a suspended agent. Returns True if it was suspended (or had risk) and is now reset."""
+    with sqlite3.connect(database_path) as connection:
+        return connection.execute(
+            """UPDATE agent_runtime_states SET agent_status = 'ACTIVE', risk_score = 0, blocked_attempts = 0, updated_at = ?
+            WHERE agent_name = ? AND org_id = ? AND agent_status != 'ACTIVE'""",
+            (_now(), agent_name, org_id)).rowcount > 0
+
+
+def delete_runtime_state(agent_name, org_id):
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("DELETE FROM agent_runtime_states WHERE agent_name = ? AND org_id = ?", (agent_name, org_id))
+
+
+def _now():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 def save_audit_event(
     agent_name,
     timestamp,

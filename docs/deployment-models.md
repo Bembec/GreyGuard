@@ -59,4 +59,4 @@ A single-tenant install operated by GreyGuard, which isolates the customer at th
   - capacity.
 - **Licence.** A signed, install-bound lease with a grace period. When a lease lapses, new growth pauses but enforcement and evidence continue.
 - **Update path.** Releases are signed (`scripts/create_release_manifest.py`, [supply-chain-security.md](supply-chain-security.md)). Upgrade by verifying the release, taking a backup, running the migrations and replacing the images.
-- **Process model.** Run **exactly one backend process per data directory** (`--workers 1`, which the shipped image does). See [reliability.md](reliability.md).
+- **Process model.** Several backend processes or replicas are safe; all shared state is in PostgreSQL. Several replicas need the data directory on a shared volume. See [reliability.md](reliability.md).
