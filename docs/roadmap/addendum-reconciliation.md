@@ -459,7 +459,28 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 
 ## P7 — Separate public commercial website
 
-**Status: Deferred; decision package ready (2026-10-15).** Gated behind the owner's approval, as both the addendum and the owner's instruction require. The scope, sequencing and the decisions that need the owner are in [`p7-decision-package.md`](p7-decision-package.md). Not started: there is no site and no deployment.
+**Status: In progress (approved 2026-10-15; P7.0 verified).** Built to the approved decision package [`p7-decision-package.md`](p7-decision-package.md). The owner will choose hosting, domain and demo route (W4, W5) after reviewing [`p7-owner-brief.md`](p7-owner-brief.md); engineering continues without them, and only publishing (W11) waits.
+
+**P7.0: claim register (commit `f1ef90a`).**
+- **The register.** `website/content/claims.json` holds 29 claims, all **proposed**: none is approved, and the site will publish only approved ones. They cover Gate, Watch, Respond and Evidence capabilities, connection methods, platform isolation and four limitations (coverage, single host and no SLA, no live-database encryption, no penetration test or certification). Monitor-only connection is labelled **planned** because it is not built.
+- **The check.** `scripts/check_claims.py` validates the register, and `backend/tests/test_claim_register.py` runs it in CI. It requires:
+  - every cited file and `file::test` to exist;
+  - a test behind every verified capability;
+  - no wording implying a partnership, certification or guarantee;
+  - a named approver and date on every approval, with no approved claim past its review date.
+- **New evidence for the core control loop.** Writing the register showed it had no direct tests. `backend/tests/test_control_loop.py` now proves:
+  - an ASK request waits and does not run until approved, and a denied request never runs;
+  - blocked actions add risk and suspend the agent at its threshold, after which everything is refused;
+  - an ungranted scope is denied;
+  - a reset restores a suspended agent.
+- **The validator caught its own author.** It rejected a mistyped test name in the first draft, and its own tests found a pattern bug: `100%` never matched.
+
+**Verification run for P7.0:**
+- Full backend suite in two halves: 407 + 317 = 724 passed.
+- Mutation checks:
+  - Caught: removing the claim rules (the verified-needs-a-test rule, review-date expiry and the forbidden-word check), and auto-approving ASK requests.
+  - Survived, with nothing observable changed: removing the early refusal of a suspended agent. The atomic risk update refuses a suspended agent independently, so that refusal is enforced twice.
+- Frontend unaffected (no frontend change).
 
 ---
 
