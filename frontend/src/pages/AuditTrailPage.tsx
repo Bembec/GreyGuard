@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   Activity,
   AlertTriangle,
@@ -10,6 +12,7 @@ import {
   ShieldCheck,
   TerminalSquare,
   UserCheck,
+  FileSearch,
 } from "lucide-react";
 import {
   useMemo,
@@ -205,7 +208,7 @@ export default function AuditTrailPage() {
 
   if (auditQuery.isLoading) {
     return (
-      <main className="audit-page audit-centered">
+      <main className="audit-page audit-centered gg-page-pad">
         <LoadingState label="Reconstructing the evidence stream" rows={5} />
       </main>
     );
@@ -213,39 +216,33 @@ export default function AuditTrailPage() {
 
   if (auditQuery.isError) {
     return (
-      <main className="audit-page audit-centered">
+      <main className="audit-page audit-centered gg-page-pad">
         <ErrorState message={auditQuery.error instanceof Error ? auditQuery.error.message : "GreyGuard could not load evidence."} onRetry={() => void auditQuery.refetch()} />
       </main>
     );
   }
 
   return (
-    <main className="audit-page">
+    <main className="audit-page gg-page-pad">
       <div className="audit-stream-background" />
       <div className="audit-light audit-light-one" />
       <div className="audit-light audit-light-two" />
 
-      <header className="audit-hero">
-        <div>
-          <span>Decision evidence</span>
-          <h1>Audit Trail</h1>
-          <p>
-            Investigate policy decisions,
-            authentication attempts, human approvals
-            and controlled execution results in one
-            administrator timeline.
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Audit & Integrity"
+        title="Audit Trail"
+        icon={<FileSearch size={22} />}
+        description="One timeline of policy decisions, authentication attempts, human approvals and controlled execution results, kept as tamper-evident evidence."
+        actions={<button type="button" className="gg-button" onClick={() => void auditQuery.refetch()}><RefreshCw size={16} aria-hidden="true" />Refresh</button>}
+      />
 
-        <button
-          className="audit-refresh"
-          type="button"
-          onClick={() => void auditQuery.refetch()}
-        >
-          <RefreshCw />
-          Refresh evidence
-        </button>
-      </header>
+      <Guidance id="audit-trail" title="Finding evidence">
+        <ul>
+          <li>Filter by event type, outcome or agent, or search for a request ID, action or administrator.</li>
+          <li>Open an event for its full details. Request events link to the request's investigation and evidence bundle.</li>
+          <li>Integrity of these records is verified under Audit Integrity; snapshots for reviewers are produced under Compliance Reports.</li>
+        </ul>
+      </Guidance>
 
       <section className="audit-stat-grid">
         <article>

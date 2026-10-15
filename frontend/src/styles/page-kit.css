@@ -914,3 +914,17 @@
   color: var(--gg-text-primary);
   font-size: 1.05rem;
 }
+
+/* Long identifiers (environment variables, hashes, URLs) must wrap rather than widen the page. */
+.gg-page > *,
+.gg-page-pad > * {
+  min-width: 0;
+}
+
+.gg-guidance__body,
+.gg-note,
+.gg-page-header__description,
+.gg-facts dd,
+.gg-cell-stack {
+  overflow-wrap: anywhere;
+}

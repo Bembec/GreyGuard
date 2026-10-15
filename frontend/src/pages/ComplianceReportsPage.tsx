@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   CalendarRange,
   CheckCircle2,
@@ -114,8 +116,22 @@ export default function ComplianceReportsPage() {
 
   const toggle = (value: string, current: string[], update: (values: string[]) => void) => update(current.includes(value) ? current.filter((item) => item !== value) : [...current, value])
 
-  return <main className="compliance-page">
-    <section className="compliance-hero"><div><p><ShieldCheck size={15} /> Assurance and governance</p><h1>Compliance Reports</h1><span>Capture immutable, verifiable evidence snapshots and export them for review.</span></div><button onClick={() => setShowCreate(true)}><FileCheck2 size={17} /> Generate report</button></section>
+  return <main className="compliance-page gg-page-pad">
+    <PageHeader
+        eyebrow="Reports & Exports"
+        title="Compliance Reports"
+        icon={<ShieldCheck size={22} />}
+        description="Immutable, verifiable evidence snapshots, signed and exportable for auditors and reviewers."
+        actions={<button type="button" className="gg-button gg-button--primary" onClick={() => setShowCreate(true)}><FileCheck2 size={16} aria-hidden="true" />Generate report</button>}
+      />
+
+      <Guidance id="compliance-reports" title="Producing evidence for a review">
+        <ol>
+          <li><strong>Generate</strong> a report for a period. GreyGuard captures the evidence and seals the snapshot with a hash.</li>
+          <li>Export it with its signed manifest, so the reviewer can check nothing was changed.</li>
+          <li>Scheduled reports and report governance are managed further down this page.</li>
+        </ol>
+      </Guidance>
     <section className="compliance-assurance"><Fingerprint /><div><strong>Evidence integrity built in</strong><span>Every report is sealed with a SHA-256 fingerprint and verified whenever it is opened.</span></div></section>
     <ReportGovernancePanel />
     <section className="compliance-history"><header><div><FileCheck2 /><span><strong>Report history</strong><small>{reports.length} immutable snapshots</small></span></div><button onClick={() => void load()}><RefreshCw size={16} /> Refresh</button></header>

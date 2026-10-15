@@ -426,6 +426,12 @@
 .environment-list {
   display: grid;
   gap: 9px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.environment-list code {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .security-information > div,

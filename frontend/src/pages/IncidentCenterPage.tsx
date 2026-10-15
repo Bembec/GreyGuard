@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   AlertTriangle,
   BellRing,
@@ -200,17 +202,22 @@ export default function IncidentCenterPage() {
   }
 
   return (
-    <main className="incident-page">
-      <section className="incident-hero">
-        <div>
-          <p className="incident-eyebrow"><ShieldAlert size={15} /> Response operations</p>
-          <h1>Incident Center</h1>
-          <p>Turn high-risk GreyGuard evidence into owned, reviewable security investigations.</p>
-        </div>
-        <button className="incident-refresh" type="button" onClick={() => void refresh()}>
-          <RefreshCw size={17} /> Refresh evidence
-        </button>
-      </section>
+    <main className="incident-page gg-page-pad">
+      <PageHeader
+        eyebrow="Incident Response"
+        title="Incident Center"
+        icon={<ShieldAlert size={22} />}
+        description="High-risk evidence turned into owned, reviewable security investigations: who has each incident, what was done and how it closed."
+        actions={<button type="button" className="gg-button" onClick={() => void refresh()}><RefreshCw size={16} aria-hidden="true" />Refresh</button>}
+      />
+
+      <Guidance id="incident-center" title="Working an incident">
+        <ol>
+          <li><strong>Acknowledge</strong> a new incident to take ownership, so others know it is being handled.</li>
+          <li><strong>Investigate</strong>: open the evidence, the agent and the request, and record notes as you go.</li>
+          <li><strong>Resolve</strong> it with what was done, or <strong>dismiss</strong> it with the reason it was not a real threat. Both outcomes stay in the history.</li>
+        </ol>
+      </Guidance>
 
       <section className="incident-metrics" aria-label="Incident summary">
         {[

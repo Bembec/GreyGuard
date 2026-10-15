@@ -29,6 +29,8 @@ async function expectHealthyPage(page:Page,path:string){
  // without reloading it, so this adds no API requests.
  await page.setViewportSize({width:390,height:844})
  await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth),{message:"page scrolls sideways at 390px"}).toBeLessThanOrEqual(390)
+ // The content area clips its overflow, so also check nothing inside it is wider than it.
+ await expect.poll(()=>page.evaluate(()=>{const content=document.querySelector(".workspace__content") as HTMLElement;return content.scrollWidth-content.clientWidth}),{message:"page content is cut off at 390px"}).toBeLessThanOrEqual(1)
 }
 
 for(const item of navigationItems){
