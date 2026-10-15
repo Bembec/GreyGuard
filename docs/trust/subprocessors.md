@@ -20,14 +20,14 @@ Systems a customer connects are the customer's own. They are not GreyGuard subpr
 
 ## Vendors for the hosted offering
 
-**Not yet chosen.** The project owner will supply these (decision T6). Until then, no subprocessor is claimed [TC-SUB-5].
+**Not selected (TBD).** By the project owner's decision (T6, 2026-10-15), these remain unselected. No subprocessor is claimed or listed until a vendor is contracted [TC-SUB-5].
 
 | Category | Vendor | Region | Data processed |
 |---|---|---|---|
-| Hosting and database | Not yet chosen | — | — |
-| Transactional email | Not yet chosen | — | — |
-| Customer support tooling | Not yet chosen | — | — |
-| Payment processing | Not yet chosen | — | — |
+| Hosting and database | Not selected (TBD) | — | — |
+| Transactional email | Not selected (TBD) | — | — |
+| Customer support tooling | Not selected (TBD) | — | — |
+| Payment processing | Not selected (TBD) | — | — |
 
 ## Software supply chain
 

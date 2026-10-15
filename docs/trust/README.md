@@ -31,8 +31,9 @@
 
 | Decision | Affects | Status |
 |---|---|---|
-| T3: monitored security contact | security.txt, vulnerability disclosure | Awaiting the project owner |
+| T3: security contact | security.txt, vulnerability disclosure | Decided: the private advisory reporting page for now; a mailbox before public launch. The repository setting that enables it is still off |
 | T5: independent penetration test before the first paid pilot | Certifications and assessments | Approved; not yet commissioned |
-| T6: hosting, email and support vendors for the hosted offering | Subprocessors | Awaiting the project owner |
+| T6: hosting, email, support and payment vendors | Subprocessors | Decided: not selected (TBD); none claimed until contracted |
 | T7: legal documents by qualified counsel | Terms, Privacy Notice, DPA and others | Approved; counsel not yet engaged |
-| T8: evidence-request approver and NDA rule | Customer evidence requests | Awaiting the project owner |
+| T8: evidence-request approver and NDA rule | Customer evidence requests | Decided: see the evidence-request process |
+| Licence | Legal-document register | Decided: proprietary; commercial terms need counsel before distribution |

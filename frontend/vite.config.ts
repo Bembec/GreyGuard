@@ -33,7 +33,7 @@ export default defineConfig({
         // always go straight to the network, untouched by the service worker, and a real
         // network failure surfaces through the existing AsyncState error states rather than a
         // silently stale response.
-        navigateFallbackDenylist: [/^\/api\//],
+        navigateFallbackDenylist: [/^\/api\//, /^\/\.well-known\//],
         cleanupOutdatedCaches: true,
       },
       devOptions: {
