@@ -223,6 +223,37 @@ def authenticate_admin():
     )
 
 
+_RUNTIME_STATE_LOCKS = {}
+
+
+def claim_runtime_state():
+    """Make this process the only owner of the agent runtime state in its data directory.
+
+    Agent runtime state (risk score, blocked attempts, suspension) lives in this process's memory
+    and is saved whole to state_path. Two processes sharing it diverge: an agent suspended by one
+    is still allowed by the other, whose next save writes the suspension back to ACTIVE (reproduced
+    with the image's former `--workers 2`). Until that state moves into the database, a second
+    server process on the same data directory must refuse to start rather than run unsafely."""
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - non-POSIX development hosts
+        return
+    lock_path = state_path.parent / ".agent-runtime-state.lock"
+    if str(lock_path) in _RUNTIME_STATE_LOCKS:
+        return
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(lock_path, "a+")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as error:
+        handle.close()
+        raise RuntimeError(
+            "Another GreyGuard server process already owns the agent runtime state in "
+            f"{lock_path.parent}. Run exactly one backend process (uvicorn --workers 1) per data "
+            "directory: agent suspension and risk state are per-process today.") from error
+    _RUNTIME_STATE_LOCKS[str(lock_path)] = handle
+
+
 def load_state():
     """Load saved multi-agent state."""
 

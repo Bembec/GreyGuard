@@ -351,6 +351,7 @@ async def lifespan(_app: FastAPI):
         initialize_outbound_delivery()
         initialize_enterprise_sso()
 
+    main.claim_runtime_state()
     worker_task, worker_stop_event = start_worker()
     try:
         yield
