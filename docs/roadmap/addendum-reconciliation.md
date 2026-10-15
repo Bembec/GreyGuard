@@ -92,8 +92,8 @@ These were part of the original engineering task's "Operations and structural co
 | Sub-phase | Scope | Status |
 |---|---|---|
 | P1.4.1 | Domain workspaces, page tabs, mega-menu, permission-filtered page search, route inventory | **Verified** (below) |
-| P1.4.2 | Shared page kit (header, stats, panels, filters, sortable and paged tables, guidance, offline state) and a Command Center that shows only real data | Planned |
-| P1.4.3 | Gate pages: Agents & Identity, Requests & Approvals, Policies & Controls | Planned |
+| P1.4.2 | Shared page kit (header, stats, panels, filters, sortable and paged tables, guidance, offline state) and a Command Center that shows only real data | **Verified** (below) |
+| P1.4.3 | Gate pages: Agents & Identity, Requests & Approvals, Policies & Controls | **Verified** (below) |
 | P1.4.4 | Watch pages: Live Monitoring, Risk & Threats, Telemetry & Sensors | Planned |
 | P1.4.5 | Respond and Evidence pages | Planned |
 | P1.4.6 | Administration pages and the two investigation pages | Planned |
@@ -120,6 +120,46 @@ These were part of the original engineering task's "Operations and structural co
   - the mega-menu;
   - an AUDITOR seeing only permitted workspaces and tabs;
   - an org PLATFORM_ADMIN never seeing install-operator tabs.
+
+**P1.4.2 (commit `b1ec08e`).** The shared page kit is in `frontend/src/components/page/`: page header, stat cards, panels, filter bar, sortable and paged table, status badges, collapsible guidance and an offline banner. The Command Center was rebuilt on data the backend already serves:
+- pending approvals, active incidents and unread critical signals;
+- agents ranked by risk, blocked attempts, readiness and service-component status;
+- the latest audit evidence.
+
+Every figure links to its source page. It refreshes every minute, a deliberate choice explained in the second bullet below. The previous version showed fixed claims as if they were live: "Protected", "Enforced", a five-step pipeline that was always ticked, and "Good afternoon, Administrator". All of these were removed.
+
+Two shell defects were found in a real browser and fixed:
+- **The collapsed-sidebar mega-menu never appeared on screen.** It was clipped by the sidebar's `overflow: hidden`. This dates from P1, and its e2e test passed only because Playwright's visibility check ignores clipping. The panel is now fixed-positioned. A new hit test, which checks that the menu item is the topmost element at its own centre, fails without the fix and passes with it.
+- **At 390 px every page scrolled sideways (417–437 px).** The top bar's action group was the cause; a phone rule was still hiding a class from before the user menu. `every-page.spec.ts` now checks every page for horizontal scroll at 390 px.
+
+Two things were found in the e2e suite, and neither needs a product change:
+- **Sign-in rate limit.** The admin sign-in limit is 20 requests per 5 minutes, and each sign-in costs two: the SSO lookup and the login. The new specs pushed the suite over it. The suite now signs the administrator in once, in Playwright global setup (`e2e/global-setup.ts`), and the admin specs reuse that session.
+- **General request limit.** The per-client limit is 300 requests a minute, and the e2e backend recorded `RATE_LIMIT_EXCEEDED`. This came from page sweeps combined with the Command Center's 12 requests per load. The Command Center now refreshes once a minute, and the new specs do their checks on a single page load.
+
+Neither rate limit was changed. A related note, not changed: `GET /tool-requests` counts against the `AGENT_ACTION` limit by client address even when an administrator calls it. Several pages and the Command Center poll it.
+
+**P1.4.3 (commit `d57265b`).** All 11 Gate pages now have the shared header with page-wide actions, inline guidance, and the page gutter.
+- **Rebuilt on the kit:** Secrets, Universal Controls, Capability Removal, Agent Adapters and Enterprise Identity, each with summary figures, filters, and sortable tables or record cards.
+  - Native `confirm()` and `prompt()` dialogs became accessible confirmation dialogs; the rotate and revoke dialogs collect the new reference or the reason inline.
+  - Enterprise Identity now shows its claim mappings, which the API already returned but no page displayed.
+  - Universal Controls' authorize and kill request bodies are byte-for-byte the same as before.
+- **Service Accounts** gains summaries, search and status filters, an "expiring soon" flag, and a confirmation before key rotation, which revokes the previous key.
+- **Agents, Approvals, Tool Requests, Policies and Sandbox** keep their existing layouts and data handling. The Sandbox network badge is now read from `/sandbox/resources` instead of being fixed text.
+
+Every permission redirect and request body is unchanged.
+
+**Verification run for P1.4.2 and P1.4.3:**
+- `npm run check`: lint clean; 158 unit tests pass, including 8 page-kit tests covering sorting, paging, empty state, relative time and status tones.
+- Full Playwright suite: 58 passed, 1 skipped (no agents registered). The new tests cover:
+  - Command Center figures matching the API and linking through;
+  - the panels and their links;
+  - the offline notice;
+  - the mega-menu hit test;
+  - no horizontal scroll at 390 px on every page.
+
+  This run was on a tree that also contained the first four Watch pages of P1.4.4, then still in progress.
+- Reviewed by screenshot at 1440 px and 390 px: the Command Center, the collapsed mega-menu, and every Gate page.
+- Known gap, carried to P1.4.7: the policy-governance section at the foot of Policies still uses its older, larger type.
 
 ---
 
