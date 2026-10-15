@@ -23,6 +23,8 @@
 | [Vulnerability disclosure](vulnerability-disclosure.md) | How to report a vulnerability; security.txt |
 | [Certifications and assessments](certifications.md) | What is and is not held |
 | [Customer evidence requests](evidence-requests.md) | What evidence exists and how requests are handled |
+| [Questionnaire answer bank](questionnaire-answer-bank.md) | Short, evidence-linked answers to common buyer questions (T4) |
+| [Legal-document register](legal-documents.md) | Legal documents, owners and status (T7); no legal text |
 | [Source register](source-register.md) | Every statement, its evidence, owner and review date |
 
 ## Open owner decisions that these pages depend on

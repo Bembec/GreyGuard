@@ -66,3 +66,17 @@ def test_the_backend_has_no_built_in_external_destination():
 def test_the_url_check_would_catch_a_hard_coded_destination():
     assert EXTERNAL_URL.findall('send_json("https://telemetry.vendor.io/v1", body)') == ["telemetry.vendor.io"]
     assert EXTERNAL_URL.findall("https://greyguard.example.com/api")[0].endswith(ALLOWED_HOSTS)
+
+
+def test_every_answer_cites_a_statement_or_is_left_to_the_owner():
+    answer_values = {"Yes", "Partial", "No", "Customer", "Owner to answer"}
+    answers = 0
+    for line in (TRUST / "questionnaire-answer-bank.md").read_text(encoding="utf-8").splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 5 or not re.fullmatch(r"[A-Z]\d+", cells[0]):
+            continue
+        answers += 1
+        number, _, answer, _, statements = cells
+        assert answer in answer_values, number
+        assert (answer == "Owner to answer") or STATEMENT_ID.search(statements), number
+    assert answers >= 40

@@ -49,6 +49,7 @@ Every statement in the Trust Center source pages, the evidence it rests on, who 
 | TC-AV-6 | A public status page shows component health and severity definitions | `docs/deployment-models.md` | Engineering | 2026-10-15 |
 | TC-AV-7 | Data stays in the install's region; per-org regions are not built | `docs/reliability.md` | Engineering | 2026-10-15 |
 | TC-AV-8 | Published load figures are observations, not commitments | `docs/reliability.md` | Engineering | 2026-10-15 |
+| TC-IR-1 | A runbook covers readiness failure, evidence preservation, restore and rollback; there is no formal security-incident response plan | `docs/operations-runbook.md`, `docs/deployment-operations-part2.md` | Project owner | 2026-10-15 |
 | TC-PR-1 | Analytics are counts only, collect one fixed-path page-view count, honour Do Not Track and exclude content | `docs/product-analytics.md`, `backend/app/product_analytics.py` | Engineering | 2026-10-15 |
 | TC-PR-2 | Analytics can be disabled install-wide or per org, deleting collected counts | `docs/product-analytics.md` | Engineering | 2026-10-15 |
 | TC-PR-3 | Audit retention defaults to 365 days, legal holds block deletion, and a SHA-256 chain records erasures | `docs/audit-integrity-and-retention.md` | Engineering | 2026-10-15 |
