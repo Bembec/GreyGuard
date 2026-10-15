@@ -1,9 +1,141 @@
 ---
 import Base from "../layouts/Base.astro"
-import PageIntro from "../components/PageIntro.astro"
-import InPreparation from "../components/InPreparation.astro"
+import ClaimList from "../components/ClaimList.astro"
+import Icon from "../components/Icon.astro"
+import { demoContact } from "../lib/site"
+
+const demoHref = demoContact ?? "/company/#contact"
+
+const python = `import os
+from greyguard_sdk import GreyGuardClient, ToolRequest
+
+client = GreyGuardClient(
+    os.environ["GREYGUARD_URL"],
+    os.environ["GREYGUARD_AGENT_NAME"],
+    os.environ["GREYGUARD_AGENT_KEY"],
+    scopes={"read_file"},
+)
+
+result = client.submit(ToolRequest(action="read_file", target="report.txt"))
+print(result.request_id, result.execution_status)`
+
+const javascript = `import { GreyGuardClient } from "@greyguard/sdk"
+
+const client = new GreyGuardClient({
+  baseUrl: process.env.GREYGUARD_URL,
+  agentName: process.env.GREYGUARD_AGENT_NAME,
+  credential: process.env.GREYGUARD_AGENT_KEY,
+  scopes: ["read_file"],
+})
+
+const result = await client.submit({ action: "read_file", target: "public_report.txt" })`
+
+const methods = [
+  { id: "sdks", icon: "code", name: "SDKs", text: "Python and JavaScript clients for agents you build. They submit each action for a decision and keep credentials out of logs.", claims: ["GG-CONN-1"] },
+  { id: "api", icon: "server", name: "REST API", text: "Every route is versioned under /api/v1, for agents written in any language.", claims: ["GG-CONN-2"] },
+  { id: "adapters", icon: "plug", name: "Framework adapters", text: "Accept tool requests in the formats agent frameworks already use, so existing agents can be governed without a rewrite.", claims: ["GG-CONN-3"] },
+  { id: "gateways", icon: "lock", name: "Gateways", text: "Enforce signed policy close to the agent, and keep failing closed if the gateway loses contact for too long.", claims: ["GG-CONN-4"] },
+]
+
+const matrix = [
+  { method: "Python SDK", enforce: "Yes", evidence: "Yes", status: "Verified" },
+  { method: "JavaScript SDK", enforce: "Yes", evidence: "Yes", status: "Verified" },
+  { method: "REST API (/api/v1)", enforce: "Yes", evidence: "Yes", status: "Verified" },
+  { method: "Model Context Protocol adapter", enforce: "Yes, once enabled", evidence: "Yes", status: "Verified" },
+  { method: "LangChain, LangGraph, CrewAI and AutoGen adapters", enforce: "Yes, once enabled", evidence: "Yes", status: "Verified" },
+  { method: "Generic JSON adapter", enforce: "Yes, once enabled", evidence: "Yes", status: "Verified" },
+  { method: "Signed gateways", enforce: "Yes, including offline for a limited time", evidence: "Yes", status: "Verified" },
+  { method: "Monitor-only", enforce: "No, observe only", evidence: "Planned", status: "Planned" },
+  { method: "Agents that bypass GreyGuard", enforce: "No", evidence: "No", status: "Not covered" },
+]
 ---
-<Base title="Agent environments" description="Where GreyGuard connects to your agents, and what each connection method covers.">
-  <PageIntro eyebrow="Agent environments" title="Agent environments" lead="Where GreyGuard connects to your agents, and what each connection method covers." />
-  <InPreparation phase="P7.3" covers={['SDKs, API, framework adapters and gateways', 'An honest coverage view: connected, enforced and unsupported', 'What is planned, labelled as planned']} />
+<Base title="Agent environments" description="How agents connect to GreyGuard: Python and JavaScript SDKs, a versioned REST API, framework adapters and signed gateways, with an honest coverage view.">
+  <section class="hero hero--compact">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container">
+      <p class="eyebrow">Agent environments</p>
+      <h1 class="hero__title">Connect the agents you already run</h1>
+      <p class="hero__lead">GreyGuard governs an agent once its actions flow through it. Choose the connection that fits how the agent is built. Each one leads to the same decision and the same evidence.</p>
+      <nav class="subnav" aria-label="On this page">
+        {methods.map((method) => <a href={`#${method.id}`}><Icon name={method.icon as never} size={16} />{method.name}</a>)}
+        <a href="#coverage"><Icon name="check" size={16} />Coverage</a>
+      </nav>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="methods-title">
+    <div class="container">
+      <h2 id="methods-title" class="visually-hidden">Connection methods</h2>
+      <div class="method-grid">
+        {methods.map((method) => (
+          <article class="method-card" id={method.id}>
+            <span class="icon-tile icon-tile--accent"><Icon name={method.icon as never} size={22} /></span>
+            <h3>{method.name}</h3>
+            <p>{method.text}</p>
+            <ClaimList ids={method.claims} />
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--band" aria-labelledby="code-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">For developers</p>
+        <h2 id="code-title">A protected call in a few lines</h2>
+        <p class="section-head__lead">The agent declares its scopes and submits the action. GreyGuard decides; the SDK never runs the action itself. Credentials come from the environment, never from code.</p>
+      </div>
+      <div class="code-grid">
+        <figure class="code-block">
+          <figcaption>Python</figcaption>
+          <pre><code>{python}</code></pre>
+        </figure>
+        <figure class="code-block">
+          <figcaption>JavaScript</figcaption>
+          <pre><code>{javascript}</code></pre>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="coverage" aria-labelledby="coverage-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Coverage</p>
+        <h2 id="coverage-title">What each connection covers</h2>
+        <p class="section-head__lead">Coverage depends on how an agent connects. This is the honest view, including what is planned and what is not covered.</p>
+      </div>
+      <div class="register-table" role="region" aria-label="Coverage by connection method" tabindex="0">
+        <table>
+          <thead><tr><th scope="col">Connection</th><th scope="col">Enforces decisions</th><th scope="col">Creates evidence</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            {matrix.map((row) => (
+              <tr>
+                <td><span class="register-claim">{row.method}</span></td>
+                <td class="register-scope">{row.enforce}</td>
+                <td class="register-scope">{row.evidence}</td>
+                <td><span class="badge" data-availability={row.status === "Verified" ? "verified" : "planned"}>{row.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div class="coverage__grid coverage-notes">
+        <div class="coverage__col coverage__col--limits"><ClaimList ids={["GG-CONN-6"]} /></div>
+        <div class="coverage__col coverage__col--limits"><ClaimList ids={["GG-CONN-5"]} /></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta" aria-labelledby="cta-title">
+    <div class="container cta__inner">
+      <h2 id="cta-title">Not sure which connection fits?</h2>
+      <p>Tell us how your agents are built and we'll map the connection and its coverage with you.</p>
+      <div class="hero__actions">
+        <a class="button button--large" href={demoHref}>Talk to us</a>
+        <a class="button button--large button--ghost" href="/platform/">Back to the platform</a>
+      </div>
+    </div>
+  </section>
 </Base>

@@ -9,7 +9,7 @@ const claims = Astro.props.ids.map((id) => getClaim(id))
 <ul class="claim-list">
   {claims.map((claim) => (
     <li class:list={["claim-list__item", { "claim-list__item--unapproved": claim.status !== "approved" }]} data-claim={claim.id}>
-      <Icon name="check" size={18} class="claim-list__icon" />
+      <Icon name={claim.availability === "planned" ? "clock" : "check"} size={18} class:list={["claim-list__icon", { "claim-list__icon--planned": claim.availability === "planned" }]} />
       <span>
         {claim.claim}
         <span class="claim-list__meta">

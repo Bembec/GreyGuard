@@ -1,9 +1,62 @@
 ---
 import Base from "../layouts/Base.astro"
-import PageIntro from "../components/PageIntro.astro"
-import InPreparation from "../components/InPreparation.astro"
+import Icon from "../components/Icon.astro"
+import { demoContact } from "../lib/site"
+
+// Principles from the roadmap's product boundary: what GreyGuard is, and what it will not become.
+const principles = [
+  { icon: "gate", title: "Control, not surveillance", text: "GreyGuard governs the actions agents take. It does not monitor people, and its endpoint telemetry is visible and consent-bound." },
+  { icon: "lock", title: "Defend and contain, never retaliate", text: "There is no hack-back and no offensive capability. Prohibited behaviour exists only as blocked, non-operational simulation." },
+  { icon: "evidence", title: "Prove, don't promise", text: "Every product claim carries its scope, availability and evidence, and limitations are published beside capabilities." },
+  { icon: "check", title: "Fail closed", text: "When something is unknown, unavailable or unapproved, the safe default is to refuse." },
+]
 ---
-<Base title="Company" description="Who builds GreyGuard and how to reach us.">
-  <PageIntro eyebrow="Company" title="Company" lead="Who builds GreyGuard and how to reach us." />
-  <InPreparation phase="P7.4" covers={['About GreyGuard', 'Contact and demo requests']} />
+<Base title="Company" description="About GreyGuard: the security control plane for AI agents, the principles behind it, and how to contact us.">
+  <section class="hero hero--compact">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container">
+      <p class="eyebrow">Company</p>
+      <h1 class="hero__title">Building the control plane for AI agents</h1>
+      <p class="hero__lead">AI agents are starting to act on behalf of organizations: calling tools, changing records and moving data. GreyGuard exists so that every one of those actions is identified, authorized, approved where it matters, and provable afterwards.</p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="principles-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Principles</p>
+        <h2 id="principles-title">What we will and won't build</h2>
+      </div>
+      <div class="threat-grid principle-grid">
+        {principles.map((item) => (
+          <article class="threat">
+            <span class="icon-tile"><Icon name={item.icon as never} size={22} /></span>
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--band" id="contact" aria-labelledby="contact-title">
+    <div class="container feature">
+      <div class="feature__copy">
+        <p class="eyebrow">Contact</p>
+        <h2 id="contact-title">Talk to us</h2>
+        <p class="feature__problem">See GreyGuard run your own agent scenarios on synthetic data, or plan a pilot.</p>
+        {demoContact
+          ? <a class="button button--large" href={demoContact}>Request a demo</a>
+          : <p class="notice">Demo requests are opening soon. Until then, existing contacts can reach the team through their usual channel.</p>}
+      </div>
+      <div class="feature__panel">
+        <h3>Security reports</h3>
+        <p>Found a vulnerability? Report it privately.</p>
+        <a class="text-link" href="/security/">Responsible disclosure <Icon name="arrow" size={16} /></a>
+        <h3>Trust and evidence</h3>
+        <p>Assurance status, the claim register and evidence requests.</p>
+        <a class="text-link" href="/trust/">Proof & Trust <Icon name="arrow" size={16} /></a>
+      </div>
+    </div>
+  </section>
 </Base>
