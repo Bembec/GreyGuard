@@ -238,7 +238,7 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 
 ## P5 — Customer onboarding and success
 
-**Status: Verified (product side); business values pending.** Built to the provisional P4 decisions (D2 pilot model, D8 sales-assisted, no prices).
+**Status: Verified and approved (2026-10-15); business values pending.** Built to the provisional P4 decisions (D2 pilot model, D8 sales-assisted, no prices) and approved by the project owner as implemented in commit `f15bfbe`. That includes keeping counts-only adoption analytics, with its per-org opt-out that deletes collected counts. Still pending: D3 (pilot fee: no fee or price field until cost modelling and buyer interviews), D10 (design partners: until suitable candidates are identified) and D6 (agent and integration limits: values under review, unchanged).
 
 | Sub-item | Status | Evidence |
 |---|---|---|
