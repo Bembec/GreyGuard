@@ -1,0 +1,47 @@
+.status-page {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 3rem 1.25rem;
+  line-height: 1.5;
+}
+
+.status-banner {
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  font-weight: 600;
+}
+
+.status-components {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-components li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+}
+
+.status-incident {
+  margin: 1.5rem 0;
+}
+
+.status-note {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.state-operational { color: #34d399; }
+.state-degraded, .state-maintenance { color: #fbbf24; }
+.state-major_outage { color: #f87171; }
+.state-not_running, .state-not_configured { color: #94a3b8; }
+.status-banner.state-operational { background: rgba(52, 211, 153, 0.1); }
+.status-banner.state-degraded, .status-banner.state-maintenance { background: rgba(251, 191, 36, 0.1); }
+.status-banner.state-major_outage { background: rgba(248, 113, 113, 0.1); }

@@ -297,6 +297,11 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     "org_offboarding",
     "org_lifecycle_events",
     "audit_integrity_erasures",
+    # P3 (service_status.py): the public status page describes the operated service itself -
+    # incidents, their updates and maintenance windows - never any tenant.
+    "status_incidents",
+    "status_incident_updates",
+    "status_maintenance",
     "administrators",
     "administrator_sessions",
     "administrator_refresh_tokens",
