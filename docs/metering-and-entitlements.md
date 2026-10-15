@@ -38,7 +38,7 @@ An org with no assigned plan is **Unassigned**: nothing is enforced, which match
 
 The gated features are SIEM export, incident-system integrations, scheduled reports and customer-hosted gateway nodes ([gateway-distribution.md](gateway-distribution.md)). Foundation includes none of them.
 
-Monthly controlled requests and deliveries are metered on every plan, but no plan sets a hard limit for them. They are reported against soft limits only:
+Monthly controlled requests and deliveries are **monitored only** (P4 decision D6). They can carry a soft limit that is reported, but they can never refuse anything, because refusing an agent's request or a security delivery over a volume quota would interrupt security operations. The engine will not enforce them, plans cannot give them a hard limit, and overrides cannot add one. The soft limits are:
 
 - **Foundation:** 50,000 requests, 10,000 deliveries.
 - **Enterprise:** 1,000,000 requests, 250,000 deliveries.

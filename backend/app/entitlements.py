@@ -47,6 +47,12 @@ METERS = {
 
 UNLIMITED = {"soft": None, "hard": None}
 
+# Monitored only (P4 decision D6): these meters may carry a soft limit that is reported, but can
+# never refuse anything - refusing an agent's controlled request or a security delivery over a
+# volume quota would interrupt security operations. The engine will not enforce them, plans may
+# not give them a hard limit, and overrides may not add one.
+MONITORED_ONLY_METERS = frozenset({"controlled_requests_monthly", "deliveries_monthly"})
+
 # WORKING VALUES - placeholders until pricing is decided. A None limit is unlimited. Controlled
 # requests and deliveries carry no hard limit on any plan: refusing an agent's request because of
 # a quota is a commercial decision that has not been made, so they are reported, not enforced.
@@ -256,6 +262,8 @@ def require_capacity(org_id: str, meter: str, increment: int = 1) -> dict[str, A
     'soft_limit_reached' tells the caller to warn without refusing."""
     if meter not in METERS:
         raise ValueError(f"Unknown meter: {meter}")
+    if meter in MONITORED_ONLY_METERS:
+        raise ValueError(f"{meter} is monitored only and is never enforced.")
     entitlements = get_entitlements(org_id, meters=(meter,))
     if entitlements["restricted"]:
         raise EntitlementError(_restricted_message(entitlements, f"adding {meter.replace('_', ' ')}"))
@@ -323,6 +331,8 @@ def add_override(org_id: str, key: str, value: Any, reason: str, actor: str, exp
             raise ValueError("A limit override key looks like limit:<meter>:soft or limit:<meter>:hard.")
         if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
             raise ValueError("A limit override must be a non-negative integer, or null for unlimited.")
+        if meter in MONITORED_ONLY_METERS and level == "hard" and value is not None:
+            raise ValueError(f"{meter} is monitored only; it cannot have a hard limit.")
     else:
         raise ValueError("Override keys start with feature: or limit:.")
     if len(str(reason).strip()) < 10:

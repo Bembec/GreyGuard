@@ -192,3 +192,25 @@ def test_a_refusal_is_a_403_over_http(org):
         "name": "SIEM", "destination_type": "SPLUNK", "endpoint": "https://siem.example.com/ingest", "enabled": True,
         "minimization_profile": "STANDARD", "rate_limit_per_minute": 60, "max_attempts": 3})
     assert response.status_code == 403 and response.json()["reason"] == "ENTITLEMENT"
+
+
+def test_request_and_delivery_volumes_are_monitored_and_never_interrupt_security(org):
+    """P4 decision D6: request and delivery volumes are soft limits that can never refuse."""
+    for plan in entitlements.PLANS.values():
+        for meter in entitlements.MONITORED_ONLY_METERS:
+            assert plan["limits"][meter]["hard"] is None
+    for meter in entitlements.MONITORED_ONLY_METERS:
+        with pytest.raises(ValueError, match="monitored only"):
+            entitlements.require_capacity(org["org_id"], meter)
+        with pytest.raises(HTTPException) as error:
+            api.add_entitlement_override(org["org_id"], api.EntitlementOverrideRequest(
+                key=f"limit:{meter}:hard", value=1, reason="Trying to cap security operations"), org["operator"])
+        assert error.value.status_code == 400
+    # Far past the soft limit, agents keep getting security decisions.
+    assign(org, "FOUNDATION")
+    api.add_entitlement_override(org["org_id"], api.EntitlementOverrideRequest(
+        key="limit:controlled_requests_monthly:soft", value=1, reason="Exceed the soft limit on purpose"), org["operator"])
+    register(org, "busy_agent")
+    decisions = [main.submit_tool_request("busy_agent", "read_file", f"{n}.txt")["policy_decision"] for n in range(5)]
+    assert decisions == ["ALLOW"] * 5
+    assert "controlled_requests_monthly" in api.current_entitlements(org["admin"])["soft_limits_exceeded"]
