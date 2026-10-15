@@ -66,7 +66,7 @@ These were part of the original engineering task's "Operations and structural co
 
 ### P1.4 — Information architecture redesign (owner requirement, 2026-10-15)
 
-**Status: Planned. Not started. This is a firm final-acceptance requirement.** The project owner accepted the current interface as functional but not final. The release can't pass final acceptance (P10) while every capability is still an equal item in one long sidebar. P1 is closed, so the addendum gives this work no slot of its own. When it runs is decision W0 in [`p7-decision-package.md`](p7-decision-package.md). It doesn't start until the owner approves that slot.
+**Status: In progress (approved 2026-10-15). This is a firm final-acceptance requirement.** The project owner accepted the current interface as functional but not final. The release can't pass final acceptance (P10) while every capability is still an equal item in one long sidebar. The owner approved decisions W0–W11 of [`p7-decision-package.md`](p7-decision-package.md) as recommended, so P1.4 runs before P7.
 
 **Baseline (2026-10-15, `frontend/src/config/navigation.ts`):** 35 navigation entries. One is pinned (Command Center) and 34 sit in five groups: Gate 12, Watch 9, Respond 5, Evidence 4, Administration 4. Groups collapse, but every capability inside a group is a top-level item of equal weight. No page uses page-level tabs.
 
@@ -86,6 +86,40 @@ These were part of the original engineering task's "Operations and structural co
 7. **Security boundaries unchanged.** Backend authorization, CSP and the session and token handling stay as they are. Client-side gating never replaces a server check.
 8. **Accessibility and mobile.** New sections, tabs and menus work by keyboard and screen reader, on mobile and tablet, and with reduced motion.
 9. **Verification bar.** `npm run check`; the full Playwright suite, including `every-page.spec.ts`, `permission-gating.spec.ts` and the new route-inventory test; and a review against a real browser at desktop and phone widths.
+
+**Sub-phases.** Each one gets a `feat:` commit and a `docs:` commit recording its verification run.
+
+| Sub-phase | Scope | Status |
+|---|---|---|
+| P1.4.1 | Domain workspaces, page tabs, mega-menu, permission-filtered page search, route inventory | **Verified** (below) |
+| P1.4.2 | Shared page kit (header, stats, panels, filters, sortable and paged tables, guidance, offline state) and a Command Center that shows only real data | Planned |
+| P1.4.3 | Gate pages: Agents & Identity, Requests & Approvals, Policies & Controls | Planned |
+| P1.4.4 | Watch pages: Live Monitoring, Risk & Threats, Telemetry & Sensors | Planned |
+| P1.4.5 | Respond and Evidence pages | Planned |
+| P1.4.6 | Administration pages and the two investigation pages | Planned |
+| P1.4.7 | Acceptance: every criterion above, checked in a real browser at desktop and phone widths | Planned |
+
+**P1.4.1 (commit `374e378`).** `frontend/src/config/workspaces.ts` gathers the 34 pages into 12 workspaces across the five domains: Gate 3, Watch 3, Respond 2, Evidence 2 and Administration 2. The sidebar now has 13 entries, down from 35, Command Center included. Abuse Protection moved from Gate to Administration, because it protects the install rather than gating agents.
+- A workspace's pages are tabs (`WorkspaceTabs`). Each tab is a link to the page's existing URL, so every bookmark and deep link still works.
+- Each tab, workspace and page search result uses its page's existing `navigationPermission()` check. A workspace with no permitted tab is hidden: for example, an AUDITOR doesn't see Containment.
+- Domain sections expand and collapse, and the section holding the open page always shows. The open/closed choice is remembered per device.
+- The collapsed sidebar's mega-menu shows each workspace with its pages. The breadcrumb reads domain › workspace. Ctrl+K search now jumps to pages by name.
+- Backend, routes and API calls are unchanged.
+
+**Verification run for P1.4.1:**
+- `npm run check`: lint clean; 150 unit tests pass, including 13 new route-inventory and visibility tests; build clean.
+- Mutation checks. Each of these mutations made a test fail:
+  - removing the permission filter from tabs;
+  - removing it from page search;
+  - dropping a page from its workspace;
+  - breaking the mapping from a detail route to its page.
+- Full Playwright suite on the P1.4.1 build: 53 passed, 1 skipped (no agents registered). The 4 new navigation tests first failed at sign-in: by signing in before every test they hit the admin sign-in rate limit (20 per 5 minutes), which is the abuse-protection control working. The spec now signs in once and reuses the session, as the other specs do. On the committed tree, the navigation and permission specs then passed 9 of 9, with the same agent test skipped. Those specs now cover:
+  - the domain sections and remembered collapse;
+  - tabs keeping their URLs;
+  - page search;
+  - the mega-menu;
+  - an AUDITOR seeing only permitted workspaces and tabs;
+  - an org PLATFORM_ADMIN never seeing install-operator tabs.
 
 ---
 

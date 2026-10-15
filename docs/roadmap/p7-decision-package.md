@@ -1,6 +1,6 @@
 # P7 decision package — Separate public commercial website
 
-**Status: awaiting the owner's approval. Not started.** The addendum requires Michael's approval before each major workstream starts, before any dependency changes and before a website is published. This package scopes P7 against what exists in this repository today, so that the approval covers a defined piece of work. It also proposes when the application's information architecture redesign (P1.4) should run. Nothing here is built, deployed or published.
+**Status: W0–W11 approved as recommended (2026-10-15). P1.4 runs first; P7 starts after it.** The addendum requires Michael's approval before each major workstream starts, before any dependency changes and before a website is published. This package scopes P7 against what exists in this repository today, so that the approval covers a defined piece of work. It also proposes when the application's information architecture redesign (P1.4) should run. Nothing here is built, deployed or published.
 
 ## Decision record
 
