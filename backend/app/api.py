@@ -81,6 +81,7 @@ from . import gateways
 from . import service_status
 from . import product_analytics
 from . import pilots
+from . import archival
 
 
 from .policy_control import (
@@ -1420,10 +1421,21 @@ def administrator_revoke_session(session_id: str, x_admin_pin: str | None = Head
     return {"revoked": True, "session_id": session_id}
 
 
+class MeterLimits(BaseModel):
+    soft: int = Field(ge=0)
+    hard: int = Field(ge=0)
+
+
+class ContractLimits(BaseModel):
+    agents: MeterLimits
+    integrations: MeterLimits
+
+
 class PlanAssignmentRequest(BaseModel):
     plan: Literal["UNASSIGNED", "FOUNDATION", "ENTERPRISE", "DEDICATED"]
     status: Literal["ACTIVE", "TRIAL", "EXPIRED", "SUSPENDED"] = "ACTIVE"
     trial_days: int | None = Field(default=None, ge=1, le=entitlements.MAX_TRIAL_DAYS)
+    contract_limits: ContractLimits | None = Field(default=None, description="Required for Dedicated: the contract's agent and integration limits.")
 
 
 class EntitlementOverrideRequest(BaseModel):
@@ -1453,7 +1465,9 @@ def assign_organization_plan(org_id: str, payload: PlanAssignmentRequest, x_admi
     administrator = require_install_operator(x_admin_pin)
     _require_existing_org(org_id)
     try:
-        return entitlements.assign_plan(org_id, payload.plan, payload.status, policy_actor(administrator), payload.trial_days)
+        entitlements.assign_plan(org_id, payload.plan, payload.status, policy_actor(administrator), payload.trial_days,
+                                 payload.contract_limits.model_dump() if payload.contract_limits else None)
+        return entitlements.get_entitlements(org_id)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -1927,6 +1941,53 @@ def confirm_organization_pilot_criterion(org_id: str, payload: PilotConfirmation
 def decide_organization_pilot(org_id: str, payload: PilotDecisionRequest, x_admin_pin: str | None = Header(default=None)):
     administrator = require_install_operator(x_admin_pin)
     return _pilot_call(pilots.decide, org_id, payload.outcome, payload.reason, policy_actor(administrator), payload.extend_days)
+
+
+def with_capacity_notice(result, capacity):
+    """Attach a soft-limit warning to a creation response, so the caller sees it at once."""
+    if isinstance(result, dict) and capacity and capacity.get("warning"):
+        return {**result, "capacity_warning": {"meter": capacity["meter"], "usage": capacity["usage"],
+                                               "limit": capacity["limit"], "message": capacity["warning"]}}
+    return result
+
+
+def _integration_capacity(org_id, table, name, enabled):
+    try:
+        return entitlements.require_new_integration_capacity(org_id, table, name, enabled)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+class ArchiveRequest(BaseModel):
+    reason: str = Field(min_length=10, max_length=1000)
+
+
+def _archive_call(function, *args):
+    try:
+        return function(*args)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except archival.ArchiveError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/agents/{agent_name}/archive")
+def archive_agent_identity(agent_name: str, payload: ArchiveRequest, x_admin_pin: str | None = Header(default=None)):
+    """Retire an agent for good: its credential is revoked, its record and evidence stay, and it
+    stops consuming plan capacity. Another org's agent is treated as missing."""
+    administrator = require_platform_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    return _archive_call(archival.archive_agent, org_id, agent_name, policy_actor(administrator), payload.reason)
+
+
+@app.post("/integrations/{kind}/{destination_id}/archive")
+def archive_integration_destination(kind: Literal["security_export", "incident", "notification"], destination_id: str,
+                                    payload: ArchiveRequest, x_admin_pin: str | None = Header(default=None)):
+    """Retire a SIEM, incident-system or notification destination: disabled for good, history kept,
+    capacity freed."""
+    administrator = require_platform_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    return _archive_call(archival.archive_destination, org_id, kind, destination_id, policy_actor(administrator), payload.reason)
 
 
 def _require_existing_org(org_id):
@@ -2635,14 +2696,14 @@ def configure_security_export_destination(
     administrator = require_platform_admin(x_admin_pin)
     org_id = organizations.resolve_org_id(administrator)
     entitlements.require_feature(org_id, "siem_export")
-    entitlements.require_new_integration_capacity(org_id, "export_destinations", payload.name)
+    capacity = _integration_capacity(org_id, "export_destinations", payload.name, payload.enabled)
     try:
-        return save_destination(
+        return with_capacity_notice(save_destination(
             payload.name, payload.destination_type, payload.endpoint, payload.enabled,
             payload.signing_key_reference, payload.minimization_profile,
             payload.rate_limit_per_minute, payload.max_attempts, policy_actor(administrator),
             organizations.resolve_org_id(administrator),
-        )
+        ), capacity)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -2712,8 +2773,8 @@ def notification_delivery_controls(x_admin_pin: str | None = Header(default=None
 @app.post("/notification-delivery/destinations",status_code=201)
 def configure_notification_destination(payload: NotificationDestinationRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin)
-    entitlements.require_new_integration_capacity(organizations.resolve_org_id(administrator),"notification_destinations",payload.name)
-    try:return save_notification_destination(payload.name,payload.channel,payload.endpoint_reference,payload.enabled,payload.minimum_severity,payload.quiet_start_hour,payload.quiet_end_hour,payload.critical_bypass,payload.escalation_minutes,policy_actor(administrator),organizations.resolve_org_id(administrator))
+    capacity=_integration_capacity(organizations.resolve_org_id(administrator),"notification_destinations",payload.name,payload.enabled)
+    try:return with_capacity_notice(save_notification_destination(payload.name,payload.channel,payload.endpoint_reference,payload.enabled,payload.minimum_severity,payload.quiet_start_hour,payload.quiet_end_hour,payload.critical_bypass,payload.escalation_minutes,policy_actor(administrator),organizations.resolve_org_id(administrator)),capacity)
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
@@ -2741,8 +2802,8 @@ def incident_integration_configuration(x_admin_pin: str | None = Header(default=
 def configure_incident_destination(payload: IncidentDestinationRequest,x_admin_pin: str | None = Header(default=None)):
     administrator=require_platform_admin(x_admin_pin);org_id=organizations.resolve_org_id(administrator)
     entitlements.require_feature(org_id,"incident_integrations")
-    entitlements.require_new_integration_capacity(org_id,"incident_destinations",payload.name)
-    try:return save_incident_destination(payload.name,payload.system_type,payload.endpoint,payload.credential_reference,payload.project_or_table,payload.enabled,policy_actor(administrator),organizations.resolve_org_id(administrator))
+    capacity=_integration_capacity(org_id,"incident_destinations",payload.name,payload.enabled)
+    try:return with_capacity_notice(save_incident_destination(payload.name,payload.system_type,payload.endpoint,payload.credential_reference,payload.project_or_table,payload.enabled,policy_actor(administrator),organizations.resolve_org_id(administrator)),capacity)
     except ValueError as error:raise HTTPException(status_code=400,detail=str(error)) from error
 
 
@@ -3297,17 +3358,17 @@ def register_agent_identity(
     """Register an agent and issue a credential."""
 
     administrator = require_admin(x_admin_pin)
-    entitlements.require_capacity(organizations.resolve_org_id(administrator), "agents")
+    capacity = entitlements.require_capacity(organizations.resolve_org_id(administrator), "agents")
 
     try:
-        return main.issue_agent_credential(
+        return with_capacity_notice(main.issue_agent_credential(
             agent_name=(
                 registration.agent_name
             ),
             scopes=registration.scopes,
             actor=policy_actor(administrator),
             org_id=organizations.resolve_org_id(administrator),
-        )
+        ), capacity)
 
     except ValueError as error:
         raise HTTPException(
@@ -3396,13 +3457,19 @@ def rotate_credential(
     """Rotate an agent credential."""
 
     administrator = require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    record = archival.agent_record(org_id, agent_name)
+    if record and record["archived_at"]:
+        raise HTTPException(status_code=409, detail="This agent is archived; its record is kept as history and cannot be reactivated.")
+    # Re-issuing a revoked agent's credential reactivates it, so it consumes capacity again.
+    capacity = entitlements.require_capacity(org_id, "agents") if record and record["credential_status"] == "REVOKED" else None
 
     try:
-        return main.rotate_agent_credential(
+        return with_capacity_notice(main.rotate_agent_credential(
             agent_name,
             actor=policy_actor(administrator),
-            org_id=organizations.resolve_org_id(administrator),
-        )
+            org_id=org_id,
+        ), capacity)
 
     except KeyError as error:
         raise HTTPException(

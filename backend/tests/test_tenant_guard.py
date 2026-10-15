@@ -26,8 +26,11 @@ def test_rename_and_drop_table_are_exempt_even_against_a_scoped_table(monkeypatc
     monkeypatch.setattr(tenant_guard, "ORG_SCOPED_TABLES", frozenset({"widgets"}))
     tenant_guard.check_statement("ALTER TABLE widgets RENAME TO widgets_pre_org")
     tenant_guard.check_statement("DROP TABLE widgets_pre_org")
+    # ADD COLUMN reads no rows and can never remove org_id (D6 adds archive columns this way).
+    tenant_guard.check_statement("ALTER TABLE widgets ADD COLUMN extra TEXT")
+    # CREATE TABLE stays checked: a scoped table must be created with its org_id column.
     with pytest.raises(tenant_guard.TenantScopingError):
-        tenant_guard.check_statement("ALTER TABLE widgets ADD COLUMN extra TEXT")
+        tenant_guard.check_statement("CREATE TABLE IF NOT EXISTS widgets (id TEXT PRIMARY KEY)")
 
 
 def test_a_query_missing_org_id_against_a_scoped_table_raises(monkeypatch):

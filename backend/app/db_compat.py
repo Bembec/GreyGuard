@@ -287,6 +287,19 @@ def connect(database=None,*args,**kwargs):
     kwargs.setdefault("factory",_GuardedSqliteConnection)
     return _sqlite.connect(Path(database) if isinstance(database,Path) else database,*args,**kwargs)
 
+ARCHIVE_COLUMNS = {"archived_at": "TEXT", "archived_by": "TEXT", "archive_reason": "TEXT"}
+
+
+def ensure_columns(database, table, columns):
+    """Add any missing columns to an existing table (SQLite; PostgreSQL gets them from Alembic,
+    and PRAGMA table_info is translated, so this is a no-op there once migrated)."""
+    with connect(database) as connection:
+        existing = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+        for name, definition in columns.items():
+            if existing and name not in existing:
+                connection.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
+
 _INITIALIZED: set = set()
 _INITIALIZED_LOCK = threading.Lock()
 

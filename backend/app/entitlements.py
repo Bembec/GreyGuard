@@ -53,12 +53,30 @@ UNLIMITED = {"soft": None, "hard": None}
 # not give them a hard limit, and overrides may not add one.
 MONITORED_ONLY_METERS = frozenset({"controlled_requests_monthly", "deliveries_monthly"})
 
-# WORKING VALUES - placeholders until pricing is decided. A None limit is unlimited. Controlled
-# requests and deliveries carry no hard limit on any plan: refusing an agent's request because of
-# a quota is a commercial decision that has not been made, so they are reported, not enforced.
+# PROVISIONAL VALUES (P4 decision D6, 2026-10-15): Foundation and Enterprise keep these limits
+# while pilots provide evidence. A None limit is unlimited. Controlled requests and deliveries are
+# monitored only (MONITORED_ONLY_METERS) and never refuse anything.
+#
+# UNASSIGNED grants no capacity and no gated features: a new org needs an explicit plan or a
+# controlled trial before it can add agents or integrations. Existing enforcement, evidence and
+# exports are unaffected either way.
+#
+# TRANSITIONAL exists only for orgs that already existed when D6 shipped (see
+# _migrate_existing_orgs): it preserves their pre-D6 behaviour explicitly and audibly until an
+# install operator assigns a real plan. It can never be assigned by hand.
+#
+# DEDICATED limits come from each org's contract (contract_limits, required when the plan is
+# assigned), never from an implicit "unlimited".
+NO_CAPACITY = {"soft": 0, "hard": 0}
 PLANS: dict[str, dict[str, Any]] = {
     "UNASSIGNED": {
-        "label": "Unassigned (no plan enforced)",
+        "label": "No plan assigned",
+        "features": frozenset(),
+        "limits": {"agents": NO_CAPACITY, "integrations": NO_CAPACITY,
+                   "controlled_requests_monthly": UNLIMITED, "deliveries_monthly": UNLIMITED},
+    },
+    "TRANSITIONAL": {
+        "label": "Transitional (existing org before plans were required)",
         "features": FEATURES,
         "limits": {meter: UNLIMITED for meter in METERS},
     },
@@ -85,9 +103,14 @@ PLANS: dict[str, dict[str, Any]] = {
     "DEDICATED": {
         "label": "Dedicated",
         "features": FEATURES,
-        "limits": {meter: UNLIMITED for meter in METERS},
+        # Replaced per org by its contract_limits; this default only applies if a contract row is
+        # somehow missing, and grants no capacity rather than unlimited.
+        "limits": {"agents": NO_CAPACITY, "integrations": NO_CAPACITY,
+                   "controlled_requests_monthly": UNLIMITED, "deliveries_monthly": UNLIMITED},
     },
 }
+ASSIGNABLE_PLANS = ("UNASSIGNED", "FOUNDATION", "ENTERPRISE", "DEDICATED")
+CONTRACT_METERS = ("agents", "integrations")
 
 STATUSES = {"ACTIVE", "TRIAL", "EXPIRED", "SUSPENDED"}
 RESTRICTED_STATUSES = {"EXPIRED", "SUSPENDED"}
@@ -128,6 +151,46 @@ def initialize_entitlements() -> None:
         connection.execute("""CREATE TABLE IF NOT EXISTS entitlement_events (
             event_id INTEGER PRIMARY KEY AUTOINCREMENT, org_id TEXT NOT NULL, timestamp TEXT NOT NULL,
             actor TEXT NOT NULL, event_type TEXT NOT NULL, detail_json TEXT NOT NULL)""")
+        connection.execute("""CREATE TABLE IF NOT EXISTS entitlement_schema_marks (
+            mark TEXT PRIMARY KEY, applied_at TEXT NOT NULL)""")
+    sqlite3.ensure_columns(database_path, "org_entitlements", {"contract_limits_json": "TEXT"})
+    _migrate_existing_orgs()
+
+
+D6_MARK = "d6_explicit_plans"
+
+
+def _migrate_existing_orgs() -> None:
+    """Once per install: when plans became required (D6), every org that already existed on an
+    install with real data gets an explicit, audited TRANSITIONAL assignment, so nothing that was
+    working stops. A fresh install has nothing to preserve, and its orgs start UNASSIGNED."""
+    with sqlite3.connect(database_path) as connection:
+        if connection.execute("SELECT 1 FROM entitlement_schema_marks WHERE mark = ?", (D6_MARK,)).fetchone():
+            return
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        has_data = False
+        for table in ("agent_identities", "export_destinations", "incident_destinations", "notification_destinations"):
+            if table in tables and connection.execute(
+                    f"-- install-wide existence check across every org_id\nSELECT 1 FROM {table} LIMIT 1").fetchone():
+                has_data = True
+        orgs = connection.execute("SELECT org_id FROM organizations WHERE status != 'DELETED'").fetchall() \
+            if "organizations" in tables else []
+        if len(orgs) > 1:
+            has_data = True
+        migrated = []
+        if has_data:
+            now = utc_now().isoformat()
+            for (org_id,) in orgs:
+                if connection.execute("SELECT 1 FROM org_entitlements WHERE org_id = ?", (org_id,)).fetchone():
+                    continue
+                connection.execute(
+                    "INSERT INTO org_entitlements (org_id, plan, status, trial_ends_at, updated_by, updated_at) VALUES (?, 'TRANSITIONAL', 'ACTIVE', NULL, ?, ?)",
+                    (org_id, "migration:d6", now))
+                _record(connection, org_id, "migration:d6", "PLAN_ASSIGNED", {
+                    "plan": "TRANSITIONAL", "status": "ACTIVE",
+                    "reason": "Existed before plans were required; pre-D6 behaviour preserved until an operator assigns a plan."})
+                migrated.append(org_id)
+        connection.execute("INSERT INTO entitlement_schema_marks (mark, applied_at) VALUES (?, ?)", (D6_MARK, utc_now().isoformat()))
 
 
 def _record(connection, org_id: str, actor: str, event_type: str, detail: dict) -> None:
@@ -138,14 +201,17 @@ def _record(connection, org_id: str, actor: str, event_type: str, detail: dict) 
 
 
 def _assignment(org_id: str) -> dict[str, Any]:
-    initialize_entitlements()
+    sqlite3.initialize_once("entitlements", database_path, initialize_entitlements)
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute("SELECT * FROM org_entitlements WHERE org_id = ?", (org_id,)).fetchone()
     if row is None:
-        return {"plan": "UNASSIGNED", "status": "ACTIVE", "trial_ends_at": None, "updated_by": None, "updated_at": None}
+        return {"plan": "UNASSIGNED", "status": "ACTIVE", "trial_ends_at": None, "updated_by": None, "updated_at": None,
+                "contract_limits": None}
     assignment = dict(row)
     assignment.pop("org_id", None)
+    raw = assignment.pop("contract_limits_json", None)
+    assignment["contract_limits"] = json.loads(raw) if raw else None
     # A lapsed trial is expired from the moment it ends; no background job has to notice.
     if assignment["status"] == "TRIAL" and assignment["trial_ends_at"] and assignment["trial_ends_at"] <= utc_now().isoformat():
         assignment["status"] = "EXPIRED"
@@ -174,7 +240,9 @@ def usage(org_id: str, meters=None) -> dict[str, int]:
     reads only its own meter, so checking one limit never depends on another module's tables."""
     month = _month_start()
     queries = {
-        "agents": ("SELECT COUNT(*) FROM agent_identities WHERE org_id = ?", (org_id,)),
+        # Only active agents and enabled integrations consume capacity (D6). Revoked, disabled and
+        # archived records stay as history and cost nothing.
+        "agents": ("SELECT COUNT(*) FROM agent_identities WHERE org_id = ? AND credential_status = 'ACTIVE' AND archived_at IS NULL", (org_id,)),
         # Timestamps carry their own offsets; comparing against the UTC month start is accurate to
         # within the offset at month boundaries, which is fine for a usage meter.
         "controlled_requests_monthly": (
@@ -183,9 +251,10 @@ def usage(org_id: str, meters=None) -> dict[str, int]:
             "SELECT COUNT(*) FROM outbound_delivery_evidence WHERE org_id = ? AND event = 'SUCCESS' AND occurred_at >= ?",
             (org_id, month)),
         "integrations": (
-            "SELECT (SELECT COUNT(*) FROM export_destinations WHERE org_id = ?)"
-            " + (SELECT COUNT(*) FROM incident_destinations WHERE org_id = ?)"
-            " + (SELECT COUNT(*) FROM notification_destinations WHERE org_id = ?)", (org_id, org_id, org_id)),
+            "SELECT (SELECT COUNT(*) FROM export_destinations WHERE org_id = ? AND enabled = 1 AND archived_at IS NULL)"
+            " + (SELECT COUNT(*) FROM incident_destinations WHERE org_id = ? AND enabled = 1 AND archived_at IS NULL)"
+            " + (SELECT COUNT(*) FROM notification_destinations WHERE org_id = ? AND enabled = 1 AND archived_at IS NULL)",
+            (org_id, org_id, org_id)),
     }
     # No fallback for a missing table: a meter that silently read 0 would under-count and let an
     # org past a hard limit. Every owning module creates its table at startup.
@@ -203,6 +272,10 @@ def get_entitlements(org_id: str, meters=None) -> dict[str, Any]:
     plan = PLANS[assignment["plan"]]
     features = set(plan["features"])
     limits = {meter: dict(value) for meter, value in plan["limits"].items()}
+    if assignment["plan"] == "DEDICATED" and assignment.get("contract_limits"):
+        for meter, value in assignment["contract_limits"].items():
+            if meter in limits:
+                limits[meter] = {**limits[meter], **value}
     overrides = _active_overrides(org_id)
     for override in overrides:
         kind, _, name = override["override_key"].partition(":")
@@ -219,6 +292,8 @@ def get_entitlements(org_id: str, meters=None) -> dict[str, Any]:
         "org_id": org_id,
         **assignment,
         "plan_label": plan["label"],
+        "plan_required": assignment["plan"] == "UNASSIGNED",
+        "transitional": assignment["plan"] == "TRANSITIONAL",
         "restricted": bool(reasons),
         "restriction_reasons": reasons,
         "features": sorted(features),
@@ -252,6 +327,8 @@ def require_feature(org_id: str, feature: str) -> None:
     entitlements = get_entitlements(org_id, meters=())
     if entitlements["restricted"]:
         raise EntitlementError(_restricted_message(entitlements, f"new {feature.replace('_', ' ')} configuration"))
+    if entitlements["plan_required"]:
+        raise EntitlementError(PLAN_REQUIRED_MESSAGE)
     if feature not in entitlements["features"]:
         raise EntitlementError(
             f"The {entitlements['plan_label']} plan does not include {feature.replace('_', ' ')}.")
@@ -267,35 +344,68 @@ def require_capacity(org_id: str, meter: str, increment: int = 1) -> dict[str, A
     entitlements = get_entitlements(org_id, meters=(meter,))
     if entitlements["restricted"]:
         raise EntitlementError(_restricted_message(entitlements, f"adding {meter.replace('_', ' ')}"))
+    if entitlements["plan_required"]:
+        raise EntitlementError(PLAN_REQUIRED_MESSAGE)
     limit = entitlements["limits"][meter]
     current = entitlements["usage"][meter]
     if limit["hard"] is not None and current + increment > limit["hard"]:
         raise EntitlementError(
-            f"The {entitlements['plan_label']} plan allows {limit['hard']} {meter.replace('_', ' ')}; "
-            f"{current} are in use.")
-    return {"meter": meter, "usage": current, "limit": limit,
-            "soft_limit_reached": limit["soft"] is not None and current + increment > limit["soft"]}
+            f"The {entitlements['plan_label']} plan allows {limit['hard']} active {meter.replace('_', ' ')}; "
+            f"{current} are in use. Archive one you no longer need, or ask your GreyGuard operator.")
+    after = current + increment
+    reached = limit["soft"] is not None and after > limit["soft"]
+    return {"meter": meter, "usage": after, "limit": limit, "soft_limit_reached": reached,
+            "warning": (f"Approaching the plan limit: {after} of {limit['hard'] if limit['hard'] is not None else limit['soft']} "
+                        f"active {meter.replace('_', ' ')}.") if reached else None}
 
 
-def require_new_integration_capacity(org_id: str, table: str, name: str) -> None:
-    """Integrations meter check for a destination save: saving an existing destination (an
-    update, matched by name within the org) never counts as growth."""
+PLAN_REQUIRED_MESSAGE = ("This organization has no plan yet: new agents and integrations need an assigned plan "
+                         "or trial from your GreyGuard operator. Existing agents, evidence and exports are unaffected.")
+
+
+def require_new_integration_capacity(org_id: str, table: str, name: str, enabled: bool = True) -> dict[str, Any] | None:
+    """Integrations meter check for a destination save. Only enabled destinations consume
+    capacity: saving one disabled is free, updating an already-enabled one is not growth, and
+    enabling a new or disabled one is. Returns the capacity state (with any soft-limit warning)."""
     if table not in ("export_destinations", "incident_destinations", "notification_destinations"):
         raise ValueError("Unknown integration table.")
-    initialize_entitlements()
+    sqlite3.initialize_once("entitlements", database_path, initialize_entitlements)
     with sqlite3.connect(database_path) as connection:
-        exists = connection.execute(
-            f"SELECT 1 FROM {table} WHERE org_id = ? AND LOWER(name) = LOWER(?)", (org_id, str(name).strip())
+        existing = connection.execute(
+            f"SELECT enabled, archived_at FROM {table} WHERE org_id = ? AND LOWER(name) = LOWER(?)", (org_id, str(name).strip())
         ).fetchone()
-    if not exists:
-        require_capacity(org_id, "integrations")
+    if existing and existing[1]:
+        raise ValueError("That destination is archived and kept as history; use a new name.")
+    if not enabled or (existing and existing[0]):
+        return None
+    return require_capacity(org_id, "integrations")
 
 
-def assign_plan(org_id: str, plan: str, status: str, actor: str, trial_days: int | None = None) -> dict[str, Any]:
+def _validate_contract(contract_limits) -> dict[str, Any]:
+    if not isinstance(contract_limits, dict) or set(contract_limits) != set(CONTRACT_METERS):
+        raise ValueError("A Dedicated plan needs contract limits for agents and integrations.")
+    clean = {}
+    for meter in CONTRACT_METERS:
+        value = contract_limits[meter]
+        soft, hard = (value or {}).get("soft"), (value or {}).get("hard")
+        for number in (soft, hard):
+            if not isinstance(number, int) or isinstance(number, bool) or number < 0:
+                raise ValueError(f"Contract {meter} limits must be non-negative integers.")
+        if soft > hard:
+            raise ValueError(f"The contract's soft {meter} limit cannot exceed its hard limit.")
+        clean[meter] = {"soft": soft, "hard": hard}
+    return clean
+
+
+def assign_plan(org_id: str, plan: str, status: str, actor: str, trial_days: int | None = None,
+                contract_limits: dict[str, Any] | None = None) -> dict[str, Any]:
     """Install-operator action: set an org's plan and status, audited."""
     plan, status = str(plan).upper(), str(status).upper()
-    if plan not in PLANS:
-        raise ValueError("Unknown plan.")
+    if plan not in ASSIGNABLE_PLANS:
+        raise ValueError("Unknown plan." if plan not in PLANS else "That plan cannot be assigned.")
+    contract = _validate_contract(contract_limits) if plan == "DEDICATED" else None
+    if plan != "DEDICATED" and contract_limits:
+        raise ValueError("Contract limits apply only to the Dedicated plan.")
     if status not in STATUSES:
         raise ValueError("Unknown entitlement status.")
     trial_ends_at = None
@@ -303,18 +413,20 @@ def assign_plan(org_id: str, plan: str, status: str, actor: str, trial_days: int
         if not trial_days or not 1 <= int(trial_days) <= MAX_TRIAL_DAYS:
             raise ValueError(f"A trial needs a length of 1 to {MAX_TRIAL_DAYS} days.")
         trial_ends_at = (utc_now() + timedelta(days=int(trial_days))).isoformat()
-    initialize_entitlements()
+    sqlite3.initialize_once("entitlements", database_path, initialize_entitlements)
     now = utc_now().isoformat()
     with sqlite3.connect(database_path) as connection:
+        contract_json = json.dumps(contract, sort_keys=True) if contract else None
         updated = connection.execute(
-            "UPDATE org_entitlements SET plan = ?, status = ?, trial_ends_at = ?, updated_by = ?, updated_at = ? WHERE org_id = ?",
-            (plan, status, trial_ends_at, actor, now, org_id)).rowcount
+            "UPDATE org_entitlements SET plan = ?, status = ?, trial_ends_at = ?, updated_by = ?, updated_at = ?, contract_limits_json = ? WHERE org_id = ?",
+            (plan, status, trial_ends_at, actor, now, contract_json, org_id)).rowcount
         if not updated:
             connection.execute(
-                "INSERT INTO org_entitlements (org_id, plan, status, trial_ends_at, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (org_id, plan, status, trial_ends_at, actor, now))
-        _record(connection, org_id, actor, "PLAN_ASSIGNED", {"plan": plan, "status": status, "trial_ends_at": trial_ends_at})
-    return get_entitlements(org_id)
+                "INSERT INTO org_entitlements (org_id, plan, status, trial_ends_at, updated_by, updated_at, contract_limits_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (org_id, plan, status, trial_ends_at, actor, now, contract_json))
+        _record(connection, org_id, actor, "PLAN_ASSIGNED", {"plan": plan, "status": status, "trial_ends_at": trial_ends_at,
+                                                             "contract_limits": contract})
+    return get_entitlements(org_id, meters=())
 
 
 def add_override(org_id: str, key: str, value: Any, reason: str, actor: str, expires_in_days: int | None = None) -> dict[str, Any]:
@@ -339,7 +451,7 @@ def add_override(org_id: str, key: str, value: Any, reason: str, actor: str, exp
         raise ValueError("An override needs a reason of at least 10 characters.")
     if expires_in_days is not None and not 1 <= int(expires_in_days) <= 365:
         raise ValueError("An override can last 1 to 365 days, or indefinitely.")
-    initialize_entitlements()
+    sqlite3.initialize_once("entitlements", database_path, initialize_entitlements)
     override_id = "ovr_" + uuid.uuid4().hex
     now = utc_now()
     expires_at = (now + timedelta(days=int(expires_in_days))).isoformat() if expires_in_days else None
@@ -354,7 +466,7 @@ def add_override(org_id: str, key: str, value: Any, reason: str, actor: str, exp
 
 
 def revoke_override(org_id: str, override_id: str, actor: str) -> dict[str, Any]:
-    initialize_entitlements()
+    sqlite3.initialize_once("entitlements", database_path, initialize_entitlements)
     with sqlite3.connect(database_path) as connection:
         revoked = connection.execute(
             "UPDATE entitlement_overrides SET revoked_at = ?, revoked_by = ? WHERE override_id = ? AND org_id = ? AND revoked_at IS NULL",
@@ -366,7 +478,7 @@ def revoke_override(org_id: str, override_id: str, actor: str) -> dict[str, Any]
 
 
 def entitlement_history(org_id: str, limit: int = 50) -> list[dict[str, Any]]:
-    initialize_entitlements()
+    sqlite3.initialize_once("entitlements", database_path, initialize_entitlements)
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(

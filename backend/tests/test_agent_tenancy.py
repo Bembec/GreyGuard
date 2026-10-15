@@ -42,6 +42,9 @@ def tenants(tmp_path, monkeypatch):
     organizations.ensure_membership(organizations.DEFAULT_ORG_ID, ours["admin_id"], "PLATFORM_ADMIN", "OWNER")
     theirs = admin_auth.create_administrator("theirs@greyguard.local", "Theirs", "PLATFORM_ADMIN", PASSWORD)
     other_org = organizations.create_organization("Other", theirs["admin_id"])
+    # Since D6 an org needs an explicit plan before it can add agents or integrations.
+    for org_id in (organizations.DEFAULT_ORG_ID, other_org["org_id"]):
+        entitlements.assign_plan(org_id, "ENTERPRISE", "ACTIVE", "test")
     theirs_token = admin_auth.authenticate(theirs["email"], PASSWORD)["access_token"]
     organizations.switch_active_org(theirs["admin_id"], other_org["org_id"],
                                     hashlib.sha256(theirs_token.encode()).hexdigest())

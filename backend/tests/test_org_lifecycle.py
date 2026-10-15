@@ -50,8 +50,12 @@ def join(org_id, email, role="PLATFORM_ADMIN", governance="OWNER", mfa=False):
     return token
 
 
-def tenant(install, name):
+def tenant(install, name, plan="ENTERPRISE"):
+    """A tenant org with an explicit plan: since D6 an org without one cannot add agents or
+    integrations."""
     org = organizations.create_organization(name, "system", creator_is_owner=False)
+    if plan:
+        entitlements.assign_plan(org["org_id"], plan, "ACTIVE", "test")
     return {"org_id": org["org_id"], "slug": org["slug"], "owner": join(org["org_id"], f"owner@{org['slug']}.example"),
             **install}
 
@@ -114,11 +118,11 @@ def test_onboarding_creates_the_org_without_the_operator_and_invites_its_owner(i
 def test_the_checklist_is_computed_from_real_data(install):
     org = tenant(install, "Checklist")
     done = lambda: {item["key"] for item in api.organization_lifecycle(org["org_id"], org["owner"])["checklist"] if item["done"]}
-    assert done() == {"owner_active", "plan_assigned"} - {"plan_assigned"}
+    assert done() == {"owner_active", "plan_assigned"}
     api.register_agent_identity(api.AgentRegistration(agent_name="check_agent", scopes=["read_file"]), org["owner"])
     join(org["org_id"], "auditor@checklist.example", "AUDITOR", "MEMBER")
     api.export_organization_data(org["org_id"], org["owner"])
-    assert done() == {"owner_active", "separation_of_duties", "auditor_assigned", "first_agent", "export_tested"}
+    assert done() == {"owner_active", "plan_assigned", "separation_of_duties", "auditor_assigned", "first_agent", "export_tested"}
     with organizations.sqlite3.connect(organizations.database_path) as connection:
         connection.execute("UPDATE administrators SET mfa_enabled = 1")
     assert "mfa_everyone" in done()

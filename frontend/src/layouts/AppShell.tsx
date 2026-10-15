@@ -30,6 +30,7 @@ import { navigationItems } from "../config/navigation"
 import { navigationGroups } from "../config/navigationGroups"
 import { useAuth } from "../context/AuthContext"
 import { recordPageView } from "../lib/pageViewAnalytics"
+import { CapacityBanner } from "../components/CapacityBanner"
 import "../styles/shell.css"
 
 const pinnedItem = navigationItems.find((item) => !item.group)
@@ -297,6 +298,7 @@ export function AppShell() {
             ) : null}
           </div>
 
+          <CapacityBanner />
           <Outlet />
         </main>
       </section>

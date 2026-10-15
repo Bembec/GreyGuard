@@ -50,6 +50,8 @@ def initialize_incident_integrations():
   if "claimed_at" not in record_columns:c.execute("ALTER TABLE external_incident_records ADD COLUMN claimed_at TEXT")
   if "org_id" not in record_columns:c.execute("ALTER TABLE external_incident_records ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
   c.execute("-- legacy backfill, deliberately across every org_id\n UPDATE external_incident_records SET available_at=created_at WHERE available_at IS NULL")
+ sqlite3.ensure_columns(database_path,"incident_destinations",sqlite3.ARCHIVE_COLUMNS)
+
 def list_controls(org_id=organizations.DEFAULT_ORG_ID):
  initialize_incident_integrations()
  with sqlite3.connect(database_path) as c:
@@ -62,8 +64,9 @@ def save_destination(name,system_type,endpoint,credential_reference,project_or_t
  if not endpoint.startswith("https://"):raise ValueError("Incident-system endpoints must use HTTPS.")
  did="idst_"+uuid.uuid4().hex
  with sqlite3.connect(database_path) as c:
-  old=c.execute("SELECT destination_id FROM incident_destinations WHERE name=? AND org_id=?",(name.strip(),org_id)).fetchone()
-  if old:did=old[0];c.execute("UPDATE incident_destinations SET system_type=?,endpoint=?,credential_reference=?,project_or_table=?,enabled=? WHERE destination_id=? AND org_id=?",(system_type,endpoint,credential_reference,project_or_table,int(enabled),did,org_id))
+  old=c.execute("SELECT destination_id,archived_at FROM incident_destinations WHERE name=? AND org_id=?",(name.strip(),org_id)).fetchone()
+  if old and old[1]:raise ValueError("That destination is archived and kept as history; use a new name.")
+  if old:did=old[0];c.execute("UPDATE incident_destinations SET system_type=?,endpoint=?,credential_reference=?,project_or_table=?,enabled=? WHERE destination_id=? AND org_id=? AND archived_at IS NULL",(system_type,endpoint,credential_reference,project_or_table,int(enabled),did,org_id))
   else:c.execute(f"INSERT INTO incident_destinations({_DESTINATION_COLUMNS},org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(did,name.strip(),system_type,endpoint,credential_reference,project_or_table,int(enabled),utc_now(),actor,None,None,None,org_id))
  return next(d for d in list_controls(org_id)["destinations"] if d["destination_id"]==did)
 def queue_incident(destination_id,alert,org_id=organizations.DEFAULT_ORG_ID):

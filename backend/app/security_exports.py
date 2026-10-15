@@ -80,7 +80,7 @@ def initialize_security_exports():
             connection.execute("ALTER TABLE export_queue ADD COLUMN claimed_at TEXT")
         if "org_id" not in queue_columns:
             connection.execute("ALTER TABLE export_queue ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
-
+    sqlite3.ensure_columns(database_path, "export_destinations", sqlite3.ARCHIVE_COLUMNS)
 
 def _destination(row):
     item = dict(row)
@@ -114,12 +114,14 @@ def save_destination(name, destination_type, endpoint, enabled, signing_key_refe
         raise ValueError("Export limits are outside the supported range.")
     destination_id = "dst_" + uuid.uuid4().hex
     with sqlite3.connect(database_path) as connection:
-        existing = connection.execute("SELECT destination_id FROM export_destinations WHERE name=? AND org_id=?", (name.strip(), org_id)).fetchone()
+        existing = connection.execute("SELECT destination_id,archived_at FROM export_destinations WHERE name=? AND org_id=?", (name.strip(), org_id)).fetchone()
+        if existing and existing[1]:
+            raise ValueError("That destination is archived and kept as history; use a new name.")
         if existing:
             destination_id = existing[0]
             connection.execute("""UPDATE export_destinations SET destination_type=?,endpoint=?,enabled=?,
                 signing_key_reference=?,minimization_profile=?,rate_limit_per_minute=?,max_attempts=?
-                WHERE destination_id=? AND org_id=?""", (destination_type, endpoint, int(enabled), signing_key_reference,
+                WHERE destination_id=? AND org_id=? AND archived_at IS NULL""", (destination_type, endpoint, int(enabled), signing_key_reference,
                 minimization_profile, rate_limit_per_minute, max_attempts, destination_id, org_id))
         else:
             connection.execute(f"""INSERT INTO export_destinations({_DESTINATION_COLUMNS},org_id)
