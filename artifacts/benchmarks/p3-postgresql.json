@@ -1,0 +1,82 @@
+{
+  "generated_at": "2026-10-15T10:28:27Z",
+  "database": "postgresql",
+  "server": "uvicorn, 1 worker process",
+  "machine": {
+    "cpus": 4,
+    "python": "3.14.2",
+    "platform": "Linux-6.8.0-1064-azure-x86_64-with-glibc2.39"
+  },
+  "note": "Observations of this machine, not capacity commitments.",
+  "results": {
+    "health": {
+      "requests": 2000,
+      "concurrency": 16,
+      "succeeded": 2000,
+      "statuses": {
+        "200": 2000
+      },
+      "throughput_per_second": 13.9,
+      "p50_ms": 1142.89,
+      "p95_ms": 1238.76,
+      "p99_ms": 1280.26
+    },
+    "authenticated_read_entitlements": {
+      "requests": 2000,
+      "concurrency": 16,
+      "succeeded": 2000,
+      "statuses": {
+        "200": 2000
+      },
+      "throughput_per_second": 6.8,
+      "p50_ms": 2346.02,
+      "p95_ms": 2447.89,
+      "p99_ms": 2750.42
+    },
+    "agent_tool_request": {
+      "requests": 2000,
+      "concurrency": 16,
+      "succeeded": 2000,
+      "statuses": {
+        "201": 2000
+      },
+      "throughput_per_second": 5.0,
+      "p50_ms": 3368.29,
+      "p95_ms": 3776.82,
+      "p99_ms": 3924.46
+    },
+    "gateway_bundle": {
+      "requests": 500,
+      "concurrency": 16,
+      "succeeded": 500,
+      "statuses": {
+        "200": 500
+      },
+      "throughput_per_second": 10.9,
+      "p50_ms": 1480.43,
+      "p95_ms": 1637.18,
+      "p99_ms": 1931.57
+    },
+    "connections": {
+      "streams_requested": 100,
+      "streams_connected": 39,
+      "health_under_streams": {
+        "requests": 500,
+        "concurrency": 8,
+        "succeeded": 500,
+        "statuses": {
+          "200": 500
+        },
+        "throughput_per_second": 6.7,
+        "p50_ms": 583.37,
+        "p95_ms": 3962.28,
+        "p99_ms": 20583.01
+      }
+    },
+    "queue_drain": {
+      "items": 2000,
+      "processed": 2000,
+      "items_per_second": 11.2
+    }
+  }
+}
