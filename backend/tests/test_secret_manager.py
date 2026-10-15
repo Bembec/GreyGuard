@@ -47,3 +47,16 @@ def test_emergency_revoke_never_revokes_another_organizations_secret(isolated,mo
     assert result["revoked"]==1
     assert secret_manager.get_secret(other_secret["secret_id"],org_id="org_other")["status"]=="REVOKED"
     assert secret_manager.get_secret(default_secret["secret_id"],org_id="org_default")["status"]=="ACTIVE"
+
+
+def test_redaction_keeps_json_responses_valid():
+    """The response middleware redacts whole JSON bodies; a value used to run on through the
+    closing quote and corrupt the document."""
+    import json
+    from backend.app.secret_manager import MASK, redact
+    for evidence in ("notes password=zqHunter2Secret", 'password="q1w2e3" more', "curl -H token:abc.def", "secret=s3;cr"):
+        body = redact(json.dumps({"target": evidence, "next": {"items": [1, 2]}}))
+        parsed = json.loads(body)
+        assert MASK in parsed["target"] and parsed["next"] == {"items": [1, 2]}
+        assert not any(value in body for value in ("zqHunter2Secret", "q1w2e3", "abc.def", "s3"))
+    assert redact("api_key: 'k-1'").startswith("api_key=" + MASK)
