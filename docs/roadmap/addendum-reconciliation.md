@@ -482,6 +482,24 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
   - Survived, with nothing observable changed: removing the early refusal of a suspended agent. The atomic risk update refuses a suspended agent independently, so that refusal is enforced twice.
 - Frontend unaffected (no frontend change).
 
+**P7.1: site skeleton (commit `3b1dbe1`).**
+- **Structure:** `website/` is a static Astro 7.3.5 site with its own package, lockfile and build. It imports nothing from the console.
+  - Pages: the eight required navigation items, the seven required footer links, four legal page shells (noindex, marked as awaiting counsel per W8), an accessibility statement shell, a responsible-disclosure page using the T3 contact, and a 404.
+  - Content pages are labelled placeholders until P7.2–P7.4.
+- **Claims:** page copy states claims only through the `Claim` component, which reads the register.
+  - A publish build fails without the domain (W4), and fails on the first unapproved claim. Both are confirmed by running a publish build.
+  - Preview builds mark unapproved claims and keep every page noindex.
+- **Security headers:** `public/_headers` sets a strict Content-Security-Policy (no scripts, nothing inline, same-origin images, styles and fonts), HSTS, nosniff, Referrer-Policy, Permissions-Policy, COOP/CORP and frame denial. `robots.txt` blocks indexing until publication.
+- **CI:** the CI workflow gains a `website` job (build, site check, claim check). The security workflow audits the site's npm dependencies, and Dependabot watches them. Gitleaks already scans the whole repository.
+
+**Verification run for P7.1:**
+- Preview build: 17 pages.
+- `npm run check` passes. Six deliberate corruptions of the built output were each caught: an inline style, a broken internal link, a missing navigation item, an injected script, a removed CSP and an indexable preview page.
+- Publish build: refused without `GREYGUARD_SITE_URL`, and refused on unapproved claim GG-GATE-1.
+- `npm audit`: 0 vulnerabilities.
+- Screenshots at 1440 px and 390 px: no horizontal scroll.
+- Open for P7.2: the logo file carries its own navy background box, which shows slightly against the header.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
