@@ -1,5 +1,7 @@
 # Addendum Reconciliation — Status Matrix
 
+> **Plan of record: Master Roadmap v3, adopted 2026-10-15.** See [`v3-adoption.md`](v3-adoption.md) for how v3 maps onto this matrix, the corrections to its status section, and the four decisions it left open (V1–V4). This matrix stays the evidence record.
+
 Reconciles `GreyGuard_Final_Product_Commercial_and_Launch_Roadmap_Addendum.md` against the current repository, the original engineering task list, and `stage-2-reconciliation.md`. Organized in the addendum's own P0–P10 order. Status values: **Verified** (done, tested, evidence below), **In progress** (started, not complete), **Planned** (scoped, not started), **Deferred** (explicitly held pending a checkpoint/approval per the addendum or Michael's instructions), **Not applicable**.
 
 Nothing below duplicates already-completed work — where a requirement is already satisfied, the entry says so and points at the commit/file, rather than re-describing or re-implementing it.
