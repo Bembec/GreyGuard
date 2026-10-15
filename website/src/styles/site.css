@@ -1676,3 +1676,126 @@ code {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Trust ---------- */
+.status-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.status-card {
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--navy-2);
+}
+
+.status-card .icon-tile {
+  margin-bottom: 0.6rem;
+}
+
+.status-card p {
+  margin: 0;
+}
+
+.status-card__title {
+  color: var(--text-3);
+  font-size: 0.85rem;
+}
+
+.status-card__value {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.status-card__text {
+  color: var(--text-2);
+  font-size: 0.88rem;
+}
+
+.register-group {
+  margin-top: 2.5rem;
+}
+
+.register-group h3 {
+  font-size: 1.25rem;
+}
+
+.register-table {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--navy);
+}
+
+.register-table table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.register-table th {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.register-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.register-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.register-table tr.is-unapproved td:first-child {
+  box-shadow: inset 2px 0 0 rgba(251, 191, 36, 0.6);
+}
+
+.register-claim {
+  display: block;
+  color: var(--text);
+}
+
+.register-id {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.register-scope {
+  max-width: 22rem;
+  color: var(--text-2);
+}
+
+.register-evidence {
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .status-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
