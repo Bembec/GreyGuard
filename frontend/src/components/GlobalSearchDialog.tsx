@@ -3,6 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import { EmptyState, ErrorState, LoadingState } from "./AsyncState"
+import { navigationGroups } from "../config/navigationGroups"
+import { matchPages } from "../config/workspaces"
+import { useAuth } from "../context/AuthContext"
 import { useDismissableLayer } from "../hooks/useDismissableLayer"
 import "../styles/global-search.css"
 
@@ -28,6 +31,7 @@ const icons = { AGENT: Bot, REQUEST: FileSearch, APPROVAL: CheckSquare, ALERT: S
 
 export function GlobalSearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate()
+  const { administrator } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
@@ -57,12 +61,15 @@ export function GlobalSearchDialog({ open, onClose }: { open: boolean; onClose: 
 
   if (!open) return null
   const choose = (result: SearchResult) => { saveRecentSearch(query); onClose(); navigate(result.path) }
+  const pages = matchPages(query, administrator)
+  const goTo = (path: string) => { onClose(); navigate(path) }
   return <div className="global-search" role="presentation">
     <button className="global-search__backdrop" type="button" onClick={onClose} aria-label="Close global search"/>
     <section role="dialog" aria-modal="true" aria-labelledby="global-search-title">
       <header><Search size={20}/><label htmlFor="global-search-input" id="global-search-title">Search control plane</label><button type="button" onClick={onClose} aria-label="Close search"><X size={19}/></button></header>
-      <input ref={inputRef} id="global-search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search agents, requests, approvals, alerts or evidence…" autoComplete="off"/>
+      <input ref={inputRef} id="global-search-input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search pages, agents, requests, approvals, alerts or evidence…" autoComplete="off"/>
       <div className="global-search__body">
+        {pages.length > 0 && <div className="global-search__results global-search__pages" role="listbox" aria-label="Pages">{pages.map(({ item, workspace }) => <button type="button" role="option" aria-selected="false" key={item.path} onClick={() => goTo(item.path)}><span><item.icon size={18}/></span><div><strong>{item.label}</strong><small>{[navigationGroups.find((group) => group.id === workspace?.domain)?.label, workspace?.label].filter(Boolean).join(" › ") || item.description}</small></div><em>PAGE</em></button>)}</div>}
         {query.trim().length < 2 && <div className="global-search__recent"><strong>Recent searches</strong>{recent.length ? recent.map((item) => <button type="button" key={item} onClick={() => setQuery(item)}><Clock3 size={15}/>{item}</button>) : <p>No recent searches on this device.</p>}</div>}
         {loading && <LoadingState label="Searching GreyGuard" rows={4}/>}
         {!loading && error && <ErrorState message={error}/>}

@@ -1,33 +1,33 @@
 import { useRef, useState } from "react"
-import { NavLink } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 
 import type { NavigationGroup } from "../../config/navigationGroups"
-import { navigationPermission, type NavigationItem } from "../../config/navigation"
+import { pagePathFor, visibleTabs, type Workspace } from "../../config/workspaces"
 import { useAuth } from "../../context/AuthContext"
 import { useDismissableLayer } from "../../hooks/useDismissableLayer"
-import { matchesPermission } from "../../hooks/usePermission"
 
 interface NavFlyoutProps {
   group: NavigationGroup
-  items: NavigationItem[]
+  workspaces: Workspace[]
 }
 
 /**
- * The collapsed-sidebar "mega-menu" surface: a group's icon button opens a keyboard-operable
- * popover listing that group's permission-visible items, giving collapsed mode real structure
- * instead of a bare, ungrouped icon rail.
+ * The collapsed-sidebar mega-menu: a domain's icon opens a keyboard-operable panel showing each
+ * permitted workspace with its permitted pages beneath it, so the whole domain is one step away.
  */
-export function NavFlyout({ group, items }: NavFlyoutProps) {
+export function NavFlyout({ group, workspaces }: NavFlyoutProps) {
   const { administrator } = useAuth()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useDismissableLayer<HTMLDivElement>({ open, onClose: () => setOpen(false), trapFocus: true })
 
-  const visible = items.filter((item) =>
-    matchesPermission(administrator, navigationPermission(item)),
-  )
+  const visible = workspaces
+    .map((workspace) => ({ workspace, tabs: visibleTabs(workspace, administrator) }))
+    .filter(({ tabs }) => tabs.length > 0)
   if (!visible.length) return null
 
+  const currentPage = pagePathFor(location.pathname)
   const GroupIcon = group.icon
   return (
     <div className="nav-flyout">
@@ -52,20 +52,28 @@ export function NavFlyout({ group, items }: NavFlyoutProps) {
           aria-label={`${group.label} navigation`}
         >
           <p className="nav-flyout__label">{group.label}</p>
-          {visible.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              role="menuitem"
-              className={({ isActive }) => ["nav-flyout__item", isActive ? "nav-flyout__item--active" : ""].join(" ")}
-              onClick={() => setOpen(false)}
-            >
-              <item.icon size={17} />
-              <span>
-                <strong>{item.label}</strong>
-                <small>{item.description}</small>
-              </span>
-            </NavLink>
+          {visible.map(({ workspace, tabs }) => (
+            <div key={workspace.id} className="nav-flyout__workspace" role="group" aria-label={workspace.label}>
+              <p className="nav-flyout__workspace-label">
+                <workspace.icon size={15} />
+                {workspace.label}
+              </p>
+              {tabs.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  role="menuitem"
+                  className={["nav-flyout__item", item.path === currentPage ? "nav-flyout__item--active" : ""].join(" ")}
+                  onClick={() => setOpen(false)}
+                >
+                  <item.icon size={17} />
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.description}</small>
+                  </span>
+                </Link>
+              ))}
+            </div>
           ))}
         </div>
       )}

@@ -43,7 +43,7 @@ export const navigationGroups: NavigationGroup[] = [
   {
     id: "administration",
     label: "Administration",
-    description: "Operators, account security and interface settings",
+    description: "Organization setup, operators, account security and platform protection",
     icon: Settings2,
   },
 ]

@@ -26,31 +26,32 @@ import { GlobalSearchDialog } from "../components/GlobalSearchDialog"
 import { NavFlyout } from "../components/navigation/NavFlyout"
 import { SidebarNavGroup } from "../components/navigation/SidebarNavGroup"
 import { UserMenu } from "../components/navigation/UserMenu"
-import { navigationItems } from "../config/navigation"
+import { WorkspaceTabs } from "../components/navigation/WorkspaceTabs"
 import { navigationGroups } from "../config/navigationGroups"
+import { commandCenter, pageForPath, workspaceForPath, workspaces } from "../config/workspaces"
 import { useAuth } from "../context/AuthContext"
 import { recordPageView } from "../lib/pageViewAnalytics"
 import { CapacityBanner } from "../components/CapacityBanner"
 import "../styles/shell.css"
 
-const pinnedItem = navigationItems.find((item) => !item.group)
-const groupedItems = navigationGroups.map((group) => ({
+const pinnedItem = commandCenter
+const groupedWorkspaces = navigationGroups.map((group) => ({
   group,
-  items: navigationItems.filter((item) => item.group === group.id),
+  workspaces: workspaces.filter((workspace) => workspace.domain === group.id),
 }))
 
 function getPageInformation(pathname: string) {
+  const workspace = workspaceForPath(pathname)
+  const domain = navigationGroups.find((group) => group.id === workspace?.domain)
+  const trail = [domain?.label, workspace?.label].filter((part): part is string => Boolean(part))
   if (pathname.startsWith("/agents/")) {
-    return { label: "Agent Investigation", path: "/agents", description: "Correlated agent security evidence" }
+    return { label: "Agent Investigation", path: "/agents", trail: [...trail, "Agents"] }
   }
   if (pathname.startsWith("/requests/")) {
-    return { label: "Request Investigation", path: "/requests", description: "Approval and execution evidence" }
+    return { label: "Request Investigation", path: "/requests", trail: [...trail, "Tool Requests"] }
   }
-  return (
-    navigationItems.find(
-      (item) => item.path === pathname,
-    ) ?? navigationItems[0]
-  )
+  const page = pageForPath(pathname) ?? commandCenter
+  return { label: page.label, path: page.path, trail }
 }
 
 export function AppShell() {
@@ -171,11 +172,11 @@ export function AppShell() {
           )}
 
           {collapsed
-            ? groupedItems.map(({ group, items }) => (
-                <NavFlyout key={group.id} group={group} items={items} />
+            ? groupedWorkspaces.map(({ group, workspaces }) => (
+                <NavFlyout key={group.id} group={group} workspaces={workspaces} />
               ))
-            : groupedItems.map(({ group, items }) => (
-                <SidebarNavGroup key={group.id} group={group} items={items} />
+            : groupedWorkspaces.map(({ group, workspaces }) => (
+                <SidebarNavGroup key={group.id} group={group} workspaces={workspaces} />
               ))}
         </nav>
 
@@ -227,10 +228,14 @@ export function AppShell() {
             </button>
 
             <div>
-              <p>
+              <p className="topbar__trail">
                 GreyGuard
-                <ChevronRight size={13} />
-                {currentPage.label}
+                {currentPage.trail.map((part) => (
+                  <span key={part}>
+                    <ChevronRight size={13} aria-hidden="true" />
+                    {part}
+                  </span>
+                ))}
               </p>
 
               <p className="topbar__title">{currentPage.label}</p>
@@ -298,6 +303,7 @@ export function AppShell() {
             ) : null}
           </div>
 
+          <WorkspaceTabs />
           <CapacityBanner />
           <Outlet />
         </main>

@@ -305,7 +305,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/abuse-protection",
     description: "Rate limits, lockouts and burst controls",
     requiresInstallOperator: true,
-    group: "gate",
+    group: "administration",
     icon: ShieldEllipsis,
   },
   {

@@ -88,11 +88,15 @@ test("AUDITOR sees agent scope/credential controls as read-only", async ({ page 
 
 test("an org PLATFORM_ADMIN who is not an install operator cannot reach install-wide controls", async ({ page }) => {
   await signIn(page, ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD)
-  // Tenant-scoped admin pages stay available to the org's PLATFORM_ADMIN...
-  await expect(page.locator('a[href="/security-exports"]').first()).toBeAttached({ timeout: 15_000 })
-  // ...but install-wide ones are neither listed nor reachable directly.
-  for (const path of ["/team", "/observability", "/enterprise-identity", "/abuse-protection", "/audit-integrity"]) {
-    await expect(page.locator(`a[href="${path}"]`)).toHaveCount(0)
+  // Tenant-scoped admin pages stay available to the org's PLATFORM_ADMIN as workspace tabs...
+  await page.goto("/compliance")
+  const reportTabs = page.getByRole("navigation", { name: "Reports & Exports sections" })
+  await expect(reportTabs.getByRole("link", { name: "Security Exports" })).toBeVisible({ timeout: 15_000 })
+  // ...but install-wide ones are neither listed in any workspace that holds them nor reachable directly.
+  for (const [workspacePath, hiddenPath] of [["/agents", "/enterprise-identity"], ["/endpoint-telemetry", "/observability"], ["/audit", "/audit-integrity"], ["/account-security", "/team"], ["/account-security", "/abuse-protection"]]) {
+    await page.goto(workspacePath)
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator(`a[href="${hiddenPath}"]`)).toHaveCount(0)
   }
   await page.goto("/observability")
   await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 })
@@ -115,4 +119,21 @@ test("the Team page marks install operators and exposes the operator toggle", as
   await expect(orgAdminCard.getByText("Install operator")).toHaveCount(0)
   await orgAdminCard.click()
   await expect(page.getByRole("checkbox", { name: /Install operator/i })).not.toBeChecked()
+})
+
+test("AUDITOR sees only the workspaces and tabs its role may open", async ({ page }) => {
+  await signInAsAuditor(page)
+  const sidebar = page.getByRole("navigation", { name: "Primary navigation" })
+  await expect(sidebar.getByRole("link", { name: /Requests & Approvals/ })).toBeVisible({ timeout: 15_000 })
+  // Every Containment page needs PLATFORM_ADMIN, so the workspace itself is not offered.
+  await expect(sidebar.getByRole("link", { name: /Containment/ })).toHaveCount(0)
+  // Open workspaces show only the permitted tabs.
+  await page.goto("/approvals")
+  const tabs = page.getByRole("navigation", { name: "Requests & Approvals sections" })
+  await expect(tabs.getByRole("link")).toHaveCount(3, { timeout: 15_000 })
+  await page.goto("/policies")
+  const controls = page.getByRole("navigation", { name: "Policies & Controls sections" })
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 15_000 })
+  await expect(controls).toHaveCount(0)
+  await expect(page.locator('a[href="/secrets"]')).toHaveCount(0)
 })
