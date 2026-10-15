@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   AlertTriangle,
   Check,
@@ -13,6 +15,7 @@ import {
   ShieldX,
   UserCheck,
   X,
+  CheckSquare,
 } from "lucide-react";
 import {
   useMemo,
@@ -361,7 +364,7 @@ export default function ApprovalsPage() {
   }
 
   return (
-    <main className="approvals-page">
+    <main className="approvals-page gg-page-pad">
       <div
         className="approval-background"
         aria-hidden="true"
@@ -372,41 +375,21 @@ export default function ApprovalsPage() {
         <Fingerprint size={260} />
       </div>
 
-      <section className="approvals-heading">
-        <div>
-          <div className="approvals-kicker">
-            Human authority layer
-          </div>
+      <PageHeader
+        eyebrow="Requests & Approvals"
+        title="Approvals"
+        icon={<CheckSquare size={22} />}
+        description="Requests that policy marked ASK wait here, paused, until a person decides. Every approval or denial is bound to the reviewer, the time, a note and a permanent security record."
+        actions={<button type="button" className="gg-button" onClick={() => void requestsQuery.refetch()} disabled={requestsQuery.isFetching}><RefreshCw size={16} aria-hidden="true" className={requestsQuery.isFetching ? "spin" : undefined} />Refresh queue</button>}
+      />
 
-          <h1>
-            Sensitive actions stop here.
-          </h1>
-
-          <p>
-            Review context before an agent receives
-            permission. Every approval or denial is
-            bound to a reviewer, timestamp, note, and
-            persistent security record.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="approvals-refresh-button"
-          onClick={() => requestsQuery.refetch()}
-          disabled={requestsQuery.isFetching}
-        >
-          <RefreshCw
-            size={17}
-            className={
-              requestsQuery.isFetching
-                ? "spin"
-                : undefined
-            }
-          />
-          Refresh queue
-        </button>
-      </section>
+      <Guidance id="approvals" title="How to review a request">
+        <ol>
+          <li>Open a pending request to see the agent, the action, its target, the payload and the risk it would add.</li>
+          <li><strong>Approve</strong> only if the action is expected and in scope; otherwise <strong>deny</strong>. Add a note either way: it becomes part of the evidence.</li>
+          <li>An approved request runs in the controlled sandbox. A denied request never executes.</li>
+        </ol>
+      </Guidance>
 
       <section className="approval-stat-grid">
         <article className="approval-stat-card amber">

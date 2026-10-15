@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   ArrowRight,
   Ban,
@@ -339,7 +341,7 @@ export default function PoliciesPage() {
       : null;
 
   return (
-    <main className="policies-page">
+    <main className="policies-page gg-page-pad">
       <div
         className="policy-network-background"
         aria-hidden="true"
@@ -354,41 +356,21 @@ export default function PoliciesPage() {
         <Network size={230} />
       </div>
 
-      <section className="policies-heading">
-        <div>
-          <div className="policies-kicker">
-            Active enforcement policy
-          </div>
+      <PageHeader
+        eyebrow="Policies & Controls"
+        title="Policies"
+        icon={<SlidersHorizontal size={22} />}
+        description="The rules that turn an agent's request into ALLOW, ASK or BLOCK. GreyGuard weighs agent state, scope, the requested action, human authority and accumulated risk before anything runs."
+        actions={<button type="button" className="gg-button" onClick={() => void policiesQuery.refetch()} disabled={policiesQuery.isFetching}><RefreshCw size={16} aria-hidden="true" className={policiesQuery.isFetching ? "spin" : undefined} />Refresh</button>}
+      />
 
-          <h1>
-            Identity never implies permission.
-          </h1>
-
-          <p>
-            GreyGuard evaluates agent state, scope,
-            requested action, policy decision, human
-            authority, and accumulated risk before
-            controlled execution can occur.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="policies-refresh-button"
-          onClick={() => policiesQuery.refetch()}
-          disabled={policiesQuery.isFetching}
-        >
-          <RefreshCw
-            size={17}
-            className={
-              policiesQuery.isFetching
-                ? "spin"
-                : undefined
-            }
-          />
-          Refresh policy
-        </button>
-      </section>
+      <Guidance id="policies" title="How policy changes are made">
+        <ol>
+          <li>Review the active rules below, and use the simulator to see how a request would be decided.</li>
+          <li>Change policy as a <strong>draft</strong>, then submit it for approval. A different administrator approves it before it takes effect.</li>
+          <li>Every published version is kept, so a change can be compared and rolled back.</li>
+        </ol>
+      </Guidance>
 
       <section className="policy-flow">
         <div>

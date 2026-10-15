@@ -1,20 +1,225 @@
-import { useEffect,useState } from "react"
-import { KeyRound,RefreshCw,ShieldOff } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { Info, KeyRound, Plus, RefreshCw, ShieldOff } from "lucide-react"
+import { useMemo, useState } from "react"
+
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { ConfirmDialog } from "../components/ConfirmDialog"
+import { DataTable, type Column } from "../components/page/DataTable"
+import { FilterBar } from "../components/page/FilterBar"
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
+import { Panel } from "../components/page/Panel"
+import { StatCard, StatGrid } from "../components/page/StatCard"
+import { StatusBadge } from "../components/page/StatusBadge"
+import { relativeTime } from "../components/page/timeFormat"
 import { useAuth } from "../context/AuthContext"
 import { useToast } from "../context/ToastContext"
-import { ConfirmDialog } from "../components/ConfirmDialog"
-import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
-import "../styles/secrets.css"
-const API=import.meta.env.VITE_API_BASE_URL??"/api"
-type Secret={secret_id:string;name:string;provider:string;reference:string;status:string;created_at:string;last_accessed_at:string|null;access_count:number;rotation_interval_days:number|null;next_rotation_at:string|null}
-type Provider={provider:string;available:boolean;credentials_stored:boolean;detail:string}
-export default function SecretsPage(){
- const {sessionToken,administrator}=useAuth();const {pushToast}=useToast();const [items,setItems]=useState<Secret[]>([]);const [providers,setProviders]=useState<Provider[]>([]);const [name,setName]=useState("");const [reference,setReference]=useState("");const [provider,setProvider]=useState("ENVIRONMENT");const [rotationDays,setRotationDays]=useState(90);const [loading,setLoading]=useState(true);const [loadError,setLoadError]=useState("");const [confirmSecret,setConfirmSecret]=useState<Secret|null>(null)
- const headers={"Content-Type":"application/json","x-admin-pin":sessionToken??""}
- const load=async()=>{setLoading(true);setLoadError("");try{const r=await fetch(`${API}/secrets`,{headers});const d=await r.json();if(!r.ok)throw new Error(d.detail);setItems(d.secrets);setProviders(d.providers??[])}catch(e){const detail=e instanceof Error?e.message:"Unable to load secrets.";setLoadError(detail);throw e}finally{setLoading(false)}}
- useEffect(()=>{void load().catch(()=>undefined)},[sessionToken])
- const call=async(path:string,body?:unknown)=>{try{const r=await fetch(`${API}${path}`,{method:"POST",headers,body:body?JSON.stringify(body):undefined});const d=await r.json();if(!r.ok)throw new Error(d.detail);pushToast({tone:"success",title:"Secret lifecycle updated",message:"No secret value was exposed or persisted."});setName("");setReference("");setConfirmSecret(null);await load()}catch(e){pushToast({tone:"error",title:"Secret operation failed",message:e instanceof Error?e.message:"Request failed."})}}
- return <main className="secrets-page"><section className="secrets-heading"><div><span>Zero-value exposure</span><h1>Secret lifecycle management</h1><p>GreyGuard stores references and audit evidence only. Secret values are retrieved just in time and never displayed.</p></div><KeyRound size={42}/></section>
- {administrator?.role==="PLATFORM_ADMIN"&&<><section className="secret-create"><input placeholder="Display name" value={name} onChange={e=>setName(e.target.value)}/><select value={provider} onChange={e=>setProvider(e.target.value)}>{providers.map(p=><option key={p.provider} value={p.provider}>{p.provider}{p.available?"":" (SDK unavailable)"}</option>)}</select><input placeholder={provider==="ENVIRONMENT"?"ENVIRONMENT_VARIABLE":"Provider secret reference"} value={reference} onChange={e=>setReference(provider==="ENVIRONMENT"?e.target.value.toUpperCase():e.target.value)}/><input type="number" min="1" max="365" value={rotationDays} onChange={e=>setRotationDays(Number(e.target.value))}/><button onClick={()=>call("/secrets",{name,reference,provider,rotation_interval_days:rotationDays})}>Register reference</button></section><div className="secret-emergency"><strong>Emergency revocation</strong><span>Immediately revoke every active reference across all providers.</span><button className="danger" onClick={()=>{if(confirm("Revoke every active secret reference?"))void call("/secrets/emergency-revoke",{})}}>Revoke all</button></div></>}
- <section className="secret-grid">{loading&&<LoadingState label="Loading secret references" rows={3}/>} {!loading&&loadError&&<ErrorState message={loadError} onRetry={()=>void load()}/>} {!loading&&!loadError&&items.length===0&&<EmptyState icon={<KeyRound size={30}/>} title="No secret references" description="Register a provider reference without storing its value."/>}{items.map(s=><article key={s.secret_id}><div className="secret-card-head"><KeyRound/><span className={s.status.toLowerCase()}>{s.status}</span></div><h2>{s.name}</h2><code>{s.reference}</code><dl><div><dt>Provider</dt><dd>{s.provider}</dd></div><div><dt>Access count</dt><dd>{s.access_count}</dd></div><div><dt>Last accessed</dt><dd>{s.last_accessed_at??"Never"}</dd></div><div><dt>Next rotation</dt><dd>{s.next_rotation_at??"Not scheduled"}</dd></div></dl>{administrator?.role==="PLATFORM_ADMIN"&&<div className="secret-actions"><button onClick={()=>{const next=prompt("New provider secret reference",s.reference);if(next)void call(`/secrets/${s.secret_id}/rotate`,{reference:next})}}><RefreshCw size={15}/>Rotate</button>{s.status==="ACTIVE"&&<button className="danger" onClick={()=>setConfirmSecret(s)}><ShieldOff size={15}/>Revoke</button>}</div>}</article>)}</section><ConfirmDialog open={Boolean(confirmSecret)} title="Revoke secret reference?" description={`${confirmSecret?.name??"This reference"} will become unavailable to controlled integrations immediately. No secret value will be displayed.`} confirmLabel="Revoke reference" onCancel={()=>setConfirmSecret(null)} onConfirm={()=>confirmSecret&&void call(`/secrets/${confirmSecret.secret_id}/revoke`)}/></main>
+import { adminCall } from "../lib/adminApi"
+
+type Secret = { secret_id: string; name: string; provider: string; reference: string; status: string; created_at: string; last_accessed_at: string | null; access_count: number; rotation_interval_days: number | null; next_rotation_at: string | null }
+type Provider = { provider: string; available: boolean; credentials_stored: boolean; detail: string }
+type SecretsResponse = { secrets: Secret[]; providers?: Provider[] }
+
+const ROTATION_WARNING_DAYS = 14
+
+export function rotationDue(secret: Pick<Secret, "status" | "next_rotation_at">, now: number = Date.now()): boolean {
+  if (secret.status !== "ACTIVE" || !secret.next_rotation_at) return false
+  return Date.parse(secret.next_rotation_at) - now < ROTATION_WARNING_DAYS * 86_400_000
+}
+
+export default function SecretsPage() {
+  const { sessionToken, administrator } = useAuth()
+  const { pushToast } = useToast()
+  const canManage = administrator?.role === "PLATFORM_ADMIN"
+  const secrets = useQuery({ queryKey: ["secrets"], queryFn: () => adminCall<SecretsResponse>("/secrets", sessionToken), enabled: Boolean(sessionToken) })
+
+  const [name, setName] = useState("")
+  const [reference, setReference] = useState("")
+  const [provider, setProvider] = useState("ENVIRONMENT")
+  const [rotationDays, setRotationDays] = useState(90)
+  const [search, setSearch] = useState("")
+  const [status, setStatus] = useState("ALL")
+  const [revoking, setRevoking] = useState<Secret | null>(null)
+  const [rotating, setRotating] = useState<Secret | null>(null)
+  const [nextReference, setNextReference] = useState("")
+  const [revokeAll, setRevokeAll] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const items = useMemo(() => secrets.data?.secrets ?? [], [secrets.data])
+  const providers = secrets.data?.providers ?? []
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    return items.filter((item) => (status === "ALL" || item.status === status)
+      && (!needle || `${item.name} ${item.reference} ${item.provider}`.toLowerCase().includes(needle)))
+  }, [items, search, status])
+  const active = items.filter((item) => item.status === "ACTIVE").length
+  const due = items.filter((item) => rotationDue(item)).length
+
+  const call = async (path: string, body: unknown, success: string) => {
+    setBusy(true)
+    try {
+      await adminCall(path, sessionToken, { method: "POST", body })
+      pushToast({ tone: "success", title: success, message: "No secret value was exposed or persisted." })
+      setRevoking(null); setRotating(null); setRevokeAll(false)
+      await secrets.refetch()
+      return true
+    } catch (error) {
+      pushToast({ tone: "error", title: "Secret operation failed", message: error instanceof Error ? error.message : "Request failed." })
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const register = async () => {
+    if (await call("/secrets", { name, reference, provider, rotation_interval_days: rotationDays }, "Reference registered")) {
+      setName(""); setReference("")
+    }
+  }
+
+  const columns: Column<Secret>[] = [
+    { key: "name", header: "Reference", sortValue: (item) => item.name, render: (item) => <div className="gg-cell-stack"><strong>{item.name}</strong><code className="gg-code">{item.reference}</code></div> },
+    { key: "provider", header: "Provider", sortValue: (item) => item.provider, render: (item) => item.provider },
+    { key: "status", header: "Status", sortValue: (item) => item.status, render: (item) => <StatusBadge value={item.status} /> },
+    { key: "uses", header: "Accesses", align: "end", secondary: true, sortValue: (item) => item.access_count, render: (item) => item.access_count },
+    { key: "last", header: "Last accessed", secondary: true, sortValue: (item) => item.last_accessed_at, render: (item) => <span title={item.last_accessed_at ?? undefined}>{relativeTime(item.last_accessed_at)}</span> },
+    { key: "rotation", header: "Next rotation", sortValue: (item) => item.next_rotation_at, render: (item) => item.next_rotation_at ? <span title={item.next_rotation_at}>{new Date(item.next_rotation_at).toLocaleDateString()}{rotationDue(item) && <> <StatusBadge value="DUE" tone="warning" /></>}</span> : <span className="gg-muted">Not scheduled</span> },
+    ...(canManage ? [{
+      key: "actions", header: "Actions", align: "end" as const,
+      render: (item: Secret) => item.status === "ACTIVE" ? (
+        <div className="gg-row-actions">
+          <button type="button" className="gg-button" onClick={() => { setRotating(item); setNextReference(item.reference) }} aria-label={`Rotate ${item.name}`}><RefreshCw size={14} aria-hidden="true" />Rotate</button>
+          <button type="button" className="gg-button gg-button--danger" onClick={() => setRevoking(item)} aria-label={`Revoke ${item.name}`}><ShieldOff size={14} aria-hidden="true" />Revoke</button>
+        </div>
+      ) : <span className="gg-muted">No actions</span>,
+    }] : []),
+  ]
+
+  return (
+    <section className="gg-page">
+      <PageHeader
+        eyebrow="Policies & Controls"
+        title="Secret references"
+        icon={<KeyRound size={22} />}
+        description="GreyGuard stores references to secrets held in your providers, plus the audit evidence of their use. Secret values are fetched just in time for a controlled integration and are never displayed or stored."
+        actions={
+          <>
+            <button type="button" className="gg-button" onClick={() => void secrets.refetch()}><RefreshCw size={16} aria-hidden="true" />Refresh</button>
+            {canManage && <button type="button" className="gg-button gg-button--danger" onClick={() => setRevokeAll(true)} disabled={!active}><ShieldOff size={16} aria-hidden="true" />Revoke all</button>}
+          </>
+        }
+      />
+
+      <Guidance id="secrets" title="How secret references work">
+        <ol>
+          <li><strong>Register</strong> a reference: an environment variable name or a provider path. The value stays in the provider.</li>
+          <li><strong>Rotate</strong> on schedule by pointing the reference at the new secret. References due within {ROTATION_WARNING_DAYS} days are flagged.</li>
+          <li><strong>Revoke</strong> a single reference, or every active one at once in an emergency. Integrations using a revoked reference stop immediately.</li>
+        </ol>
+      </Guidance>
+
+      {secrets.isLoading && <LoadingState label="Loading secret references" rows={4} />}
+      {secrets.isError && <ErrorState message={secrets.error.message} onRetry={() => void secrets.refetch()} />}
+      {secrets.data && (
+        <>
+          <StatGrid label="Secret reference summary">
+            <StatCard label="References" value={items.length} hint="Registered in this organization" tone="info" />
+            <StatCard label="Active" value={active} hint="Usable by controlled integrations" tone="success" />
+            <StatCard label="Rotation due" value={due} hint={`Within ${ROTATION_WARNING_DAYS} days or overdue`} tone={due ? "warning" : "success"} />
+            <StatCard label="Providers available" value={`${providers.filter((item) => item.available).length} of ${providers.length}`} hint="Provider SDKs installed on this server" />
+          </StatGrid>
+
+          {canManage ? (
+            <Panel id="secret-register" eyebrow="New reference" title="Register a secret reference">
+              <form className="gg-form" onSubmit={(event) => { event.preventDefault(); void register() }}>
+                <div className="gg-form__row">
+                  <label className="gg-field">Display name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ticketing API token" required /></label>
+                  <label className="gg-field">Provider
+                    <select value={provider} onChange={(event) => setProvider(event.target.value)}>
+                      {providers.map((item) => <option key={item.provider} value={item.provider}>{item.provider}{item.available ? "" : " (SDK unavailable)"}</option>)}
+                    </select>
+                  </label>
+                  <label className="gg-field">Reference
+                    <input value={reference} onChange={(event) => setReference(provider === "ENVIRONMENT" ? event.target.value.toUpperCase() : event.target.value)} placeholder={provider === "ENVIRONMENT" ? "ENVIRONMENT_VARIABLE" : "Provider secret reference"} required />
+                    <small>A name or path, never the secret itself.</small>
+                  </label>
+                  <label className="gg-field">Rotate every (days)<input type="number" min="1" max="365" value={rotationDays} onChange={(event) => setRotationDays(Number(event.target.value))} /></label>
+                </div>
+                <div className="gg-form__actions"><button type="submit" className="gg-button gg-button--primary" disabled={busy || !name.trim() || !reference.trim()}><Plus size={16} aria-hidden="true" />Register reference</button></div>
+              </form>
+            </Panel>
+          ) : (
+            <p className="gg-note"><Info size={16} aria-hidden="true" />Your role has read-only access to secret references. Platform administrators register, rotate and revoke them.</p>
+          )}
+
+          <Panel id="secret-list" eyebrow="Inventory" title="References">
+            <FilterBar
+              search={{ value: search, onChange: setSearch, placeholder: "Search by name, reference or provider" }}
+              options={{ label: "Status", value: status, onChange: setStatus, items: [
+                { value: "ALL", label: "All", count: items.length },
+                { value: "ACTIVE", label: "Active", count: active },
+                { value: "REVOKED", label: "Revoked", count: items.filter((item) => item.status === "REVOKED").length },
+              ] }}
+              summary={`${visible.length} of ${items.length} shown`}
+            />
+            <DataTable
+              label="Secret references"
+              columns={columns}
+              rows={visible}
+              rowKey={(item) => item.secret_id}
+              rowTone={(item) => (rotationDue(item) ? "warning" : undefined)}
+              empty={items.length
+                ? <EmptyState icon={<KeyRound size={28} />} title="No matching references" description="Change the search or status filter." />
+                : <EmptyState icon={<KeyRound size={28} />} title="No secret references" description="Register a provider reference without storing its value." />}
+            />
+          </Panel>
+
+          {providers.length > 0 && (
+            <Panel id="secret-providers" eyebrow="Providers" title="Provider availability">
+              <ul className="gg-list">
+                {providers.map((item) => (
+                  <li key={item.provider}>
+                    <div className="gg-list__main"><strong>{item.provider}</strong><small>{item.detail}</small></div>
+                    <StatusBadge value={item.available ? "AVAILABLE" : "UNAVAILABLE"} tone={item.available ? "success" : "neutral"} />
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          )}
+        </>
+      )}
+
+      <ConfirmDialog
+        open={Boolean(revoking)}
+        title="Revoke secret reference?"
+        description={`${revoking?.name ?? "This reference"} will become unavailable to controlled integrations immediately. No secret value will be displayed.`}
+        confirmLabel="Revoke reference"
+        busy={busy}
+        onCancel={() => setRevoking(null)}
+        onConfirm={() => revoking && void call(`/secrets/${revoking.secret_id}/revoke`, undefined, "Reference revoked")}
+      />
+      <ConfirmDialog
+        open={Boolean(rotating)}
+        title={`Rotate ${rotating?.name ?? "reference"}`}
+        description="Point this reference at the new secret in your provider. The old value is not shown or kept."
+        confirmLabel="Rotate reference"
+        tone="warning"
+        busy={busy}
+        confirmDisabled={!nextReference.trim()}
+        onCancel={() => setRotating(null)}
+        onConfirm={() => rotating && void call(`/secrets/${rotating.secret_id}/rotate`, { reference: nextReference }, "Reference rotated")}
+      >
+        <label className="gg-field">New provider reference<input value={nextReference} onChange={(event) => setNextReference(event.target.value)} /></label>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={revokeAll}
+        title="Revoke every active secret reference?"
+        description={`All ${active} active references across every provider are revoked at once. Integrations that depend on them stop until new references are registered.`}
+        confirmLabel="Revoke all references"
+        busy={busy}
+        onCancel={() => setRevokeAll(false)}
+        onConfirm={() => void call("/secrets/emergency-revoke", {}, "Every active reference revoked")}
+      />
+    </section>
+  )
 }

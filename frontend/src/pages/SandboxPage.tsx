@@ -1,3 +1,6 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
+import { StatusBadge } from "../components/page/StatusBadge"
 import {
   Ban,
   Box,
@@ -274,33 +277,26 @@ export default function SandboxPage() {
   }
 
   return (
-    <main className="sandbox-page">
+    <main className="sandbox-page gg-page-pad">
       <div className="sandbox-vault" />
       <div className="sandbox-grid" />
       <div className="sandbox-glow" />
 
-      <header className="sandbox-hero">
-        <div>
-          <span>Contained execution</span>
-          <h1>Controlled Sandbox</h1>
-          <p>
-            Inspect GreyGuard’s restricted filesystem,
-            approved tool surface and persistent
-            execution evidence without exposing the
-            host laptop.
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Requests & Approvals"
+        title="Controlled sandbox"
+        icon={<LockKeyhole size={22} />}
+        description="The restricted filesystem and tool surface where approved requests run, and the persistent evidence of each execution. Nothing here can reach the host machine."
+        actions={<StatusBadge value={sandboxQuery.data?.controls.network_access === false ? "NETWORK DISABLED" : "NETWORK STATE UNKNOWN"} tone={sandboxQuery.data?.controls.network_access === false ? "success" : "warning"} />}
+      />
 
-        <div className="sandbox-seal">
-          <LockKeyhole />
-          <div>
-            <strong>Boundary sealed</strong>
-            <small>
-              Local sandbox · network disabled
-            </small>
-          </div>
-        </div>
-      </header>
+      <Guidance id="sandbox" title="What the sandbox enforces">
+        <ul>
+          <li>Tools work only inside the sandbox root. Absolute paths and path escapes are refused.</li>
+          <li>There is no external network access and no arbitrary command execution.</li>
+          <li>Each execution below links to the request that caused it, with its result and evidence.</li>
+        </ul>
+      </Guidance>
 
       <section className="sandbox-stat-grid">
         <article>

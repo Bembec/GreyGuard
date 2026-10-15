@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   AlertTriangle,
   Archive,
@@ -13,6 +15,7 @@ import {
   UserRoundCheck,
   UserRoundX,
   X,
+  Bot,
 } from "lucide-react";
 import {
   useEffect,
@@ -461,45 +464,27 @@ export default function AgentsPage() {
   }
 
   return (
-    <main className="agents-page">
+    <main className="agents-page gg-page-pad">
       <div
         className="agents-watermark"
         aria-hidden="true"
       />
 
-      <section className="agents-heading">
-        <div>
-          <div className="section-kicker">
-            Identity control plane
-          </div>
+      <PageHeader
+        eyebrow="Agents & Identity"
+        title="Agents"
+        icon={<Bot size={22} />}
+        description="Every registered agent with its identity, scopes, credential and risk. An identity is not a permission: restrict scopes, rotate or revoke credentials, and contain a risky agent from here."
+        actions={<button type="button" className="gg-button" onClick={() => void agentsQuery.refetch()} disabled={agentsQuery.isFetching}><RefreshCw size={16} aria-hidden="true" className={agentsQuery.isFetching ? "spin" : undefined} />Refresh</button>}
+      />
 
-          <h1>Govern every agent independently.</h1>
-
-          <p>
-            Agent identity is not agent permission.
-            Inspect security posture, restrict scopes,
-            rotate credentials, and contain risky agents
-            from one command surface.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="agents-refresh-button"
-          onClick={() => agentsQuery.refetch()}
-          disabled={agentsQuery.isFetching}
-        >
-          <RefreshCw
-            size={17}
-            className={
-              agentsQuery.isFetching
-                ? "spin"
-                : undefined
-            }
-          />
-          Refresh agents
-        </button>
-      </section>
+      <Guidance id="agents" title="How agent governance works">
+        <ol>
+          <li><strong>Register</strong> an agent to issue its identity and credential. Give it only the scopes its tools need.</li>
+          <li><strong>Watch</strong> its risk score: blocked or refused actions raise it, and a high score suspends the agent automatically.</li>
+          <li><strong>Open an agent</strong> to rotate or revoke its credential, change scopes, review its evidence, or reset its risk after investigation.</li>
+        </ol>
+      </Guidance>
 
       <section className="agent-stat-grid">
         <article className="agent-stat-card cyan">

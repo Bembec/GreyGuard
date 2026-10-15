@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   Activity,
   Check,
@@ -15,6 +17,7 @@ import {
   TerminalSquare,
   X,
   Zap,
+  Boxes,
 } from "lucide-react";
 import {
   useMemo,
@@ -288,7 +291,7 @@ export default function ToolRequestsPage() {
   }
 
   return (
-    <main className="requests-page">
+    <main className="requests-page gg-page-pad">
       <div
         className="requests-grid-background"
         aria-hidden="true"
@@ -298,40 +301,21 @@ export default function ToolRequestsPage() {
         <span className="request-flow flow-three" />
       </div>
 
-      <section className="requests-heading">
-        <div>
-          <div className="requests-kicker">
-            Controlled execution pipeline
-          </div>
+      <PageHeader
+        eyebrow="Requests & Approvals"
+        title="Tool requests"
+        icon={<Boxes size={22} />}
+        description="Every action an agent asked to take, followed from identity and policy evaluation through approval and sandbox execution to its final evidence."
+        actions={<button type="button" className="gg-button" onClick={() => void requestsQuery.refetch()} disabled={requestsQuery.isFetching}><RefreshCw size={16} aria-hidden="true" className={requestsQuery.isFetching ? "spin" : undefined} />Refresh</button>}
+      />
 
-          <h1>
-            Every action leaves evidence.
-          </h1>
-
-          <p>
-            Follow agent requests from identity and
-            policy evaluation through approval,
-            sandbox execution, and final evidence.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="requests-refresh-button"
-          onClick={() => requestsQuery.refetch()}
-          disabled={requestsQuery.isFetching}
-        >
-          <RefreshCw
-            size={17}
-            className={
-              requestsQuery.isFetching
-                ? "spin"
-                : undefined
-            }
-          />
-          Refresh pipeline
-        </button>
-      </section>
+      <Guidance id="tool-requests" title="How a request moves through GreyGuard">
+        <ol>
+          <li>The agent's identity and scopes are checked, then policy decides <strong>ALLOW</strong>, <strong>ASK</strong> or <strong>BLOCK</strong>.</li>
+          <li>ASK waits for a human decision under Approvals. BLOCK never runs and adds risk to the agent.</li>
+          <li>Allowed and approved requests run in the sandbox, or as a dry run. Open any request for its full investigation and evidence bundle.</li>
+        </ol>
+      </Guidance>
 
       <section className="pipeline-strip">
         <div>
