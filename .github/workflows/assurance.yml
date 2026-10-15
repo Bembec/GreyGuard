@@ -12,7 +12,7 @@ jobs:
       matrix:
         group: [authentication_authorization, agent_scope_isolation, approval_replay_race, path_symlink_sandbox, redaction_rate_integrity]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip, cache-dependency-path: "backend/requirements*.txt"}
       - run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults: {run: {working-directory: frontend}}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with: {node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json}
       - run: npm ci
