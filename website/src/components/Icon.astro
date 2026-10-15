@@ -1,0 +1,37 @@
+---
+// A small, consistent line-icon set drawn for GreyGuard (24px grid, 1.75 stroke).
+interface Props { name: keyof typeof paths; size?: number; class?: string }
+
+const paths = {
+  gate: "M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3Z M9 12l2 2 4-4",
+  watch: "M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
+  respond: "M12 2v4 M12 18v4 M4.9 4.9l2.8 2.8 M16.3 16.3l2.8 2.8 M2 12h4 M18 12h4 M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z",
+  evidence: "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6Z M14 3v6h6 M9 14l2 2 4-4",
+  key: "M15 7a4 4 0 1 1-3.9 4.9L3 20v-3h3v-3h3l2.1-2.1A4 4 0 0 1 15 7Z",
+  approval: "M9 11l3 3 8-8 M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
+  tool: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4 2.6-2.6Z",
+  prompt: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10Z M8 9h8 M8 13h5",
+  trace: "M3 12h4l3-8 4 16 3-8h4",
+  lock: "M6 11h12v10H6z M8 11V7a4 4 0 1 1 8 0v4",
+  code: "M16 18l6-6-6-6 M8 6l-6 6 6 6",
+  plug: "M9 2v6 M15 2v6 M6 8h12v4a6 6 0 0 1-12 0V8Z M12 18v4",
+  server: "M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01",
+  graph: "M5 19V5 M5 19h14 M9 15l3-4 3 2 4-6",
+  check: "M5 12l5 5 9-10",
+  arrow: "M5 12h14 M13 6l6 6-6 6",
+  chevron: "M6 9l6 6 6-6",
+  book: "M4 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V4Z M4 17a3 3 0 0 1 3-3h11",
+  pulse: "M3 12h4l2-5 4 10 2-5h6",
+  building: "M4 21V5l8-3 8 3v16 M9 21v-5h6v5 M8 9h.01 M12 9h.01 M16 9h.01 M8 13h.01 M12 13h.01 M16 13h.01",
+  alert: "M12 3 2 20h20L12 3Z M12 10v4 M12 17h.01",
+  bolt: "M13 2 4 14h7l-1 8 9-12h-7l1-8Z",
+  menu: "M4 6h16 M4 12h16 M4 18h16",
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z M4 21a8 8 0 0 1 16 0",
+} as const
+
+const { name, size = 20, class: className } = Astro.props
+const segments = paths[name].split(" M").map((segment, index) => (index === 0 ? segment : `M${segment}`))
+---
+<svg class:list={["icon", className]} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+  {segments.map((d) => <path d={d} />)}
+</svg>

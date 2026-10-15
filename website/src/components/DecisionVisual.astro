@@ -1,0 +1,35 @@
+---
+// A product illustration built from the real default policy (read_file ALLOW, delete_file ASK,
+// send_email BLOCK) and labelled synthetic. It is not a screenshot, so it never shows interface
+// that has since changed.
+const rows = [
+  { agent: "report-agent", action: "read_file", target: "public_report.txt", decision: "ALLOW", detail: "Scope and policy allow it", risk: "+0" },
+  { agent: "ops-agent", action: "delete_file", target: "notes/q3-plan.md", decision: "ASK", detail: "Paused until a person approves", risk: "+20" },
+  { agent: "mail-agent", action: "send_email", target: "external recipient", decision: "BLOCK", detail: "Refused by policy; risk added", risk: "+40" },
+]
+---
+<figure class="decision-visual" aria-label="Illustration: three agent requests and GreyGuard's decisions">
+  <div class="decision-visual__window">
+    <div class="decision-visual__bar">
+      <span class="decision-visual__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span>Live decisions</span>
+      <span class="pill pill--muted">Synthetic data</span>
+    </div>
+    <ol class="decision-visual__rows">
+      {rows.map((row) => (
+        <li class={`decision-row decision-row--${row.decision.toLowerCase()}`}>
+          <span class="decision-row__agent">{row.agent}</span>
+          <span class="decision-row__action"><code>{row.action}</code> <span class="decision-row__target">{row.target}</span></span>
+          <span class="decision-row__badge">{row.decision}</span>
+          <span class="decision-row__detail">{row.detail}</span>
+          <span class="decision-row__risk">risk {row.risk}</span>
+        </li>
+      ))}
+    </ol>
+    <div class="decision-visual__receipt">
+      <span class="eyebrow">Evidence recorded</span>
+      <code>sha256 · 9f2c…41ab → previous 77e0…c3d2</code>
+    </div>
+  </div>
+  <figcaption class="decision-visual__caption">Illustration with synthetic data. Decisions follow GreyGuard's default policy.</figcaption>
+</figure>

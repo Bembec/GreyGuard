@@ -1,46 +1,179 @@
 ---
 import Base from "../layouts/Base.astro"
-import Claim from "../components/Claim.astro"
+import ClaimList from "../components/ClaimList.astro"
+import DecisionVisual from "../components/DecisionVisual.astro"
+import Icon from "../components/Icon.astro"
+import register from "../../content/claims.json"
 import { demoContact } from "../lib/site"
 
-const groups = [
-  { name: "Gate", lead: "Identity, scopes, policy and human approval before an agent acts.", claims: ["GG-GATE-1", "GG-GATE-2", "GG-GATE-3"] },
-  { name: "Watch", lead: "Risk that accumulates, and live evidence of every decision.", claims: ["GG-WATCH-1", "GG-WATCH-2"] },
-  { name: "Respond", lead: "Recoverable containment when an agent misbehaves.", claims: ["GG-RESP-1", "GG-RESP-2"] },
-  { name: "Evidence", lead: "Tamper-evident records you can hand to a reviewer.", claims: ["GG-EVID-1", "GG-EVID-3"] },
+const demoHref = demoContact ?? "/company/#contact"
+
+const connections = ["Python SDK", "JavaScript SDK", "REST API", "Model Context Protocol", "LangChain", "LangGraph", "CrewAI", "AutoGen", "Signed gateways"]
+
+const threats = [
+  { icon: "key", title: "Overprivileged agents", text: "An agent holds broad credentials and can do far more than its job needs." },
+  { icon: "approval", title: "Approval bypass", text: "A consequential action runs without anyone deciding it should." },
+  { icon: "tool", title: "Unsafe tool calls", text: "Deleting, sending or executing on the strength of a model's output alone." },
+  { icon: "prompt", title: "Prompt-influenced actions", text: "Injected instructions steer an agent toward an action nobody asked for." },
+  { icon: "lock", title: "Credential exposure", text: "Secrets and tokens leak into logs, prompts or the wrong integration." },
+  { icon: "trace", title: "Untraceable decisions", text: "After an incident, nobody can show who acted, why, and under which rule." },
 ]
+
+const groups = [
+  { id: "gate", icon: "gate", name: "Gate", lead: "Decide before an agent acts.", claims: ["GG-GATE-1", "GG-GATE-2", "GG-GATE-3"] },
+  { id: "watch", icon: "watch", name: "Watch", lead: "See risk build, as it happens.", claims: ["GG-WATCH-1", "GG-WATCH-2"] },
+  { id: "respond", icon: "respond", name: "Respond", lead: "Contain, then recover.", claims: ["GG-RESP-1", "GG-RESP-2"] },
+  { id: "evidence", icon: "evidence", name: "Evidence", lead: "Prove what happened.", claims: ["GG-EVID-1", "GG-EVID-3"] },
+]
+
+const path = [
+  { icon: "user", title: "Identity", text: "The agent authenticates with its own credential." },
+  { icon: "key", title: "Scope", text: "The action must be one it was granted." },
+  { icon: "gate", title: "Policy", text: "ALLOW, ASK or BLOCK, under the organization's published policy." },
+  { icon: "approval", title: "Approval", text: "ASK waits for a person; nothing runs meanwhile." },
+  { icon: "lock", title: "Execution boundary", text: "Approved work runs inside controlled limits." },
+  { icon: "evidence", title: "Evidence", text: "Every step is recorded in a hash-chained trail." },
+]
+
+const claims = register.claims as Array<{ availability: string; kind: string; evidence: string[]; status: string }>
+const verified = claims.filter((claim) => claim.availability === "verified" && claim.kind === "capability").length
+const testsCited = new Set(claims.flatMap((claim) => claim.evidence.filter((reference) => reference.includes("::")))).size
 ---
-<Base title="GreyGuard" description="GreyGuard registers and authenticates AI agents, restricts their permissions, requires human approval where needed and preserves tamper-evident evidence.">
-  <section class="page-intro">
-    <div class="container">
-      <p class="eyebrow">Agent security control plane</p>
-      <h1>Every agent action passes through the guard.</h1>
-      <p class="lead">GreyGuard gives each AI agent its own identity, decides what it may do, asks a person when it matters, and keeps evidence of every decision.</p>
-      <p>
-        {demoContact
-          ? <a class="button" href={demoContact}>Request a demo</a>
-          : <span class="muted">Demo requests open when the contact route is chosen.</span>}
-      </p>
+<Base title="GreyGuard" description="GreyGuard is the security control plane for AI agents: identity, permission, human approval and tamper-evident evidence for every consequential action.">
+  <section class="hero">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container hero__inner">
+      <div class="hero__copy">
+        <p class="eyebrow">Security control plane for AI agents</p>
+        <h1 class="hero__title">Control what your AI agents are allowed to do.</h1>
+        <p class="hero__lead">GreyGuard gives every agent its own identity, decides each action before it runs, brings a person in when it matters, and keeps tamper-evident evidence of every decision.</p>
+        <div class="hero__actions">
+          <a class="button button--large" href={demoHref}>Request a demo</a>
+          <a class="button button--large button--ghost" href="/platform/#request-path">See how a decision is made <Icon name="arrow" size={18} /></a>
+        </div>
+        <ul class="hero__points">
+          <li><Icon name="check" size={16} /> Runs in your own environment</li>
+          <li><Icon name="check" size={16} /> Unknown actions are blocked</li>
+          <li><Icon name="check" size={16} /> Evidence for every decision</li>
+        </ul>
+      </div>
+      <DecisionVisual />
     </div>
   </section>
-  <section class="section" aria-labelledby="groups-heading">
+
+  <section class="strip" aria-labelledby="strip-heading">
     <div class="container">
-      <h2 id="groups-heading">Four product groups</h2>
-      <div class="grid">
-        {groups.map((group) => (
-          <article class="card">
-            <h3>{group.name}</h3>
-            <p class="muted">{group.lead}</p>
-            {group.claims.map((id) => <Claim id={id} />)}
+      <p id="strip-heading" class="strip__heading">Connects where your agents run</p>
+      <ul class="strip__list">{connections.map((name) => <li>{name}</li>)}</ul>
+      <p class="strip__note">Request-format support only. Naming a framework does not imply endorsement by, or a partnership with, its maintainers.</p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="threats-heading">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">The problem</p>
+        <h2 id="threats-heading">Agents act. Most security tools only watch.</h2>
+        <p class="section-head__lead">AI agents now call tools, change records and move data. The risks are about actions, not just content.</p>
+      </div>
+      <div class="threat-grid">
+        {threats.map((threat) => (
+          <article class="threat">
+            <span class="icon-tile"><Icon name={threat.icon as never} size={22} /></span>
+            <h3>{threat.title}</h3>
+            <p>{threat.text}</p>
           </article>
         ))}
       </div>
     </div>
   </section>
-  <section class="section" aria-labelledby="boundary-heading">
+
+  <section class="section section--band" aria-labelledby="groups-heading">
     <div class="container">
-      <h2 id="boundary-heading">Where coverage ends</h2>
-      <Claim id="GG-CONN-6" showScope />
+      <div class="section-head">
+        <p class="eyebrow">The platform</p>
+        <h2 id="groups-heading">Four controls, one control plane</h2>
+        <p class="section-head__lead">Each capability below is labelled with its availability and linked to the automated tests that prove it.</p>
+      </div>
+      <div class="group-grid">
+        {groups.map((group) => (
+          <article class="group-card" id={`home-${group.id}`}>
+            <header class="group-card__head">
+              <span class="icon-tile icon-tile--accent"><Icon name={group.icon as never} size={22} /></span>
+              <div><h3>{group.name}</h3><p>{group.lead}</p></div>
+            </header>
+            <ClaimList ids={group.claims} />
+            <a class="text-link" href={`/platform/#${group.id}`}>Explore {group.name} <Icon name="arrow" size={16} /></a>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="path-heading">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2 id="path-heading">Every action takes the same path</h2>
+        <p class="section-head__lead">From the agent's identity to the evidence trail, nothing skips a step.</p>
+      </div>
+      <ol class="path">
+        {path.map((step, index) => (
+          <li class="path__step">
+            <span class="path__number">{String(index + 1).padStart(2, "0")}</span>
+            <span class="icon-tile"><Icon name={step.icon as never} size={20} /></span>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="coverage-heading">
+    <div class="container coverage">
+      <div class="section-head">
+        <p class="eyebrow">Honest coverage</p>
+        <h2 id="coverage-heading">What GreyGuard covers, and what it doesn't</h2>
+        <p class="section-head__lead">Security buyers deserve the boundaries up front.</p>
+      </div>
+      <div class="coverage__grid">
+        <div class="coverage__col">
+          <h3><Icon name="check" size={18} /> Covered</h3>
+          <ClaimList ids={["GG-CONN-1", "GG-CONN-3", "GG-PLAT-1"]} />
+        </div>
+        <div class="coverage__col coverage__col--limits">
+          <h3><Icon name="alert" size={18} /> Limits we state plainly</h3>
+          <ClaimList ids={["GG-CONN-6", "GG-PLAT-2", "GG-TRUST-1"]} />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--band" aria-labelledby="proof-heading">
+    <div class="container proof">
+      <div class="proof__copy">
+        <p class="eyebrow">Proof, not promises</p>
+        <h2 id="proof-heading">Every claim links to its evidence</h2>
+        <p>We don't ask you to take our word for it. Each statement on this site comes from a public claim register that records its scope, its availability and the automated tests behind it. Planned work is labelled planned.</p>
+        <a class="button button--ghost" href="/trust/#claims">Open the claim register <Icon name="arrow" size={18} /></a>
+      </div>
+      <dl class="proof__stats">
+        <div><dt>Verified capabilities</dt><dd>{verified}</dd></div>
+        <div><dt>Automated tests cited as evidence</dt><dd>{testsCited}</dd></div>
+        <div><dt>Limitations stated</dt><dd>{claims.filter((claim) => claim.kind === "limitation").length}</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="cta" aria-labelledby="cta-heading">
+    <div class="container cta__inner">
+      <h2 id="cta-heading">See GreyGuard decide.</h2>
+      <p>A tailored walkthrough with your own agent scenarios, on synthetic data.</p>
+      <div class="hero__actions">
+        <a class="button button--large" href={demoHref}>Request a demo</a>
+        <a class="button button--large button--ghost" href="/resources/">Read the documentation</a>
+      </div>
     </div>
   </section>
 </Base>

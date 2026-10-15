@@ -4,7 +4,9 @@ import "@fontsource/inter/600.css"
 import "@fontsource/saira/600.css"
 import "@fontsource/saira/700.css"
 import "../styles/site.css"
-import { consoleUrl, footerLinks, primaryNavigation, siteMode } from "../lib/site"
+import SiteFooter from "../components/SiteFooter.astro"
+import SiteHeader from "../components/SiteHeader.astro"
+import { siteMode } from "../lib/site"
 
 interface Props {
   title: string
@@ -17,7 +19,6 @@ const { title, description, noindex = false } = Astro.props
 const canonical = new URL(Astro.url.pathname, Astro.site).toString()
 const fullTitle = title === "GreyGuard" ? "GreyGuard — agent security control plane" : `${title} · GreyGuard`
 const indexable = siteMode === "publish" && !noindex
-const current = Astro.url.pathname
 ---
 <!doctype html>
 <html lang="en">
@@ -41,36 +42,11 @@ const current = Astro.url.pathname
     {siteMode === "preview" && (
       <p class="preview-banner" role="note">Preview build: not for publication. Claims not yet approved are marked.</p>
     )}
-    <header class="site-header">
-      <div class="container site-header__inner">
-        <a class="site-logo" href="/" aria-label="GreyGuard home">
-          <picture>
-            <source srcset="/brand/greyguard-horizontal-dark.webp" type="image/webp" />
-            <img src="/brand/greyguard-horizontal-dark.png" alt="GreyGuard" width="180" height="45" />
-          </picture>
-        </a>
-        <nav class="site-nav" aria-label="Main">
-          <ul>
-            {primaryNavigation.map((item) => (
-              <li><a href={item.href} aria-current={current.startsWith(item.href) ? "page" : undefined}>{item.label}</a></li>
-            ))}
-          </ul>
-        </nav>
-        <a class="button button--ghost site-signin" href={consoleUrl}>Sign in</a>
-      </div>
-    </header>
+    <p class="announcement"><a href="/trust/#claims">Every claim on this site links to the evidence behind it <span aria-hidden="true">→</span></a></p>
+    <SiteHeader />
     <main id="main" tabindex="-1">
       <slot />
     </main>
-    <footer class="site-footer">
-      <div class="container site-footer__inner">
-        <p class="site-footer__brand">GreyGuard · SECURE • MONITOR • CONTROL</p>
-        <nav aria-label="Legal and support">
-          <ul>
-            {footerLinks.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
-          </ul>
-        </nav>
-      </div>
-    </footer>
+    <SiteFooter />
   </body>
 </html>

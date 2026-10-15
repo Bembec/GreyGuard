@@ -1,0 +1,37 @@
+---
+import { footerLinks } from "../lib/site"
+
+const columns = [
+  { heading: "Platform", links: [["Gate", "/platform/#gate"], ["Watch", "/platform/#watch"], ["Respond", "/platform/#respond"], ["Evidence", "/platform/#evidence"]] },
+  { heading: "Connect", links: [["SDKs", "/environments/#sdks"], ["REST API", "/environments/#api"], ["Framework adapters", "/environments/#adapters"], ["Integrations", "/integrations/"]] },
+  { heading: "Trust", links: [["Trust center", "/trust/"], ["Claim register", "/trust/#claims"], ["Responsible disclosure", "/security/"], ["Status", "/status/"]] },
+  { heading: "Company", links: [["About", "/company/"], ["Contact", "/company/#contact"], ["Resources", "/resources/"], ["Use cases", "/use-cases/"]] },
+]
+const year = new Date().getFullYear()
+---
+<footer class="site-footer">
+  <div class="container">
+    <div class="site-footer__top">
+      <div class="site-footer__brand">
+        <picture>
+          <source srcset="/brand/greyguard-primary-480.webp" type="image/webp" />
+          <img src="/brand/greyguard-primary-480.png" alt="GreyGuard" width="220" height="102" loading="lazy" />
+        </picture>
+        <p>The security control plane for AI agents: identity, permission, human approval and evidence for every consequential action.</p>
+        <p class="site-footer__tagline">SECURE • MONITOR • CONTROL</p>
+      </div>
+      {columns.map((column) => (
+        <div class="site-footer__column">
+          <p class="site-footer__heading">{column.heading}</p>
+          <ul>{column.links.map(([label, href]) => <li><a href={href}>{label}</a></li>)}</ul>
+        </div>
+      ))}
+    </div>
+    <div class="site-footer__bottom">
+      <p>© {year} GreyGuard. All rights reserved.</p>
+      <nav aria-label="Legal and support">
+        <ul>{footerLinks.map((item) => <li><a href={item.href}>{item.label}</a></li>)}</ul>
+      </nav>
+    </div>
+  </div>
+</footer>

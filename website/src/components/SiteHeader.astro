@@ -1,0 +1,89 @@
+---
+import Icon from "./Icon.astro"
+import { consoleUrl, demoContact, primaryNavigation } from "../lib/site"
+
+const current = Astro.url.pathname
+const demoHref = demoContact ?? "/company/#contact"
+---
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="site-logo" href="/" aria-label="GreyGuard home">
+      <picture>
+        <source srcset="/brand/greyguard-primary-480.webp" type="image/webp" />
+        <img src="/brand/greyguard-primary-480.png" alt="GreyGuard" width="165" height="77" />
+      </picture>
+    </a>
+
+    <nav class="site-nav" aria-label="Main">
+      <ul class="site-nav__list">
+        {primaryNavigation.map((item) => (
+          <li class:list={["site-nav__item", { "has-menu": Boolean(item.columns) }]}>
+            <a class="site-nav__link" href={item.href} aria-current={current.startsWith(item.href) ? "page" : undefined}>
+              {item.label}
+              {item.columns && <Icon name="chevron" size={14} class="site-nav__chevron" />}
+            </a>
+            {item.columns && (
+              <div class="mega" role="group" aria-label={`${item.label} menu`}>
+                <div class="mega__inner">
+                  {item.columns.map((column) => (
+                    <div class="mega__column">
+                      <p class="mega__heading">{column.heading}</p>
+                      <ul class="mega__links">
+                        {column.links.map((link) => (
+                          <li>
+                            <a class="mega__link" href={link.href}>
+                              <span class="mega__icon"><Icon name={link.icon as never} size={18} /></span>
+                              <span class="mega__copy">
+                                <span class="mega__label">{link.label}{link.badge && <span class="pill pill--muted">{link.badge}</span>}</span>
+                                <span class="mega__description">{link.description}</span>
+                              </span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                  {item.feature && (
+                    <a class="mega__feature" href={item.feature.href}>
+                      <span class="eyebrow">{item.feature.eyebrow}</span>
+                      <span class="mega__feature-title">{item.feature.title}</span>
+                      <span class="mega__description">{item.feature.text}</span>
+                      <span class="text-link">{item.feature.cta} <Icon name="arrow" size={16} /></span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <div class="site-header__actions">
+      <a class="button button--ghost" href={consoleUrl}>Sign in</a>
+      <a class="button" href={demoHref}>Request a demo</a>
+    </div>
+
+    <details class="mobile-menu">
+      <summary class="button button--ghost" aria-label="Open the menu"><Icon name="menu" size={20} /> Menu</summary>
+      <nav class="mobile-menu__panel" aria-label="Mobile">
+        <ul>
+          {primaryNavigation.map((item) => (
+            <li>
+              <a href={item.href}>{item.label}</a>
+              {item.columns && (
+                <ul class="mobile-menu__sub">
+                  {item.columns.flatMap((column) => column.links).map((link) => <li><a href={link.href}>{link.label}</a></li>)}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ul>
+        <div class="mobile-menu__actions">
+          <a class="button button--ghost" href={consoleUrl}>Sign in</a>
+          <a class="button" href={demoHref}>Request a demo</a>
+        </div>
+      </nav>
+    </details>
+  </div>
+</header>
