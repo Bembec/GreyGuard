@@ -106,3 +106,26 @@ def test_adapters_are_isolated_per_organization(adapters):
     )
     assert adapters.get_adapter("generic_webhook", "org_a")["enabled"] is True
     assert adapters.get_adapter("generic_webhook", "org_default")["enabled"] is False
+
+
+def test_a_new_org_gets_the_installs_actions_and_can_configure_and_test_adapters(adapters):
+    """Orgs other than the default were seeded with no allowed actions, so their adapters could
+    never be configured, and testing one crashed."""
+    org = "org_tenant"
+    assert all(item["allowed_actions"] == ["read_file", "write_note"] for item in adapters.list_adapters(org))
+    adapters.configure_adapter("generic_webhook", True, "Security", "Inbound webhook for the pilot", ["read_file"], "admin", org)
+    assert adapters.test_adapter("generic_webhook", org)
+
+
+def test_orgs_seeded_before_the_fix_are_repaired_without_touching_configured_adapters(adapters):
+    with adapters.sqlite3.connect(adapters.database_path) as connection:
+        connection.execute("UPDATE adapter_configs SET allowed_actions_json='[]', org_id='org_old' WHERE adapter_id='langchain' AND org_id='org_default'")
+    adapters.configure_adapter("crewai", False, "", "", ["write_note"], "admin", "org_default")
+    adapters.initialize_adapter_control(["read_file", "write_note"])
+    assert adapters.get_adapter("langchain", "org_old")["allowed_actions"] == ["read_file", "write_note"]
+    assert adapters.get_adapter("crewai", "org_default")["allowed_actions"] == ["write_note"]
+    # Testing an adapter that somehow has no actions is a clear 400-style error, not a crash.
+    with adapters.sqlite3.connect(adapters.database_path) as connection:
+        connection.execute("UPDATE adapter_configs SET allowed_actions_json='[]', updated_by='admin' WHERE adapter_id='autogen' AND org_id='org_default'")
+    with pytest.raises(ValueError, match="no allowed actions"):
+        adapters.test_adapter("autogen", "org_default")

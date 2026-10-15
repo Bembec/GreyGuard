@@ -2290,6 +2290,8 @@ def administrator_test_adapter(
         return test_adapter(adapter_id, organizations.resolve_org_id(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/adapter-requests/{adapter_id}", status_code=201)

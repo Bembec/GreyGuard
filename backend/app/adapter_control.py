@@ -59,6 +59,10 @@ def initialize_adapter_control(available_actions, org_id="org_default"):
     actions = sorted({str(action) for action in available_actions})
     if actions:
         AVAILABLE_ACTIONS = set(actions)
+    # An org seeded lazily (list_adapters/get_adapter pass no actions) gets the install's known
+    # action set, exactly as the default org does at startup. It used to get none, so every
+    # other org's adapters had no allowed actions and could never be configured or tested.
+    actions = actions or sorted(AVAILABLE_ACTIONS)
     with sqlite3.connect(database_path) as connection:
         existing_columns = {row[1] for row in connection.execute("PRAGMA table_info(adapter_configs)")}
         if existing_columns and "org_id" not in existing_columns:
@@ -89,6 +93,12 @@ def initialize_adapter_control(available_actions, org_id="org_default"):
         event_columns = {row[1] for row in connection.execute("PRAGMA table_info(adapter_events)")}
         if "org_id" not in event_columns:
             connection.execute("ALTER TABLE adapter_events ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
+        if actions:
+            # Repair orgs seeded before the fix above: an untouched system seed with no actions.
+            # An administrator's configuration can never be empty, so nothing chosen is changed.
+            connection.execute("""-- repairs the unconfigured seed rows of every org_id
+                UPDATE adapter_configs SET allowed_actions_json=?
+                WHERE allowed_actions_json='[]' AND updated_by='system'""", (json.dumps(actions),))
         for adapter_id, definition in ADAPTER_DEFINITIONS.items():
             connection.execute("""INSERT OR IGNORE INTO adapter_configs
                 (adapter_id,org_id,name,protocol,description,enabled,owner,purpose,
@@ -256,7 +266,10 @@ def translate_request(adapter_id, payload, org_id, require_enabled=True):
 
 
 def test_adapter(adapter_id, org_id):
-    action = get_adapter(adapter_id, org_id)["allowed_actions"][0]
+    allowed = get_adapter(adapter_id, org_id)["allowed_actions"]
+    if not allowed:
+        raise ValueError("This adapter has no allowed actions to test.")
+    action = allowed[0]
     samples = {
         "mcp_gateway": {"name": action, "arguments": {}, "dry_run": True},
         "langchain": {"tool": action, "input": {}, "dry_run": True},
