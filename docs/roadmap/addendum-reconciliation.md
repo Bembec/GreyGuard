@@ -533,7 +533,14 @@ The mega-menus work without scripts (hover and keyboard focus), and the mobile m
 - Screenshots reviewed at 1440 px and 390 px for the homepage, the open mega-menu, Platform, Trust and Agent environments, with no horizontal scroll.
 - Claim tests pass: 14.
 
-Still placeholders: Use cases, Integrations and Resources. Final product screenshots and the tour wait for P7.5, per v3.
+**Completed in the next round (commits `139d3d1`, and the use cases and resources commit):**
+- **Integrations:** a directory of six families with maturity labels. Six new claims, GG-INTG-1..6, sit in an `integrate` group. Cloud secret managers and external policy engines are labelled **preview**, because live resolution and live engine decisions are untested.
+- **Use cases:** six cases by buyer and workflow, plus an "Is GreyGuard right for you?" check.
+- **Resources:** only material that exists today.
+
+Every navigation page now has content. The site check passes on all 17 pages, the claim tests pass (14) and the register holds 35 claims, all proposed. A designer-ready logo brief is published as a shareable document; its source is `docs/brand/logo-design-brief.md`.
+
+Remaining before publication: the owner's claim approvals, W4 (domain and host), W5 (demo route), W8 (counsel's legal pages), the logo masters and the trademark search. Final product screenshots and the tour wait for P7.5, per v3. Next: P7.5's console gap matrix.
 
 ---
 
