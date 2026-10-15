@@ -42,7 +42,7 @@ These were part of the original engineering task's "Operations and structural co
 
 ## P1 — Professional authenticated product experience
 
-**Status: Verified — Phase 1 (design system + shell/nav/login/splash/wizard), Phase 2 (per-page retrofits) and Phase 3 (PWA + accessibility hardening) all complete.** Michael approved beginning P1 and supplied the approved brand pack (`GreyGuard_Brand_Assets.zip`: brand guide, exact palette, logo system, interface asset mapping, prohibited-usage rules). Sequencing (Michael's choice): Phase 1 first as its own reviewable unit, then page retrofits in batches, then PWA/a11y polish last.
+**Status: Verified — Phase 1 (design system + shell/nav/login/splash/wizard), Phase 2 (per-page retrofits) and Phase 3 (PWA + accessibility hardening) all complete.** Michael approved beginning P1 and supplied the approved brand pack (`GreyGuard_Brand_Assets.zip`: brand guide, exact palette, logo system, interface asset mapping, prohibited-usage rules). Sequencing (Michael's choice): Phase 1 first as its own reviewable unit, then page retrofits in batches, then PWA/a11y polish last. **P1.4, the information architecture redesign, is Planned and is a firm final-acceptance requirement (see below).**
 
 | Requirement | Status | Evidence |
 |---|---|---|
@@ -63,6 +63,29 @@ These were part of the original engineering task's "Operations and structural co
 **Verification run for Phase 2:** `npm run check` (lint/101 unit tests/build) clean after each of the four batches; full Playwright e2e suite passing (40-42 tests depending on batch, 1 consistently skipped - no agents registered in this environment) after each batch, including a new `permission-gating.spec.ts` that creates a real AUDITOR administrator and confirms the gating holds in a real browser rather than relying solely on unit-level hook tests.
 
 **Verification run for Phase 3:** `npm run check` (lint/109 unit tests/build) clean after both batches; full Playwright e2e suite passing after each batch (42/43, 1 consistently skipped), split into smaller per-file runs for the accessibility batch due to this machine's own memory constraints rather than any test instability.
+
+### P1.4 — Information architecture redesign (owner requirement, 2026-10-15)
+
+**Status: Planned. Not started. This is a firm final-acceptance requirement.** The project owner accepted the current interface as functional but not final. The release can't pass final acceptance (P10) while every capability is still an equal item in one long sidebar. P1 is closed, so the addendum gives this work no slot of its own. When it runs is decision W0 in [`p7-decision-package.md`](p7-decision-package.md). It doesn't start until the owner approves that slot.
+
+**Baseline (2026-10-15, `frontend/src/config/navigation.ts`):** 35 navigation entries. One is pinned (Command Center) and 34 sit in five groups: Gate 12, Watch 9, Respond 5, Evidence 4, Administration 4. Groups collapse, but every capability inside a group is a top-level item of equal weight. No page uses page-level tabs.
+
+**Acceptance criteria.** All of these must hold:
+
+1. **Navigation by product domain.** Navigation is grouped by product domain into expandable sections. Related capabilities are consolidated under domain workspaces rather than listed as equal siblings. For example, agent identity, service accounts, adapters and enterprise identity sit together under Gate. No section is a long flat list.
+2. **Page-level tabs and contextual actions.** Related views of one subject are tabs on one page, each with a deep link. Actions appear where the record or task is, not only in a global location.
+3. **Role-based visibility retained.** Every section, tab and action is shown or hidden by the same permission checks used today (`usePermission` / `RequirePermission`, mirroring `admin_auth.required_permission()`). Server-side authorization stays authoritative and unchanged. `permission-gating.spec.ts` is extended to cover tabs and contextual actions.
+4. **Rich operational dashboard.** The Command Center shows only real data, never placeholder metrics. It covers pending approvals, recent decisions, agent risk and suspensions, open incidents, evidence-integrity status and org readiness, and each panel drills through to its source page.
+5. **Every page professionally structured, not only the dashboard.** Each page has:
+   - a summary header with meaningful counts or status;
+   - its primary workflow and actions;
+   - filters, plus tables with sorting and paging where the data is tabular;
+   - loading, empty, error, permission and offline states;
+   - inline guidance.
+6. **No functionality lost.** Every route, action and API call that exists today is still reachable. Old URLs redirect to their new location. A route-inventory test proves there are no omissions.
+7. **Security boundaries unchanged.** Backend authorization, CSP and the session and token handling stay as they are. Client-side gating never replaces a server check.
+8. **Accessibility and mobile.** New sections, tabs and menus work by keyboard and screen reader, on mobile and tablet, and with reduced motion.
+9. **Verification bar.** `npm run check`; the full Playwright suite, including `every-page.spec.ts`, `permission-gating.spec.ts` and the new route-inventory test; and a review against a real browser at desktop and phone widths.
 
 ---
 
@@ -287,7 +310,7 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 
 ## P7 — Separate public commercial website
 
-**Status: Deferred.** Explicitly gated behind P1/P2 completion and your approval per both the addendum and your instruction. Not started — no separate site, no separate deployment, nothing in this repository changes for it yet.
+**Status: Deferred; decision package ready (2026-10-15).** Gated behind the owner's approval, as both the addendum and the owner's instruction require. The scope, sequencing and the decisions that need the owner are in [`p7-decision-package.md`](p7-decision-package.md). Not started: there is no site and no deployment.
 
 ---
 
@@ -313,6 +336,7 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 | Trust Center source register, claim register | **In progress** | Trust Center source register built (`docs/trust/source-register.md`, P6.1). The P8 claim register has not been started. |
 | Complete source-code/security PDF | **Planned** | Not started — this is the original task's Phase D deliverable. |
 | Independent security review | **Planned** | Same gap flagged under P0 above; applies here too as a final-acceptance gate. |
+| Application information architecture (P1.4) | **Planned (firm acceptance gate)** | Owner requirement 2026-10-15: domain-grouped, expandable navigation; page-level tabs and contextual actions; a rich operational dashboard; every page professionally structured; role-based visibility and all security boundaries preserved. Criteria are listed under P1.4 above. Final acceptance fails until they are verified. |
 | Backup/restore/upgrade/rollback/tenant-deletion rehearsals | **In progress (partial)** | `scripts/rehearse_production.py`, `scripts/run_disaster_recovery_drill.py`, `scripts/verify_postgresql_parity.py` exist and have run successfully before (per `artifacts/production-rehearsal.json`, dated before this session's changes). The real PostgreSQL backup/restore gap this item depended on is now closed (`postgres_backup_ops.py`, above); tenant deletion is now rehearsed against a real PostgreSQL container (P2.5 verification run): two populated orgs, one deleted, the other's row counts unchanged and the integrity chain still verifying. |
 
 ---
