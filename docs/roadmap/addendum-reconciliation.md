@@ -255,7 +255,7 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 
 ## P6 — Vendor trust and procurement readiness
 
-**Status: Planned/Deferred (mixed).**
+**Status: Planned/Deferred (mixed); decision package prepared, awaiting approval.** The scope, the evidence available for each Trust Center item and the eight decisions needed (T1–T8) are in [`p6-decision-package.md`](p6-decision-package.md). No P6 work has started.
 
 | Sub-item | Status | Evidence |
 |---|---|---|
