@@ -25,7 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 REGISTER = ROOT / "website" / "content" / "claims.json"
 
-GROUPS = {"gate", "watch", "respond", "evidence", "connect", "platform", "trust"}
+GROUPS = {"gate", "watch", "respond", "evidence", "connect", "integrate", "platform", "trust"}
 KINDS = {"capability", "limitation"}
 AVAILABILITY = {"verified", "pilot", "preview", "planned"}
 # How the control acts (decision V3 of the v3 roadmap); separate from how mature it is.

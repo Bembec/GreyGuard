@@ -1,9 +1,66 @@
 ---
 import Base from "../layouts/Base.astro"
-import PageIntro from "../components/PageIntro.astro"
-import InPreparation from "../components/InPreparation.astro"
+import ClaimList from "../components/ClaimList.astro"
+import Icon from "../components/Icon.astro"
+import { getClaim, availabilityLabel } from "../lib/claims"
+import { demoContact } from "../lib/site"
+
+const demoHref = demoContact ?? "/company/#contact"
+
+const categories = [
+  { id: "siem", icon: "evidence", name: "SIEM and log platforms", systems: ["Splunk", "Microsoft Sentinel", "Elastic", "Grafana Loki", "Syslog", "STIX/TAXII", "Signed webhook"], claim: "GG-INTG-1", text: "Send minimized, redacted security evidence to the platform your security team already watches." },
+  { id: "ticketing", icon: "approval", name: "Ticketing", systems: ["Jira", "ServiceNow"], claim: "GG-RESP-4", text: "Open incidents where your responders already work, with single-use approval links." },
+  { id: "notifications", icon: "alert", name: "Notifications and on-call", systems: ["Email", "Slack", "Microsoft Teams", "PagerDuty", "Opsgenie"], claim: "GG-INTG-2", text: "Reach the right person quickly, with quiet hours that critical events can bypass." },
+  { id: "identity", icon: "user", name: "Identity providers", systems: ["Microsoft Entra ID", "Okta", "Auth0", "Any OpenID Connect issuer"], claim: "GG-INTG-3", text: "Administrators sign in with your existing identity provider." },
+  { id: "secrets", icon: "key", name: "Secret managers", systems: ["Environment variables", "HashiCorp Vault", "AWS", "Azure", "GCP"], claim: "GG-INTG-4", extra: "GG-INTG-5", text: "Integrations reference secrets where they already live. GreyGuard never stores the value." },
+  { id: "policy", icon: "gate", name: "Policy engines", systems: ["Open Policy Agent", "Cedar", "Cerbos"], claim: "GG-INTG-6", text: "Bring an existing policy engine into the decision path." },
+]
 ---
-<Base title="Integrations" description="Where GreyGuard's evidence and alerts go: SIEM, ticketing, notifications and identity providers.">
-  <PageIntro eyebrow="Integrations" title="Integrations" lead="Where GreyGuard's evidence and alerts go: SIEM, ticketing, notifications and identity providers." />
-  <InPreparation phase="P7.3" covers={['Each integration and how it is configured', 'What leaves GreyGuard, and how it is minimized', 'A working connector does not imply a partnership']} />
+<Base title="Integrations" description="Where GreyGuard's evidence, alerts and decisions go: SIEM, ticketing, notifications, identity providers, secret managers and policy engines, each with its maturity label.">
+  <section class="hero hero--compact">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container">
+      <p class="eyebrow">Integrations</p>
+      <h1 class="hero__title">Fits the security stack you already run</h1>
+      <p class="hero__lead">GreyGuard sends evidence, alerts and approvals to the tools your teams use every day. Each integration is labelled with its maturity, and every one starts disabled until you enable it.</p>
+      <nav class="subnav" aria-label="Integration categories">
+        {categories.map((category) => <a href={`#${category.id}`}><Icon name={category.icon as never} size={16} />{category.name}</a>)}
+      </nav>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="directory-title">
+    <div class="container">
+      <h2 id="directory-title" class="visually-hidden">Integration directory</h2>
+      <div class="method-grid">
+        {categories.map((category) => {
+          const claim = getClaim(category.claim)
+          return (
+            <article class="method-card integration-card" id={category.id}>
+              <header class="integration-card__head">
+                <span class="icon-tile icon-tile--accent"><Icon name={category.icon as never} size={22} /></span>
+                <span class="badge" data-availability={claim.availability}>{availabilityLabel[claim.availability]}</span>
+              </header>
+              <h3>{category.name}</h3>
+              <p>{category.text}</p>
+              <ul class="system-list">{category.systems.map((system) => <li>{system}</li>)}</ul>
+              <ClaimList ids={category.extra ? [category.claim, category.extra] : [category.claim]} />
+            </article>
+          )
+        })}
+      </div>
+      <p class="fine-print">Naming a product here means GreyGuard supports its format or protocol. It does not imply endorsement by, or a partnership with, its vendor.</p>
+    </div>
+  </section>
+
+  <section class="cta" aria-labelledby="cta-title">
+    <div class="container cta__inner">
+      <h2 id="cta-title">Need an integration that isn't listed?</h2>
+      <p>Tell us what your team runs. The signed webhook covers most platforms today.</p>
+      <div class="hero__actions">
+        <a class="button button--large" href={demoHref}>Talk to us</a>
+        <a class="button button--large button--ghost" href="/environments/">Connect your agents</a>
+      </div>
+    </div>
+  </section>
 </Base>

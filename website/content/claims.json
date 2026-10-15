@@ -551,6 +551,120 @@
       "approved_on": null,
       "review_by": "2027-01-15",
       "pages": []
+    },
+    {
+      "id": "GG-INTG-1",
+      "group": "integrate",
+      "kind": "capability",
+      "availability": "verified",
+      "control": "observed",
+      "claim": "Security evidence can be delivered to Splunk, Microsoft Sentinel, Elastic, Grafana Loki, syslog, STIX/TAXII or a signed webhook.",
+      "scope": "Destinations the customer registers and enables. Format support only; it does not imply a partnership with any vendor.",
+      "evidence": [
+        "backend/tests/test_security_exports.py::test_every_destination_has_an_adapter_payload",
+        "backend/tests/test_security_exports.py::test_signed_webhook_uses_external_key_reference"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-INTG-2",
+      "group": "integrate",
+      "kind": "capability",
+      "availability": "verified",
+      "control": "advisory",
+      "claim": "Security notifications can be sent by email, Slack, Microsoft Teams, PagerDuty or Opsgenie, with quiet hours that critical events can bypass.",
+      "scope": "Destinations the customer registers and enables. Format support only; it does not imply a partnership with any vendor.",
+      "evidence": [
+        "backend/tests/test_notification_delivery.py::test_supported_channel_delivery_evidence",
+        "backend/tests/test_notification_delivery.py::test_critical_event_can_bypass_quiet_hours"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-INTG-3",
+      "group": "integrate",
+      "kind": "capability",
+      "availability": "verified",
+      "control": "enforced",
+      "claim": "Administrators can sign in through an OpenID Connect identity provider, using authorization code with PKCE.",
+      "scope": "Standards-compliant OIDC issuers such as Microsoft Entra ID, Okta or Auth0, configured by an install operator.",
+      "evidence": [
+        "backend/tests/test_enterprise_sso.py::test_begin_login_builds_pkce_authorization_url",
+        "backend/tests/test_enterprise_sso.py::test_complete_login_rs256_happy_path"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-INTG-4",
+      "group": "integrate",
+      "kind": "capability",
+      "availability": "verified",
+      "control": "enforced",
+      "claim": "Integration secrets are referenced from environment variables and resolved just in time; the value is never stored.",
+      "scope": "The built-in environment-variable provider.",
+      "evidence": [
+        "backend/tests/test_secret_integrations.py::test_just_in_time_resolution_never_persists_value",
+        "backend/tests/test_secret_integrations.py::test_provider_status_never_reports_stored_credentials"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-INTG-5",
+      "group": "integrate",
+      "kind": "capability",
+      "availability": "preview",
+      "control": "enforced",
+      "claim": "Secret references can also point to HashiCorp Vault or the AWS, Azure and GCP secret managers.",
+      "scope": "Needs the provider's SDK installed on the server. Reference formats are tested; live resolution against each cloud service is not yet.",
+      "evidence": [
+        "backend/tests/test_secret_integrations.py::test_supported_provider_references_are_valid"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
+    },
+    {
+      "id": "GG-INTG-6",
+      "group": "integrate",
+      "kind": "capability",
+      "availability": "preview",
+      "control": "enforced",
+      "claim": "External policy engines (Open Policy Agent, Cedar and Cerbos) can be connected, off by default and only over HTTPS with a named owner.",
+      "scope": "Connection controls and signed bundles are tested; decisions against each live engine are not yet.",
+      "evidence": [
+        "backend/tests/test_policy_integrations.py::test_adapters_are_disabled_by_default",
+        "backend/tests/test_policy_integrations.py::test_enabled_adapter_requires_https_owner_and_purpose",
+        "backend/tests/test_policy_integrations.py::test_signed_bundle_detects_tampering"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
     }
   ]
 }

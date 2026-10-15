@@ -16,7 +16,7 @@ Each claim records:
 | Field | Meaning |
 |---|---|
 | `id` | `GG-<GROUP>-<n>`, stable once published |
-| `group` | `gate`, `watch`, `respond`, `evidence`, `connect`, `platform` or `trust` |
+| `group` | `gate`, `watch`, `respond`, `evidence`, `connect`, `integrate`, `platform` or `trust` |
 | `kind` | `capability` (what GreyGuard does) or `limitation` (what it does not do, or where coverage ends) |
 | `availability` | `verified`, `pilot`, `preview` or `planned`. The site shows this label beside the claim. |
 | `claim` | The exact sentence the site may use |
