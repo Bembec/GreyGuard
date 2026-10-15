@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .admin_auth import list_administrators
+from .organizations import list_members as list_org_members
 from .alerts import get_alerts
 from .database import database_path, get_administrator_audit_events
 from .policy_control import list_policy_versions
@@ -117,14 +118,17 @@ def build_evidence(filters: dict[str, Any], org_id: str = organizations.DEFAULT_
         policy for policy in list_policy_versions(org_id=org_id)
         if _within(policy.get("created_at"), date_from, date_to)
     ]
+    # The roster is the org's own members only. Listing every administrator on the install here
+    # disclosed other tenants' people (emails, names, roles, last sign-in) in any org's report.
+    last_login = {admin["admin_id"]: admin.get("last_login_at") for admin in list_administrators()}
     administrators = [
         {
-            "admin_id": admin["admin_id"], "email": admin["email"],
-            "display_name": admin["display_name"], "role": admin["role"],
-            "status": admin["status"], "created_at": admin["created_at"],
-            "last_login_at": admin["last_login_at"],
+            "admin_id": member["admin_id"], "email": member["email"],
+            "display_name": member["display_name"], "role": member["operational_role"],
+            "governance_role": member["governance_role"], "status": member["status"],
+            "created_at": member["created_at"], "last_login_at": last_login.get(member["admin_id"]),
         }
-        for admin in list_administrators()
+        for member in list_org_members(org_id)
     ]
     activity = _privileged_activity(date_from, date_to, org_id)
     return {
