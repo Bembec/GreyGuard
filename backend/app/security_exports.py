@@ -56,7 +56,7 @@ def initialize_security_exports():
             # export_queue's reference to `export_destinations` untouched.
             connection.execute("CREATE TABLE export_destinations_org " + _DESTINATIONS_SCHEMA)
             connection.execute(f"""INSERT INTO export_destinations_org ({_DESTINATION_COLUMNS},org_id)
-                SELECT {_DESTINATION_COLUMNS},'org_default' FROM export_destinations""")
+                SELECT {_DESTINATION_COLUMNS},'org_default' FROM export_destinations""")  # nosec B608  # table and column names are code constants (one-time schema migration)
             connection.execute("DROP TABLE export_destinations")
             connection.execute("ALTER TABLE export_destinations_org RENAME TO export_destinations")
         connection.execute("CREATE TABLE IF NOT EXISTS export_destinations " + _DESTINATIONS_SCHEMA)
@@ -125,7 +125,7 @@ def save_destination(name, destination_type, endpoint, enabled, signing_key_refe
                 minimization_profile, rate_limit_per_minute, max_attempts, destination_id, org_id))
         else:
             connection.execute(f"""INSERT INTO export_destinations({_DESTINATION_COLUMNS},org_id)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",  # nosec B608  # column list is a module constant; every value is a bound parameter
                 (destination_id, name.strip(), destination_type, endpoint, int(enabled), signing_key_reference,
                  minimization_profile, rate_limit_per_minute, max_attempts, utc_now(), actor, None, None, None, org_id))
     return next(item for item in list_destinations(org_id) if item["destination_id"] == destination_id)

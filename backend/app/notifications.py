@@ -100,7 +100,7 @@ def initialize_notification_database() -> None:
             columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
             if "org_id" not in columns:
                 connection.execute(f"ALTER TABLE {table} ADD COLUMN org_id TEXT")
-                connection.execute(f"UPDATE {table} SET org_id = 'org_default'")
+                connection.execute(f"UPDATE {table} SET org_id = 'org_default'")  # nosec B608  # table and column names are code constants (one-time schema migration)
 
 
 def sync_notifications() -> int:
@@ -170,7 +170,7 @@ def list_notifications(
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
-            "SELECT * FROM security_notifications" + where
+            "SELECT * FROM security_notifications" + where  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             + " ORDER BY created_at DESC LIMIT ?",
             (*parameters, safe_limit),
         ).fetchall()
@@ -190,7 +190,7 @@ def notification_summary(*, org_id, include_install_level: bool = False) -> dict
                 SUM(CASE WHEN is_read = 0 AND severity = 'CRITICAL' THEN 1 ELSE 0 END),
                 SUM(CASE WHEN is_read = 0 AND severity = 'HIGH' THEN 1 ELSE 0 END)
             FROM security_notifications WHERE {visible}
-        """, visible_parameters).fetchone()
+        """, visible_parameters).fetchone()  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
     return {
         "total": row[0] or 0,
         "unread": row[1] or 0,
@@ -210,11 +210,11 @@ def mark_notification_read(notification_id: str, actor: str, *, org_id,
             SET is_read = 1, read_at = COALESCE(read_at, ?),
                 read_by = COALESCE(read_by, ?)
             WHERE notification_id = ? AND {visible}
-        """, (timestamp, actor, notification_id, *visible_parameters))
+        """, (timestamp, actor, notification_id, *visible_parameters))  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
         if cursor.rowcount == 0:
             raise KeyError("Notification not found.")
         row = connection.execute(
-            f"SELECT * FROM security_notifications WHERE notification_id = ? AND {visible}",
+            f"SELECT * FROM security_notifications WHERE notification_id = ? AND {visible}",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (notification_id, *visible_parameters),
         ).fetchone()
     return _serialize(row)
@@ -228,7 +228,7 @@ def mark_all_notifications_read(actor: str, *, org_id, include_install_level: bo
             UPDATE security_notifications
             SET is_read = 1, read_at = ?, read_by = ?
             WHERE is_read = 0 AND {visible}
-        """, (timestamp, actor, *visible_parameters))
+        """, (timestamp, actor, *visible_parameters))  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
     return cursor.rowcount
 
 
@@ -271,7 +271,7 @@ def update_retention_policy(retention_days: int, actor: str, org_id) -> dict[str
 
 def _expire(connection, scope: str, scope_parameters: tuple, cutoff: str, timestamp: str) -> int:
     expired = connection.execute(
-        f"SELECT source_alert_id, org_id FROM security_notifications WHERE created_at < ? AND {scope}",
+        f"SELECT source_alert_id, org_id FROM security_notifications WHERE created_at < ? AND {scope}",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
         (cutoff, *scope_parameters),
     ).fetchall()
     connection.executemany(
@@ -279,7 +279,7 @@ def _expire(connection, scope: str, scope_parameters: tuple, cutoff: str, timest
         [(row[0], timestamp, row[1]) for row in expired],
     )
     return connection.execute(
-        f"DELETE FROM security_notifications WHERE created_at < ? AND {scope}",
+        f"DELETE FROM security_notifications WHERE created_at < ? AND {scope}",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
         (cutoff, *scope_parameters),
     ).rowcount
 

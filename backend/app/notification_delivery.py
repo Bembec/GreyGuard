@@ -30,7 +30,7 @@ def _rebuild_with_org(c,table,schema,columns,extra_columns=()):
  if not existing or "org_id" in existing:return
  copied=",".join(name for name,_ in extra_columns);source=",".join(name if name in existing else fallback for name,fallback in extra_columns)
  c.execute(f"CREATE TABLE {table}_org {schema}")
- c.execute(f"INSERT INTO {table}_org({columns}{','+copied if copied else ''},org_id) SELECT {columns}{','+source if source else ''},'org_default' FROM {table}")
+ c.execute(f"INSERT INTO {table}_org({columns}{','+copied if copied else ''},org_id) SELECT {columns}{','+source if source else ''},'org_default' FROM {table}")  # nosec B608  # table and column names are code constants (one-time schema migration)
  c.execute(f"DROP TABLE {table}")
  c.execute(f"ALTER TABLE {table}_org RENAME TO {table}")
 def initialize_notification_delivery():
@@ -78,7 +78,7 @@ def save_template(name,event_type,subject_template,body_template,actor,org_id=or
  with sqlite3.connect(database_path) as c:
   old=c.execute("SELECT template_id FROM notification_templates WHERE name=? AND org_id=?",(name.strip(),org_id)).fetchone()
   if old:tid=old[0];c.execute("UPDATE notification_templates SET event_type=?,subject_template=?,body_template=? WHERE template_id=? AND org_id=?",(event_type,subject_template,body_template,tid,org_id))
-  else:c.execute(f"INSERT INTO notification_templates({_TEMPLATE_COLUMNS},org_id) VALUES(?,?,?,?,?,?,?,?)",(tid,name.strip(),event_type,subject_template,body_template,utc_now(),actor,org_id))
+  else:c.execute(f"INSERT INTO notification_templates({_TEMPLATE_COLUMNS},org_id) VALUES(?,?,?,?,?,?,?,?)",(tid,name.strip(),event_type,subject_template,body_template,utc_now(),actor,org_id))  # nosec B608  # column list is a module constant; every value is a bound parameter
  return next(t for t in list_configuration(org_id)["templates"] if t["template_id"]==tid)
 def _fields(text):
  import string

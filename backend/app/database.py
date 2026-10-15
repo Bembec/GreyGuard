@@ -304,14 +304,14 @@ def get_runtime_state(agent_name):
     name; the org_id is read back off the row."""
     with sqlite3.connect(database_path) as connection:
         return _runtime(connection.execute(
-            f"SELECT {RUNTIME_COLUMNS} FROM agent_runtime_states WHERE agent_name = ?", (agent_name,)).fetchone())
+            f"SELECT {RUNTIME_COLUMNS} FROM agent_runtime_states WHERE agent_name = ?", (agent_name,)).fetchone())  # nosec B608  # column list is a module constant; every value is a bound parameter
 
 
 def list_runtime_states():
     """Every agent's runtime state across the install; callers filter by owner (see api.py)."""
     with sqlite3.connect(database_path) as connection:
         rows = connection.execute(
-            f"-- install-wide listing across every org_id; callers filter\nSELECT {RUNTIME_COLUMNS} FROM agent_runtime_states ORDER BY agent_name").fetchall()
+            f"-- install-wide listing across every org_id; callers filter\nSELECT {RUNTIME_COLUMNS} FROM agent_runtime_states ORDER BY agent_name").fetchall()  # nosec B608  # column list is a module constant; every value is a bound parameter
     return [(row[0], _runtime(row)) for row in rows]
 
 
@@ -344,7 +344,7 @@ def record_runtime_decision(agent_name, org_id, risk_added, blocked, block_limit
                                     THEN 'SUSPENDED' ELSE agent_status END,
                 updated_at = ?
             WHERE agent_name = ? AND org_id = ? AND agent_status != 'SUSPENDED'
-            RETURNING """ + RUNTIME_COLUMNS,
+            RETURNING """ + RUNTIME_COLUMNS,  # nosec B608  # column list is a module constant; every value is a bound parameter
             (risk_added, blocked, blocked, block_limit, risk_added, risk_limit, _now(), agent_name, org_id)).fetchone()
     return _runtime(row)
 
@@ -1122,7 +1122,7 @@ def get_tool_requests(
         {where_clause}
         ORDER BY timestamp DESC
         LIMIT ?
-    """
+    """  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
 
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
@@ -1534,7 +1534,7 @@ def get_administrator_audit_events(
             WHERE {scope.format(alias="")}
             ORDER BY id DESC
             LIMIT ?
-            """,
+            """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (*scope_parameters, safe_limit),
         ).fetchall()
 
@@ -1558,7 +1558,7 @@ def get_administrator_audit_events(
             WHERE {scope.format(alias="identities.")}
             ORDER BY events.id DESC
             LIMIT ?
-            """,
+            """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (*scope_parameters, safe_limit),
         ).fetchall()
 
@@ -1582,7 +1582,7 @@ def get_administrator_audit_events(
             WHERE {scope.format(alias="approvals.")}
             ORDER BY approvals.id DESC
             LIMIT ?
-            """,
+            """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (*scope_parameters, safe_limit),
         ).fetchall()
 
@@ -1605,7 +1605,7 @@ def get_administrator_audit_events(
             WHERE {scope.format(alias="executions.")}
             ORDER BY executions.id DESC
             LIMIT ?
-            """,
+            """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (*scope_parameters, safe_limit),
         ).fetchall()
 

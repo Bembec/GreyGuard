@@ -1,0 +1,5 @@
+# Verified false positives (P6.0, 2026-10-15). Each entry is a commit:file:rule:line fingerprint.
+# A deliberately fake ghp_ token: the fixture for GreyGuard's own secret-scanner test.
+2ed6b7e09f7b92d63009de2c7b805a85df709c61:backend/tests/test_final_security_review.py:generic-api-key:8
+# The placeholder value "replace-with-a-secret-of-at-least-16-characters" in the example env file.
+8091f8ec28680e336fe1db401e2d0629f67c71c8:.env.production.example:generic-api-key:3
