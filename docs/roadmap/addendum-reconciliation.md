@@ -502,6 +502,39 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 - Screenshots at 1440 px and 390 px: no horizontal scroll.
 - Open for P7.2: the logo file carries its own navy background box, which shows slightly against the header.
 
+**P7.2–P7.4: the site redesigned against reference sites (commits `da5a0eb`…`7fa390b`).** At the owner's request ("use other website references… do the best and even more"), 12 leading sites were studied from live screenshots:
+- AI-agent security: Zenity, Noma, Lakera, Prompt Security;
+- security: Wiz, CrowdStrike, Snyk, 1Password, Cloudflare;
+- product craft: Linear, Vercel, Stripe.
+
+Their common structure was adopted in GreyGuard's own brand and wording: announcement bar, a sticky header with mega-menus, a hero with a product visual, a connection strip, a problem section, platform sections, a request-path diagram, proof, a closing call to action and a full footer. Nothing was copied.
+
+What the reference sites show and GreyGuard does not have or may not invent was replaced with the claim register: customer logos, testimonials, analyst badges and user counts. Every claim shows its availability and control, and the Trust page publishes the whole register with test counts.
+
+Pages built:
+- **Homepage.**
+- **Platform:** the addendum's nine product-page elements for each of Gate, Watch, Respond and Evidence, with synthetic illustrations.
+- **Proof & Trust:** assurance status, the full claim register, and the T8 evidence-request process.
+- **Agent environments:** connection methods, SDK examples taken from the READMEs, and a coverage table with its planned and not-covered rows.
+- **Company:** principles, and the contact section the demo buttons link to.
+
+The mega-menus work without scripts (hover and keyboard focus), and the mobile menu is a native `<details>` element, so the strict CSP still holds. Decision V3 is implemented: claims carry a `control` field that the validator requires.
+
+**Findings:**
+- **Logo:** every brand-pack logo is a 3D render on a dark rectangle, which the reference sites never show. The artwork is unchanged and only resized: 2.3 MB → 10 KB WebP. Transparent vector masters are an owner commission (`docs/brand/logo-design-brief.md`).
+- **Accuracy fixes made during review:**
+  - "Self-hosted or hosted" became "Runs in your own environment", because no hosted service exists yet.
+  - The illustration's "Risk if approved" became "Risk added", because risk is added at decision time.
+  - The verified count was corrected so it excludes limitations.
+  - Monitor-only's evidence was changed to "Planned".
+
+**Verification for P7.2–P7.4:**
+- `npm run check` passes on every build.
+- Screenshots reviewed at 1440 px and 390 px for the homepage, the open mega-menu, Platform, Trust and Agent environments, with no horizontal scroll.
+- Claim tests pass: 14.
+
+Still placeholders: Use cases, Integrations and Resources. Final product screenshots and the tour wait for P7.5, per v3.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
