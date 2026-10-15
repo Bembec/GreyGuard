@@ -59,23 +59,23 @@ Measured with `scripts/benchmark_load.py` on 2026-10-15. The benchmark ran a rea
 
 **These are observations of one small machine, not capacity commitments.** Every request in every run succeeded.
 
-| Path | SQLite: req/s | SQLite: p95 | PostgreSQL 17: req/s | PostgreSQL 17: p95 |
-|---|---|---|---|---|
-| `GET /health` | 84 | 281 ms | 14 | 1,239 ms |
-| `GET /entitlements` (authenticated read) | 29 | 693 ms | 6.8 | 2,448 ms |
-| `POST /tool-requests` (agent hot path) | 12 | 1,777 ms | 5.0 | 3,777 ms |
-| `GET /gateways/bundle` (policy read plus Ed25519 signing) | 50 | 442 ms | 11 | 1,637 ms |
-| Export queue drain (real queue code, no-op transport) | 121 items/s | — | 11 items/s | — |
-| Live-event streams held open (100 requested) | 100 connected; `/health` p95 992 ms | — | **39 connected**; `/health` p95 3,962 ms | — |
+| Path | SQLite | PostgreSQL 17, no pool | PostgreSQL 17, pooled |
+|---|---|---|---|
+| `GET /health` | 84 req/s · p95 281 ms | 14 req/s · p95 1,239 ms | **93 req/s · p95 190 ms** |
+| `GET /entitlements` (authenticated read) | 29 · p95 693 ms | 6.8 · p95 2,448 ms | **45 · p95 388 ms** |
+| `POST /tool-requests` (agent hot path) | 12 · p95 1,777 ms | 5.0 · p95 3,777 ms | **16 · p95 1,395 ms** |
+| `GET /gateways/bundle` (policy read plus Ed25519 signing) | 50 · p95 442 ms | 11 · p95 1,637 ms | **71 · p95 267 ms** |
+| Export queue drain (real queue code, no-op transport) | 121 items/s | 11 items/s | **119 items/s** |
+| Live-event streams held open (100 requested) | 100 connected | 39 connected | **100 connected** |
 
 ### What the numbers show
 
-- **PostgreSQL, the production database, is 4–11× slower than SQLite here.** The likely cause is in the code: `db_compat.PostgresConnection` opens a new PostgreSQL connection, with authentication, for every database call and closes it afterwards. There is no connection pool, and one request makes many calls (session check, rate-limit counters, observability, the handler itself). Each held live-event stream also polls with its own connections, which is the likely reason only 39 of 100 streams connected.
-- **Even on SQLite, a simple request does several database writes** (rate-limit counters and observability), so `/health` alone reaches only about 84 requests per second.
+- **Without a pool, PostgreSQL was 4–11× slower than SQLite.** `db_compat` opened a new connection, with authentication, for every database call, and one request makes many. A small connection pool (`GREYGUARD_DB_POOL_SIZE`, default 10) took PostgreSQL to SQLite's level or better on every path, and every live stream connected (`artifacts/benchmarks/p3-postgresql-pooled.json`).
+- **Per-request bookkeeping is still heavy.** Even pooled, a simple request does several database writes (rate-limit counters and observability), and the agent hot path writes its evidence. These figures are one process on 4 vCPUs.
 
 ### Follow-up work, in priority order
 
-1. A PostgreSQL connection pool in `db_compat`.
+1. ~~A PostgreSQL connection pool~~. Done.
 2. Database-backed agent runtime state, which is also the HA blocker above.
 3. Cheaper per-request bookkeeping.
 4. Re-measuring after each of these.

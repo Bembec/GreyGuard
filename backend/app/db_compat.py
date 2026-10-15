@@ -154,12 +154,73 @@ class initialization_lock:
         return False
 
 
+# A small connection pool. Opening a PostgreSQL connection (TCP plus authentication) for every
+# database call - and one request makes many - made PostgreSQL 4-11x slower than SQLite in the P3
+# benchmarks. Semantics are unchanged: a connection is handed back only when it is idle with no
+# transaction open (an open one is rolled back first, exactly as closing it would), a broken one
+# is discarded, one idle for a while is checked before reuse, and a forked process starts empty.
+_POOL: dict = {}
+_POOL_LOCK = threading.Lock()
+_POOL_PID = os.getpid()
+POOL_IDLE_CHECK_SECONDS = 30.0
+
+
+def _pool_size() -> int:
+    try:
+        return max(0, min(100, int(os.environ.get("GREYGUARD_DB_POOL_SIZE", "10"))))
+    except ValueError:
+        return 10
+
+
+def _acquire(url, psycopg):
+    global _POOL_PID
+    import time
+    with _POOL_LOCK:
+        if _POOL_PID != os.getpid():
+            _POOL.clear()
+            _POOL_PID = os.getpid()
+        idle = _POOL.setdefault(url, [])
+        while idle:
+            connection, released_at = idle.pop()
+            if connection.closed or connection.broken:
+                continue
+            if time.monotonic() - released_at > POOL_IDLE_CHECK_SECONDS:
+                try:
+                    connection.execute("SELECT 1")
+                    connection.rollback()
+                except psycopg.Error:
+                    connection.close()
+                    continue
+            return connection, False
+    return psycopg.connect(url), True
+
+
+def _release(url, connection, psycopg):
+    import time
+    try:
+        if not connection.closed and not connection.broken and \
+                connection.info.transaction_status != psycopg.pq.TransactionStatus.IDLE:
+            connection.rollback()
+        reusable = not connection.closed and not connection.broken and \
+            connection.info.transaction_status == psycopg.pq.TransactionStatus.IDLE
+    except psycopg.Error:
+        reusable = False
+    if reusable:
+        with _POOL_LOCK:
+            idle = _POOL.setdefault(url, [])
+            if _POOL_PID == os.getpid() and len(idle) < _pool_size():
+                idle.append((connection, time.monotonic()))
+                return
+    connection.close()
+
+
 class PostgresConnection:
     def __init__(self,url: str):
         try:import psycopg
         except ImportError as error:raise RuntimeError("Install psycopg to use PostgreSQL.") from error
-        self._psycopg=psycopg;self._connection=psycopg.connect(url.replace("postgresql+psycopg://","postgresql://"));self.row_factory=None
-        _ensure_extensions(self._connection,psycopg)
+        self._url=url.replace("postgresql+psycopg://","postgresql://")
+        self._psycopg=psycopg;self._connection,fresh=_acquire(self._url,psycopg);self.row_factory=None
+        if fresh:_ensure_extensions(self._connection,psycopg)
     def __enter__(self):return self
     def __exit__(self,error_type,error,_trace):
         if error_type:self._connection.rollback()
@@ -198,7 +259,10 @@ class PostgresConnection:
         return VirtualCursor()
     def commit(self):self._connection.commit()
     def rollback(self):self._connection.rollback()
-    def close(self):self._connection.close()
+    def close(self):
+        if self._connection is not None:
+            _release(self._url,self._connection,self._psycopg)
+            self._connection=None
 
 class _GuardedSqliteConnection(_sqlite.Connection):
     """Routes every statement through tenant_guard.check_statement(), mirroring
