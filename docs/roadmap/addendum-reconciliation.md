@@ -96,7 +96,7 @@ These were part of the original engineering task's "Operations and structural co
 | P1.4.3 | Gate pages: Agents & Identity, Requests & Approvals, Policies & Controls | **Verified** (below) |
 | P1.4.4 | Watch pages: Live Monitoring, Risk & Threats, Telemetry & Sensors | **Verified** (below) |
 | P1.4.5 | Respond and Evidence pages | **Verified** (below) |
-| P1.4.6 | Administration pages and the two investigation pages | Planned |
+| P1.4.6 | Administration pages and the two investigation pages | **Verified** (below) |
 | P1.4.7 | Acceptance: every criterion above, checked in a real browser at desktop and phone widths | Planned |
 
 **P1.4.1 (commit `374e378`).** `frontend/src/config/workspaces.ts` gathers the 34 pages into 12 workspaces across the five domains: Gate 3, Watch 3, Respond 2, Evidence 2 and Administration 2. The sidebar now has 13 entries, down from 35, Command Center included. Abuse Protection moved from Gate to Administration, because it protects the install rather than gating agents.
@@ -189,6 +189,24 @@ Long identifiers now wrap, the Settings value is constrained, and every-page als
 - `npm run check`: lint clean; 158 unit tests pass.
 - Full Playwright suite: 59 passed, 1 skipped (no agents registered), including the archive test and the strengthened 390 px check on every page.
 - Reviewed by screenshot at 1440 px and 390 px: all nine Respond and Evidence pages.
+
+**P1.4.6 (commit `55eb8c2`).** The five Administration pages and the two investigation pages now share the page structure.
+- **Rebuilt on the kit:** Account Security and Abuse Protection.
+  - Revoking a session now needs confirmation, because the list includes the current device.
+  - Abuse Protection warns when a category's enforcement is switched off.
+- **Header, summaries and guidance added:** Getting Started, Settings and Team & Access.
+  - Team's fixed "Enforced roles: 3" is now counted from the role list.
+  - Install operators are counted, with a nudge to keep two, so one can reset the other's password.
+- **Investigation pages** for agents and requests gain the shared header, with their back links and export as page actions.
+
+Two defects were found and fixed:
+- **Agent investigation error for legacy identities.** An agent with a legacy identity showed "Something went wrong: Identity not found", because the page requested credential history for an agent that has no scoped credential. This predates P1.4. The request is now skipped and the panel says there is no credential to manage. A new e2e test opens a real registered agent's investigation and waits for the separately loaded panel to settle. It fails without the fix and passes with it.
+- **Getting Started summary.** The "next step" card showed the step's whole sentence in the large figure font. It now shows a count of remaining steps, with the next step as its hint.
+
+**Verification run for P1.4.6:**
+- `npm run check`: lint clean; 158 unit tests pass.
+- Full Playwright suite: 60 passed, 1 skipped (no agents registered).
+- Reviewed by screenshot at 1440 px and 390 px: all five Administration pages and the agent investigation page.
 
 ---
 
