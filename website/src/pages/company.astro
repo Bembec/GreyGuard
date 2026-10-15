@@ -1,7 +1,11 @@
 ---
 import Base from "../layouts/Base.astro"
 import Icon from "../components/Icon.astro"
-import { demoContact } from "../lib/site"
+import ClaimList from "../components/ClaimList.astro"
+import DemoRequestDestination from "../components/DemoRequestDestination.astro"
+import PlanDisplay from "../components/PlanDisplay.astro"
+import PublicContact from "../components/PublicContact.astro"
+import SupportInformation from "../components/SupportInformation.astro"
 
 // Principles from the roadmap's product boundary: what GreyGuard is, and what it will not become.
 const principles = [
@@ -45,17 +49,29 @@ const principles = [
         <p class="eyebrow">Contact</p>
         <h2 id="contact-title">Talk to us</h2>
         <p class="feature__problem">See GreyGuard run your own agent scenarios on synthetic data, or plan a pilot.</p>
-        {demoContact
-          ? <a class="button button--large" href={demoContact}>Request a demo</a>
-          : <p class="notice">Demo requests are opening soon. Until then, existing contacts can reach the team through their usual channel.</p>}
+        <DemoRequestDestination />
       </div>
       <div class="feature__panel">
         <h3>Security reports</h3>
         <p>Found a vulnerability? Report it privately.</p>
-        <a class="text-link" href="/security/">Responsible disclosure <Icon name="arrow" size={16} /></a>
-        <h3>Trust and evidence</h3>
-        <p>Assurance status, the claim register and evidence requests.</p>
-        <a class="text-link" href="/trust/">Proof & Trust <Icon name="arrow" size={16} /></a>
+        <PublicContact kind="security" />
+        <h3>Support</h3>
+        <PublicContact kind="support" />
+        <SupportInformation />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="plans" aria-labelledby="plans-title">
+    <div class="container feature">
+      <div class="feature__copy">
+        <p class="eyebrow">Plans</p>
+        <h2 id="plans-title">Plans and pricing</h2>
+        <PlanDisplay />
+      </div>
+      <div class="feature__panel">
+        <h3>Included in every plan</h3>
+        <ClaimList ids={["GG-PLAT-4"]} />
       </div>
     </div>
   </section>

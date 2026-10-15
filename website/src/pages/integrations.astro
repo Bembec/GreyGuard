@@ -3,9 +3,9 @@ import Base from "../layouts/Base.astro"
 import ClaimList from "../components/ClaimList.astro"
 import Icon from "../components/Icon.astro"
 import { getClaim, availabilityLabel } from "../lib/claims"
-import { demoContact } from "../lib/site"
+import { demoRequestPath } from "../lib/site"
 
-const demoHref = demoContact ?? "/company/#contact"
+const demoHref = demoRequestPath
 
 const categories = [
   { id: "siem", icon: "evidence", name: "SIEM and log platforms", systems: ["Splunk", "Microsoft Sentinel", "Elastic", "Grafana Loki", "Syslog", "STIX/TAXII", "Signed webhook"], claim: "GG-INTG-1", text: "Send minimized, redacted security evidence to the platform your security team already watches." },

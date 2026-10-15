@@ -1,0 +1,11 @@
+---
+// Support hours and response targets (decisions OPS-02, OPS-03). Nothing is promised until decided.
+import { decided } from "../lib/decisions"
+
+const hours = decided("OPS-02")
+const targets = decided("OPS-03")
+---
+<dl class="support-info">
+  <div><dt>Support hours</dt><dd>{hours ?? "To be published with our support policy."}</dd></div>
+  <div><dt>Response targets</dt><dd>{targets ?? "No response targets are committed yet."}</dd></div>
+</dl>

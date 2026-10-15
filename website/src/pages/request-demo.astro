@@ -1,0 +1,28 @@
+---
+import Base from "../layouts/Base.astro"
+import DemoRequestDestination from "../components/DemoRequestDestination.astro"
+import Icon from "../components/Icon.astro"
+---
+<Base title="Request a demo" description="See GreyGuard run your own agent scenarios on synthetic data.">
+  <section class="hero hero--compact">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container feature">
+      <div class="feature__copy">
+        <p class="eyebrow">Request a demo</p>
+        <h1 class="hero__title">See GreyGuard decide</h1>
+        <p class="hero__lead">A tailored walkthrough: we run your own agent scenarios through GreyGuard on synthetic data, then map how it would connect in your environment.</p>
+        <DemoRequestDestination />
+      </div>
+      <div class="feature__panel">
+        <h3>What to expect</h3>
+        <ol class="feature__how">
+          <li>A short call about your agents and the actions they take.</li>
+          <li>A live walkthrough of decisions, approvals and evidence on synthetic data.</li>
+          <li>A map of the connection method and coverage for your environment.</li>
+        </ol>
+        <h3>Before then</h3>
+        <p><a class="text-link" href="/trust/#claims">Read the claim register <Icon name="arrow" size={16} /></a></p>
+      </div>
+    </div>
+  </section>
+</Base>

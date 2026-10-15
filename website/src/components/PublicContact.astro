@@ -1,0 +1,17 @@
+---
+// A public contact by kind, from config/decisions.json. An undecided contact says so plainly.
+import Icon from "./Icon.astro"
+import { company } from "../lib/decisions"
+
+interface Props { kind: "support" | "security" | "status" }
+const { kind } = Astro.props
+const value = kind === "support" ? company.supportEmail : kind === "security" ? company.securityContact : company.statusPage
+const label = { support: "Email support", security: "Report a vulnerability", status: "Open the status page" }[kind]
+const pending = {
+  support: "A public support address will be published here.",
+  security: "",
+  status: "Live component status is published by the GreyGuard application at its /status page. A public link will appear here.",
+}[kind]
+const href = value && kind === "support" ? `mailto:${value}` : value
+---
+{href ? <a class="text-link" href={href}>{label} <Icon name="arrow" size={16} /></a> : <p class="muted">{pending}</p>}

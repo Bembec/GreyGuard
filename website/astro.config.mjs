@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { defineConfig } from "astro/config"
 
 // Two build modes. "preview" (the default) is for review: unapproved claims are shown, clearly
@@ -8,6 +9,17 @@ const mode = process.env.GREYGUARD_SITE_MODE ?? "preview"
 if (!["preview", "publish"].includes(mode)) throw new Error(`Unknown GREYGUARD_SITE_MODE: ${mode}`)
 const site = process.env.GREYGUARD_SITE_URL
 if (mode === "publish" && !site) throw new Error("A publish build needs GREYGUARD_SITE_URL (decision W4: the domain).")
+
+// The launch-readiness gate (scripts/decisions.py). A publish build stops, listing every open
+// blocking decision and how to resolve it; preview builds never run it, so open decisions never
+// block development.
+if (mode === "publish") {
+  try {
+    execFileSync("python3", ["../scripts/decisions.py", "readiness", "--target", "production"], { stdio: "pipe", encoding: "utf8" })
+  } catch (error) {
+    throw new Error(`Launch readiness gate: not ready for production.\n${error.stdout ?? error.message}`)
+  }
+}
 
 export default defineConfig({
   site: site ?? "https://preview.greyguard.invalid",

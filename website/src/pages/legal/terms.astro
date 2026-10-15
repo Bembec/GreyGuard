@@ -1,15 +1,14 @@
 ---
 import Base from "../../layouts/Base.astro"
 import PageIntro from "../../components/PageIntro.astro"
+import LegalDocument from "../../components/LegalDocument.astro"
+import { isDecided } from "../../lib/decisions"
 ---
-<Base title="Terms" description="The terms that govern use of this site and of GreyGuard." noindex>
+<Base title="Terms" description="The terms that govern use of this site and of GreyGuard." noindex={!isDecided("LEG-02")}>
   <PageIntro eyebrow="Legal" title="Terms" lead="The terms that govern use of this site and of GreyGuard." />
   <section class="section">
     <div class="container">
-      <div class="notice">
-        <h2>Awaiting qualified legal review</h2>
-        <p>This document is being prepared by qualified counsel and is not yet published. Until it is, this page is not indexed and the site must not be released publicly (decision W8).</p>
-      </div>
+      <LegalDocument document="terms" />
     </div>
   </section>
 </Base>

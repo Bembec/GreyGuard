@@ -13,6 +13,7 @@ import "@fontsource/saira/600.css"
 import "@fontsource/saira/700.css"
 import "./styles/global.css"
 import "./styles/page-kit.css"
+import "./styles/brand-slots.generated.css"
 
 const queryClient = new QueryClient({
   defaultOptions: {

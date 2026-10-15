@@ -1,0 +1,11 @@
+---
+// A link to a legal or policy page. Unapproved documents are marked as drafts in preview builds; a
+// publish build refuses them (src/lib/decisions.ts), so a draft is never presented as approved.
+import { legalDocument, type LegalDocument } from "../lib/decisions"
+import { siteMode } from "../lib/site"
+
+interface Props { document: LegalDocument; href: string; label: string }
+const { document, href, label } = Astro.props
+const { approved } = legalDocument(document)
+---
+<a href={href}>{label}{!approved && siteMode === "preview" && <span class="draft-tag"> (draft)</span>}</a>

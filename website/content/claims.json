@@ -665,6 +665,25 @@
       "approved_on": null,
       "review_by": "2027-01-15",
       "pages": []
+    },
+    {
+      "id": "GG-PLAT-4",
+      "group": "platform",
+      "kind": "capability",
+      "availability": "verified",
+      "control": "enforced",
+      "claim": "No plan limit removes the mandatory protections: agent identity, authorization, redaction, evidence, emergency stop, recovery, evidence export and offboarding.",
+      "scope": "Every plan and every restricted state short of deletion, including expired trials and lapsed billing.",
+      "evidence": [
+        "backend/tests/test_tenant_acceptance.py::test_every_restriction_keeps_every_protection",
+        "backend/tests/test_tenant_acceptance.py::test_every_mandatory_protection_has_a_check"
+      ],
+      "owner": "Engineering",
+      "status": "proposed",
+      "approved_by": null,
+      "approved_on": null,
+      "review_by": "2027-01-15",
+      "pages": []
     }
   ]
 }

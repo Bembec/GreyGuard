@@ -1,0 +1,12 @@
+---
+// Plans and prices (decision COM-02). No price is ever shown until one is decided.
+import Icon from "./Icon.astro"
+import { pricing } from "../lib/decisions"
+import { demoRequestPath } from "../lib/site"
+---
+{pricing ? <p>{pricing}</p> : (
+  <div>
+    <p>Pricing depends on how many agents you govern and how GreyGuard is deployed. Talk to us for a quote.</p>
+    <a class="button button--ghost" href={demoRequestPath}>Contact sales <Icon name="arrow" size={16} /></a>
+  </div>
+)}

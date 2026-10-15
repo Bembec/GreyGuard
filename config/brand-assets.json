@@ -1,0 +1,164 @@
+{
+  "format": "greyguard-brand-assets/1",
+  "source_root": "frontend/public",
+  "decision": "BRAND-01, BRAND-02",
+  "how_to_replace": "Put the final file at the slot's path (same name), update width, height and status \"final\" here, then run python scripts/brand_assets.py sync and, for the website, npm run brand in website/. No page or component changes are needed.",
+  "slots": {
+    "lockup-dark": {
+      "use": "Primary lockup on dark backgrounds: console and website headers, footers, splash",
+      "path": "brand/logos/primary/greyguard-primary-stacked.png",
+      "width": 1839,
+      "height": 855,
+      "status": "provisional",
+      "final_requirement": "Transparent lockup for dark backgrounds; SVG master plus PNG/WebP at 1x, 2x and 4x",
+      "fallback": null,
+      "webp": "brand/logos/primary/greyguard-primary-stacked.webp"
+    },
+    "lockup-horizontal-dark": {
+      "use": "Horizontal lockup (mark beside wordmark) for compact headers",
+      "path": "brand/logos/horizontal/greyguard-horizontal-dark.png",
+      "width": 920,
+      "height": 610,
+      "status": "provisional",
+      "final_requirement": "True horizontal lockup, transparent, readable at 160 px wide",
+      "fallback": null,
+      "webp": "brand/logos/horizontal/greyguard-horizontal-dark.webp"
+    },
+    "lockup-light": {
+      "use": "Lockup for light backgrounds: documents, print, light pages",
+      "path": "brand/logos/light/greyguard-lockup-light.png",
+      "width": null,
+      "height": null,
+      "status": "missing",
+      "final_requirement": "Full-colour lockup designed for light backgrounds",
+      "fallback": "lockup-dark"
+    },
+    "symbol": {
+      "use": "Symbol-only mark: collapsed navigation, avatars, compact contexts",
+      "path": "brand/logos/symbol/greyguard-symbol-dark.png",
+      "width": 700,
+      "height": 700,
+      "status": "provisional",
+      "final_requirement": "Flat symbol readable at 16 px, transparent",
+      "fallback": null,
+      "webp": "brand/logos/symbol/greyguard-symbol-dark.webp"
+    },
+    "symbol-mono": {
+      "use": "Single-colour mark for monochrome print and embossing",
+      "path": "brand/logos/mono/greyguard-symbol-mono.png",
+      "width": null,
+      "height": null,
+      "status": "missing",
+      "final_requirement": "White and black single-colour versions of the symbol",
+      "fallback": "symbol"
+    },
+    "favicon-16": {
+      "use": "Browser tab icon, 16 px",
+      "path": "brand/icons/favicon/favicon-16.png",
+      "width": 16,
+      "height": 16,
+      "status": "provisional",
+      "final_requirement": "Simplified pixel-hinted mark at 16 px",
+      "fallback": null,
+      "target_size": "16x16"
+    },
+    "favicon-32": {
+      "use": "Browser tab icon, 32 px",
+      "path": "brand/icons/favicon/favicon-32.png",
+      "width": 32,
+      "height": 32,
+      "status": "provisional",
+      "final_requirement": "Simplified mark at 32 px",
+      "fallback": null,
+      "target_size": "32x32"
+    },
+    "favicon-48": {
+      "use": "Browser and desktop shortcut icon, 48 px",
+      "path": "brand/icons/favicon/favicon-48.png",
+      "width": 48,
+      "height": 48,
+      "status": "provisional",
+      "final_requirement": "Simplified mark at 48 px",
+      "fallback": null,
+      "target_size": "48x48"
+    },
+    "favicon-ico": {
+      "use": "Multi-size ICO for older browsers",
+      "path": "brand/icons/favicon/favicon.ico",
+      "width": null,
+      "height": null,
+      "status": "provisional",
+      "final_requirement": "ICO containing 16, 32 and 48 px",
+      "fallback": null
+    },
+    "apple-touch-180": {
+      "use": "iOS home-screen icon",
+      "path": "brand/icons/application/apple-touch-icon-180.png",
+      "width": 180,
+      "height": 180,
+      "status": "provisional",
+      "final_requirement": "180 px icon on an opaque background",
+      "fallback": null,
+      "target_size": "180x180"
+    },
+    "pwa-192": {
+      "use": "Installable app icon, 192 px",
+      "path": "brand/icons/pwa/icon-192.png",
+      "width": 192,
+      "height": 192,
+      "status": "provisional",
+      "final_requirement": "192 px app icon",
+      "fallback": null,
+      "target_size": "192x192"
+    },
+    "pwa-512": {
+      "use": "Installable app icon, 512 px",
+      "path": "brand/icons/pwa/icon-512.png",
+      "width": 512,
+      "height": 512,
+      "status": "provisional",
+      "final_requirement": "512 px app icon",
+      "fallback": null,
+      "target_size": "512x512"
+    },
+    "pwa-maskable-512": {
+      "use": "Maskable app icon for adaptive launchers",
+      "path": "brand/icons/pwa/icon-maskable-512.png",
+      "width": 512,
+      "height": 512,
+      "status": "provisional",
+      "final_requirement": "512 px icon with the mark inside the 80% safe zone",
+      "fallback": null,
+      "target_size": "512x512"
+    },
+    "social-preview": {
+      "use": "Link preview image for social networks and chat",
+      "path": "brand/social/greyguard-social-1200x630.png",
+      "width": null,
+      "height": null,
+      "status": "missing",
+      "final_requirement": "1200 x 630 px preview image",
+      "fallback": "lockup-dark",
+      "target_size": "1200x630"
+    },
+    "document-logo": {
+      "use": "Logo for generated documents and reports",
+      "path": "brand/documents/greyguard-document-logo.png",
+      "width": null,
+      "height": null,
+      "status": "missing",
+      "final_requirement": "Print-ready lockup for white paper, also as PDF/SVG",
+      "fallback": "lockup-dark"
+    },
+    "splash": {
+      "use": "Optional splash-screen rendering (the metallic hero style)",
+      "path": "brand/logos/primary/greyguard-primary-stacked.png",
+      "width": 1839,
+      "height": 855,
+      "status": "provisional",
+      "final_requirement": "Optional hero rendering rebuilt on the final geometry",
+      "fallback": null,
+      "webp": "brand/logos/primary/greyguard-primary-stacked.webp"
+    }
+  }
+}

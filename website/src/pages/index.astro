@@ -4,9 +4,9 @@ import ClaimList from "../components/ClaimList.astro"
 import DecisionVisual from "../components/DecisionVisual.astro"
 import Icon from "../components/Icon.astro"
 import register from "../../content/claims.json"
-import { demoContact } from "../lib/site"
+import { demoRequestPath } from "../lib/site"
 
-const demoHref = demoContact ?? "/company/#contact"
+const demoHref = demoRequestPath
 
 const connections = ["Python SDK", "JavaScript SDK", "REST API", "Model Context Protocol", "LangChain", "LangGraph", "CrewAI", "AutoGen", "Signed gateways"]
 

@@ -1,5 +1,10 @@
 ---
+import BrandLockup from "./BrandLockup.astro"
+import LegalDocumentLink from "./LegalDocumentLink.astro"
+import { company, productName, tagline } from "../lib/decisions"
 import { footerLinks } from "../lib/site"
+
+const legal: Record<string, "privacy" | "terms" | "cookies" | "subprocessors" | "accessibility"> = { "/legal/privacy/": "privacy", "/legal/terms/": "terms", "/legal/cookies/": "cookies", "/legal/subprocessors/": "subprocessors", "/accessibility/": "accessibility" }
 
 const columns = [
   { heading: "Platform", links: [["Gate", "/platform/#gate"], ["Watch", "/platform/#watch"], ["Respond", "/platform/#respond"], ["Evidence", "/platform/#evidence"]] },
@@ -13,12 +18,9 @@ const year = new Date().getFullYear()
   <div class="container">
     <div class="site-footer__top">
       <div class="site-footer__brand">
-        <picture>
-          <source srcset="/brand/greyguard-primary-480.webp" type="image/webp" />
-          <img src="/brand/greyguard-primary-480.png" alt="GreyGuard" width="220" height="102" loading="lazy" />
-        </picture>
+        <BrandLockup width={220} lazy />
         <p>The security control plane for AI agents: identity, permission, human approval and evidence for every consequential action.</p>
-        <p class="site-footer__tagline">SECURE • MONITOR • CONTROL</p>
+        {tagline && <p class="site-footer__tagline">{tagline}</p>}
       </div>
       {columns.map((column) => (
         <div class="site-footer__column">
@@ -28,9 +30,9 @@ const year = new Date().getFullYear()
       ))}
     </div>
     <div class="site-footer__bottom">
-      <p>© {year} GreyGuard. All rights reserved.</p>
+      <p>© {year} {company.legalEntity ?? productName}. All rights reserved.</p>
       <nav aria-label="Legal and support">
-        <ul>{footerLinks.map((item) => <li><a href={item.href}>{item.label}</a></li>)}</ul>
+        <ul>{footerLinks.map((item) => <li>{legal[item.href] ? <LegalDocumentLink document={legal[item.href]} href={item.href} label={item.label} /> : <a href={item.href}>{item.label}</a>}</li>)}</ul>
       </nav>
     </div>
   </div>

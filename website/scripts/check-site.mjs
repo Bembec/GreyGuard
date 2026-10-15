@@ -4,6 +4,10 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
 import { join, relative } from "node:path"
 
 const dist = new URL("../dist/", import.meta.url).pathname
+const registry = JSON.parse(readFileSync(new URL("../../config/decisions.json", import.meta.url), "utf8"))
+const decided = new Set(registry.decisions.filter((item) => item.status === "decided").map((item) => item.id))
+// Legal pages and the decision that approves each.
+const LEGAL_PAGES = { "legal/privacy/index.html": "LEG-01", "legal/terms/index.html": "LEG-02", "legal/cookies/index.html": "LEG-03", "legal/subprocessors/index.html": "LEG-05" }
 const problems = []
 const fail = (file, message) => problems.push(`${file}: ${message}`)
 
@@ -39,9 +43,24 @@ for (const path of files) {
   if (h1s.length !== 1) fail(file, `has ${h1s.length} <h1> elements; each page needs exactly one`)
   if (!html.includes('href="#main"')) fail(file, "has no skip link")
   for (const label of REQUIRED_NAV) if (!html.includes(`>${label}</a>`)) fail(file, `is missing the "${label}" navigation item`)
-  for (const label of REQUIRED_FOOTER) if (!html.includes(`>${label}</a>`)) fail(file, `is missing the "${label}" footer link`)
+  // A footer link may carry a "(draft)" marker in preview builds while its document is unapproved.
+  for (const label of REQUIRED_FOOTER) if (!html.includes(`>${label}</a>`) && !html.includes(`>${label}<span class="draft-tag">`)) fail(file, `is missing the "${label}" footer link`)
   for (const [, alt] of html.matchAll(/<img\b[^>]*?alt="([^"]*)"/g)) if (alt === undefined) fail(file, "has an image without alt text")
   if (/<img\b(?![^>]*\balt=)/.test(html)) fail(file, "has an image without alt text")
+  // No dead actions: every link goes somewhere and no button sits without a purpose.
+  if (/href=""|href="#"(?=[\s>])/.test(html)) fail(file, "has a link that goes nowhere")
+  if (/<button(?![^>]*\btype=)/.test(html)) fail(file, "has a button with no declared behaviour")
+  // No placeholder copy on customer-facing pages.
+  const text = html.replace(/<[^>]+>/g, " ")
+  if (/lorem ipsum|\bTODO\b|\bFIXME\b|\bTBD\b/i.test(text)) fail(file, "contains placeholder text")
+  // A publish build carries no preview-only markers.
+  if (process.env.GREYGUARD_SITE_MODE === "publish" && /class="(preview-banner|preview-note|draft-tag)"/.test(html)) fail(file, "shows a preview-only marker in a publish build")
+  // A legal document that is not approved is shown only as a labelled draft, and never indexed.
+  const legalDecision = LEGAL_PAGES[file.replaceAll("\\", "/")]
+  if (legalDecision && !decided.has(legalDecision)) {
+    if (!html.includes("Draft: awaiting qualified legal review")) fail(file, `is not approved (${legalDecision}) but is not labelled as a draft`)
+    if (!html.includes('content="noindex, nofollow"')) fail(file, `is not approved (${legalDecision}) but could be indexed`)
+  }
   // Every internal link must resolve to a built file.
   for (const [, href] of html.matchAll(/href="(\/[^"#?]*)"/g)) {
     const target = join(dist, href)

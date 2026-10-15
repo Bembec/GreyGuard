@@ -1,0 +1,149 @@
+{
+  "generatedFrom": "config/brand-assets.json",
+  "slots": {
+    "lockup-dark": {
+      "slot": "lockup-dark",
+      "resolvedFrom": "lockup-dark",
+      "path": "/brand/logos/primary/greyguard-primary-stacked.png",
+      "webp": "/brand/logos/primary/greyguard-primary-stacked.webp",
+      "width": 1839,
+      "height": 855,
+      "provisional": true
+    },
+    "lockup-horizontal-dark": {
+      "slot": "lockup-horizontal-dark",
+      "resolvedFrom": "lockup-horizontal-dark",
+      "path": "/brand/logos/horizontal/greyguard-horizontal-dark.png",
+      "webp": "/brand/logos/horizontal/greyguard-horizontal-dark.webp",
+      "width": 920,
+      "height": 610,
+      "provisional": true
+    },
+    "lockup-light": {
+      "slot": "lockup-light",
+      "resolvedFrom": "lockup-dark",
+      "path": "/brand/logos/primary/greyguard-primary-stacked.png",
+      "webp": "/brand/logos/primary/greyguard-primary-stacked.webp",
+      "width": 1839,
+      "height": 855,
+      "provisional": true
+    },
+    "symbol": {
+      "slot": "symbol",
+      "resolvedFrom": "symbol",
+      "path": "/brand/logos/symbol/greyguard-symbol-dark.png",
+      "webp": "/brand/logos/symbol/greyguard-symbol-dark.webp",
+      "width": 700,
+      "height": 700,
+      "provisional": true
+    },
+    "symbol-mono": {
+      "slot": "symbol-mono",
+      "resolvedFrom": "symbol",
+      "path": "/brand/logos/symbol/greyguard-symbol-dark.png",
+      "webp": "/brand/logos/symbol/greyguard-symbol-dark.webp",
+      "width": 700,
+      "height": 700,
+      "provisional": true
+    },
+    "favicon-16": {
+      "slot": "favicon-16",
+      "resolvedFrom": "favicon-16",
+      "path": "/brand/icons/favicon/favicon-16.png",
+      "webp": null,
+      "width": 16,
+      "height": 16,
+      "provisional": true
+    },
+    "favicon-32": {
+      "slot": "favicon-32",
+      "resolvedFrom": "favicon-32",
+      "path": "/brand/icons/favicon/favicon-32.png",
+      "webp": null,
+      "width": 32,
+      "height": 32,
+      "provisional": true
+    },
+    "favicon-48": {
+      "slot": "favicon-48",
+      "resolvedFrom": "favicon-48",
+      "path": "/brand/icons/favicon/favicon-48.png",
+      "webp": null,
+      "width": 48,
+      "height": 48,
+      "provisional": true
+    },
+    "favicon-ico": {
+      "slot": "favicon-ico",
+      "resolvedFrom": "favicon-ico",
+      "path": "/brand/icons/favicon/favicon.ico",
+      "webp": null,
+      "width": null,
+      "height": null,
+      "provisional": true
+    },
+    "apple-touch-180": {
+      "slot": "apple-touch-180",
+      "resolvedFrom": "apple-touch-180",
+      "path": "/brand/icons/application/apple-touch-icon-180.png",
+      "webp": null,
+      "width": 180,
+      "height": 180,
+      "provisional": true
+    },
+    "pwa-192": {
+      "slot": "pwa-192",
+      "resolvedFrom": "pwa-192",
+      "path": "/brand/icons/pwa/icon-192.png",
+      "webp": null,
+      "width": 192,
+      "height": 192,
+      "provisional": true
+    },
+    "pwa-512": {
+      "slot": "pwa-512",
+      "resolvedFrom": "pwa-512",
+      "path": "/brand/icons/pwa/icon-512.png",
+      "webp": null,
+      "width": 512,
+      "height": 512,
+      "provisional": true
+    },
+    "pwa-maskable-512": {
+      "slot": "pwa-maskable-512",
+      "resolvedFrom": "pwa-maskable-512",
+      "path": "/brand/icons/pwa/icon-maskable-512.png",
+      "webp": null,
+      "width": 512,
+      "height": 512,
+      "provisional": true
+    },
+    "social-preview": {
+      "slot": "social-preview",
+      "resolvedFrom": "lockup-dark",
+      "path": "/brand/logos/primary/greyguard-primary-stacked.png",
+      "webp": "/brand/logos/primary/greyguard-primary-stacked.webp",
+      "width": 1839,
+      "height": 855,
+      "provisional": true
+    },
+    "document-logo": {
+      "slot": "document-logo",
+      "resolvedFrom": "lockup-dark",
+      "path": "/brand/logos/primary/greyguard-primary-stacked.png",
+      "webp": "/brand/logos/primary/greyguard-primary-stacked.webp",
+      "width": 1839,
+      "height": 855,
+      "provisional": true
+    },
+    "splash": {
+      "slot": "splash",
+      "resolvedFrom": "splash",
+      "path": "/brand/logos/primary/greyguard-primary-stacked.png",
+      "webp": "/brand/logos/primary/greyguard-primary-stacked.webp",
+      "width": 1839,
+      "height": 855,
+      "provisional": true
+    }
+  }
+}

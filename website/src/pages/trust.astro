@@ -2,6 +2,7 @@
 import Base from "../layouts/Base.astro"
 import Icon from "../components/Icon.astro"
 import { availabilityLabel, claimsInGroup, controlLabel, type Claim } from "../lib/claims"
+import { company, decided } from "../lib/decisions"
 import { siteMode } from "../lib/site"
 
 const groups = [
@@ -18,11 +19,14 @@ const groups = [
 const testCount = (claim: Claim) => claim.evidence.filter((reference) => reference.includes("::") || /\/test_[^/]+\.py$/.test(reference)).length
 const all = groups.flatMap((group) => claimsInGroup(group.id))
 
+const pentest = decided("LEG-12")
+const certification = decided("LEG-09")
 const status = [
   { icon: "check", title: "Claims with evidence", value: `${all.filter((claim) => claim.availability === "verified" && claim.kind === "capability").length} verified`, text: "Every verified capability is backed by automated tests." },
-  { icon: "alert", title: "Independent penetration test", value: "Not yet performed", text: "We will publish a summary once an independent test is complete." },
-  { icon: "evidence", title: "Certifications", value: "None held", text: "SOC 2, ISO 27001 and similar programmes are planned, not claimed." },
-  { icon: "gate", title: "Vulnerability reporting", value: "Private reporting open", text: "Report issues privately. See responsible disclosure." },
+  { icon: "alert", title: "Independent penetration test", value: pentest ?? "Not independently verified", text: pentest ? "See the published summary." : "No independent test has been performed yet. A summary will be published once one is complete." },
+  // LEG-09 records a plan to pursue certification, never a certificate held, so this never claims one.
+  { icon: "evidence", title: "Certifications", value: "Not currently claimed", text: certification ? `GreyGuard holds no certification today. Planned: ${certification}` : "GreyGuard holds no SOC 2, ISO 27001 or similar certification and does not claim one." },
+  { icon: "gate", title: "Vulnerability reporting", value: company.securityContact ? "Private reporting open" : "Being set up", text: "Report issues privately. See responsible disclosure." },
 ]
 ---
 <Base title="Proof & Trust" description="GreyGuard's assurance status and public claim register: every claim, its scope, its availability and the evidence behind it.">

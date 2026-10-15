@@ -1,0 +1,16 @@
+---
+// Where demo requests go (decision COM-07). Until it is decided, explain plainly; never collect a
+// request that would go nowhere.
+import Icon from "./Icon.astro"
+import { demoDestination } from "../lib/decisions"
+import { siteMode } from "../lib/site"
+---
+{demoDestination ? (
+  <a class="button button--large" href={demoDestination}>Request a demo <Icon name="arrow" size={18} /></a>
+) : (
+  <div class="notice notice--pending" role="note">
+    <p><strong>Online demo requests open soon.</strong></p>
+    <p>We are setting up the request channel. Until it opens, no form is shown, so no request can be lost. Existing contacts can reach the team through their usual channel.</p>
+    {siteMode === "preview" && <p class="preview-note">Preview note: configure decision COM-07 in config/decisions.json (a booking URL or a mailto: address for a monitored inbox).</p>}
+  </div>
+)}

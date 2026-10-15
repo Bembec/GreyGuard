@@ -3,9 +3,9 @@ import Base from "../layouts/Base.astro"
 import ClaimList from "../components/ClaimList.astro"
 import Icon from "../components/Icon.astro"
 import ProductVisual from "../components/ProductVisual.astro"
-import { demoContact } from "../lib/site"
+import { demoRequestPath } from "../lib/site"
 
-const demoHref = demoContact ?? "/company/#contact"
+const demoHref = demoRequestPath
 
 // Every product page carries the addendum's nine elements: buyer problem, how the control works,
 // supported environments, a real or clearly synthetic visual, evidence created, deployment path,

@@ -2,9 +2,9 @@
 import Base from "../layouts/Base.astro"
 import ClaimList from "../components/ClaimList.astro"
 import Icon from "../components/Icon.astro"
-import { demoContact } from "../lib/site"
+import { demoRequestPath } from "../lib/site"
 
-const demoHref = demoContact ?? "/company/#contact"
+const demoHref = demoRequestPath
 
 const cases = [
   {

@@ -1,17 +1,16 @@
 ---
+import BrandLockup from "./BrandLockup.astro"
 import Icon from "./Icon.astro"
-import { consoleUrl, demoContact, primaryNavigation } from "../lib/site"
+import { productName } from "../lib/decisions"
+import { consoleUrl, demoRequestPath, primaryNavigation } from "../lib/site"
 
 const current = Astro.url.pathname
-const demoHref = demoContact ?? "/company/#contact"
+const demoHref = demoRequestPath
 ---
 <header class="site-header">
   <div class="container site-header__inner">
-    <a class="site-logo" href="/" aria-label="GreyGuard home">
-      <picture>
-        <source srcset="/brand/greyguard-primary-480.webp" type="image/webp" />
-        <img src="/brand/greyguard-primary-480.png" alt="GreyGuard" width="165" height="77" />
-      </picture>
+    <a class="site-logo" href="/" aria-label={`${productName} home`}>
+      <BrandLockup width={165} />
     </a>
 
     <nav class="site-nav" aria-label="Main">

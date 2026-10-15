@@ -5,8 +5,8 @@ export const siteMode: SiteMode = process.env.GREYGUARD_SITE_MODE === "publish" 
 /** The separate administrator application. The site only links to its sign-in page. */
 export const consoleUrl = process.env.GREYGUARD_CONSOLE_URL ?? "/sign-in/"
 
-/** The demo-request route (decision W5). Until it is chosen, the call to action explains that. */
-export const demoContact = process.env.GREYGUARD_DEMO_CONTACT ?? null
+/** Every "Request a demo" goes here. The page sends visitors on once COM-07 is decided, and explains otherwise. */
+export const demoRequestPath = "/request-demo/"
 
 export interface MenuLink { label: string; href: string; description: string; icon: string; badge?: string }
 export interface MenuColumn { heading: string; links: MenuLink[] }

@@ -1,0 +1,21 @@
+---
+// One legal page: counsel's approved text when it exists and its decision is made, otherwise a
+// clearly labelled draft notice. A draft is never presented as approved.
+import { legalDocument, type LegalDocument } from "../lib/decisions"
+
+interface Props { document: Exclude<LegalDocument, "accessibility"> }
+const { document } = Astro.props
+const status = legalDocument(document)
+const texts = import.meta.glob<{ Content: unknown }>("../../content/legal/*.md", { eager: true })
+const approvedText = texts[`../../content/legal/${document}.md`] as { Content: (props: object) => unknown } | undefined
+if (status.approved && !approvedText) throw new Error(`The ${document} document is marked approved (${status.decision}) but content/legal/${document}.md is missing.`)
+const Content = approvedText?.Content as never
+---
+{status.approved && Content ? (
+  <article class="legal-text"><Content /></article>
+) : (
+  <div class="notice notice--pending">
+    <h2>Draft: awaiting qualified legal review</h2>
+    <p>This document is being prepared by qualified counsel and has not been approved. It is not indexed, and the site cannot be published until it is approved ({status.decision}).</p>
+  </div>
+)}

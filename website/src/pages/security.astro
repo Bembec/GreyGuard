@@ -1,7 +1,8 @@
 ---
 import Base from "../layouts/Base.astro"
 import PageIntro from "../components/PageIntro.astro"
-const reportUrl = "https://github.com/Bembec/GreyGuard/security/advisories/new"
+import PublicContact from "../components/PublicContact.astro"
+import { company } from "../lib/decisions"
 ---
 <Base title="Responsible disclosure" description="How to report a security vulnerability in GreyGuard.">
   <PageIntro eyebrow="Security" title="Responsible disclosure" lead="If you believe you have found a security vulnerability in GreyGuard, please report it privately so it can be fixed before it is disclosed." />
@@ -9,7 +10,9 @@ const reportUrl = "https://github.com/Bembec/GreyGuard/security/advisories/new"
     <div class="container">
       <div class="notice">
         <h2>How to report</h2>
-        <p>Use the private vulnerability reporting form: <a href={reportUrl}>report a vulnerability</a>. Please don't open a public issue.</p>
+        <p>Use the private vulnerability reporting channel. Please don't open a public issue.</p>
+        <PublicContact kind="security" />
+        {company.securityMailbox && <p>Or email <a href={`mailto:${company.securityMailbox}`}>{company.securityMailbox}</a>.</p>}
         <p class="muted">The same contact is published in the application's <code>/.well-known/security.txt</code>.</p>
       </div>
     </div>

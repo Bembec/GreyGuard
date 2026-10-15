@@ -1,0 +1,14 @@
+---
+// The GreyGuard lockup, by slot. The file behind it is replaced through config/brand-assets.json.
+import { brandAsset } from "../lib/brand"
+import { productName } from "../lib/decisions"
+
+interface Props { width: number; lazy?: boolean; class?: string }
+const { width, lazy = false, class: className } = Astro.props
+const asset = brandAsset("lockup-dark")
+const height = asset.width && asset.height ? Math.round((width * asset.height) / asset.width) : undefined
+---
+<picture class={className} data-brand-slot="lockup-dark">
+  {asset.webp && <source srcset={asset.webp} type="image/webp" />}
+  <img src={asset.path} alt={productName} width={width} height={height} loading={lazy ? "lazy" : undefined} />
+</picture>

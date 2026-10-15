@@ -1,0 +1,19 @@
+/* Generated from config/brand-assets.json by scripts/brand_assets.py sync. Do not edit by hand. */
+:root {
+  --gg-brand-lockup-dark: url("/brand/logos/primary/greyguard-primary-stacked.png");
+  --gg-brand-lockup-horizontal-dark: url("/brand/logos/horizontal/greyguard-horizontal-dark.png");
+  --gg-brand-lockup-light: url("/brand/logos/primary/greyguard-primary-stacked.png");
+  --gg-brand-symbol: url("/brand/logos/symbol/greyguard-symbol-dark.png");
+  --gg-brand-symbol-mono: url("/brand/logos/symbol/greyguard-symbol-dark.png");
+  --gg-brand-favicon-16: url("/brand/icons/favicon/favicon-16.png");
+  --gg-brand-favicon-32: url("/brand/icons/favicon/favicon-32.png");
+  --gg-brand-favicon-48: url("/brand/icons/favicon/favicon-48.png");
+  --gg-brand-favicon-ico: url("/brand/icons/favicon/favicon.ico");
+  --gg-brand-apple-touch-180: url("/brand/icons/application/apple-touch-icon-180.png");
+  --gg-brand-pwa-192: url("/brand/icons/pwa/icon-192.png");
+  --gg-brand-pwa-512: url("/brand/icons/pwa/icon-512.png");
+  --gg-brand-pwa-maskable-512: url("/brand/icons/pwa/icon-maskable-512.png");
+  --gg-brand-social-preview: url("/brand/logos/primary/greyguard-primary-stacked.png");
+  --gg-brand-document-logo: url("/brand/logos/primary/greyguard-primary-stacked.png");
+  --gg-brand-splash: url("/brand/logos/primary/greyguard-primary-stacked.png");
+}

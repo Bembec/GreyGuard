@@ -1,11 +1,14 @@
 import "../../styles/brand.css"
 
+import { brandAsset, type BrandSlot } from "./brandAssets"
+
 type LogoVariant = "primary" | "horizontal" | "symbol"
 
-const SOURCES: Record<LogoVariant, { webp: string; png: string; width: number; height: number }> = {
-  primary: { webp: "/brand/logos/primary/greyguard-primary-stacked.webp", png: "/brand/logos/primary/greyguard-primary-stacked.png", width: 1839, height: 855 },
-  horizontal: { webp: "/brand/logos/horizontal/greyguard-horizontal-dark.webp", png: "/brand/logos/horizontal/greyguard-horizontal-dark.png", width: 920, height: 610 },
-  symbol: { webp: "/brand/logos/symbol/greyguard-symbol-dark.webp", png: "/brand/logos/symbol/greyguard-symbol-dark.png", width: 700, height: 700 },
+/** Each variant is a slot in config/brand-assets.json; the file behind it can change without code changes. */
+const SLOTS: Record<LogoVariant, BrandSlot> = {
+  primary: "lockup-dark",
+  horizontal: "lockup-horizontal-dark",
+  symbol: "symbol",
 }
 
 interface LogoProps {
@@ -14,19 +17,28 @@ interface LogoProps {
 }
 
 /**
- * GreyGuard's approved raster logo marks. All three variants use a baked-in navy
- * background (the brand pack supplies no transparent or light-background variant),
- * so every usage renders inside a fixed-navy chip in both themes - see
- * docs/brand/GreyGuard_Brand_Guide.md ("approved for deep navy ... backgrounds").
+ * GreyGuard's logo, by slot. The current approved artwork has a baked-in navy background (the
+ * brand pack supplies no transparent or light-background variant yet), so every usage renders
+ * inside a fixed-navy chip in both themes - see docs/brand/GreyGuard_Brand_Guide.md.
  */
 export function Logo({ variant, className }: LogoProps) {
-  const source = SOURCES[variant]
+  const asset = brandAsset(SLOTS[variant])
   return (
-    <span className={["gg-logo", `gg-logo--${variant}`, className ?? ""].join(" ").trim()}>
+    <span className={["gg-logo", `gg-logo--${variant}`, className ?? ""].join(" ").trim()} data-brand-slot={asset.slot}>
       <picture>
-        <source srcSet={source.webp} type="image/webp" />
-        <img src={source.png} width={source.width} height={source.height} alt="GreyGuard" />
+        {asset.webp && <source srcSet={asset.webp} type="image/webp" />}
+        <img src={asset.path} width={asset.width ?? undefined} height={asset.height ?? undefined} alt="GreyGuard" />
       </picture>
     </span>
   )
+}
+
+/** The symbol-only mark. */
+export function BrandMark({ className }: { className?: string }) {
+  return <Logo variant="symbol" className={className} />
+}
+
+/** The full lockup. */
+export function BrandLockup({ className, compact = false }: { className?: string; compact?: boolean }) {
+  return <Logo variant={compact ? "horizontal" : "primary"} className={className} />
 }

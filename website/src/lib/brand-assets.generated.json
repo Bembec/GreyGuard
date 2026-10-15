@@ -1,0 +1,45 @@
+{
+  "generatedFrom": "config/brand-assets.json",
+  "slots": {
+    "lockup-dark": {
+      "path": "/brand/lockup-dark.png",
+      "webp": "/brand/lockup-dark.webp",
+      "width": 480,
+      "height": 223,
+      "resolvedFrom": "lockup-dark",
+      "provisional": true
+    },
+    "symbol": {
+      "path": "/brand/symbol.png",
+      "webp": "/brand/symbol.webp",
+      "width": 256,
+      "height": 256,
+      "resolvedFrom": "symbol",
+      "provisional": true
+    },
+    "apple-touch-180": {
+      "path": "/brand/apple-touch-180.png",
+      "webp": null,
+      "width": 180,
+      "height": 180,
+      "resolvedFrom": "apple-touch-180",
+      "provisional": true
+    },
+    "favicon-ico": {
+      "path": "/brand/favicon-ico.ico",
+      "webp": null,
+      "width": null,
+      "height": null,
+      "resolvedFrom": "favicon-ico",
+      "provisional": true
+    },
+    "social-preview": {
+      "path": "/brand/social-preview.png",
+      "webp": null,
+      "width": 1200,
+      "height": 630,
+      "resolvedFrom": "lockup-dark",
+      "provisional": true
+    }
+  }
+}

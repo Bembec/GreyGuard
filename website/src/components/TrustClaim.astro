@@ -1,0 +1,7 @@
+---
+// A single claim from the register, by id. Alias of Claim, named for the slot it fills.
+import Claim from "./Claim.astro"
+
+interface Props { id: string; showScope?: boolean }
+---
+<Claim {...Astro.props} />
