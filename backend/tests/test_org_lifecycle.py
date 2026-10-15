@@ -273,7 +273,7 @@ def test_deletion_removes_every_row_and_file_and_nothing_of_any_other_org(instal
     assert org_lifecycle.verify_certificate({**certificate, "total_rows_deleted": 0}) is False
     # The tombstone frees the slug, and nothing more can happen to the org.
     assert organizations.get_organization(a["org_id"])["status"] == "DELETED"
-    assert organizations.create_organization("Doomed", "system")["slug"] == "doomed"
+    assert organizations.create_organization("Doomed", "system", creator_is_owner=False)["slug"] == "doomed"
     for call in (lambda: api.export_organization_data(a["org_id"], install["operator"]), lambda: delete(a)):
         with pytest.raises(HTTPException):
             call()
