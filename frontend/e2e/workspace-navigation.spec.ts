@@ -99,3 +99,9 @@ test("a platform administrator gets each threat's Review action (the control for
   await expect(page.getByRole("table", { name: "Threats" })).toBeVisible({ timeout: 15_000 })
   expect(await page.getByRole("button", { name: /^Review (?!by$)/ }).count()).toBeGreaterThan(0)
 })
+
+test("the console is dark-only until the light theme is production quality", async ({ page }) => {
+  await openWithSession(page, session, "/dashboard")
+  await expect(page.getByRole("button", { name: "Change appearance" })).toHaveCount(0)
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark")
+})

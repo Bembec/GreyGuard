@@ -4,9 +4,7 @@ import {
   ChevronRight,
   LogOut,
   Menu,
-  Moon,
   Search,
-  Sun,
   X,
 } from "lucide-react"
 import {
@@ -67,9 +65,6 @@ export function AppShell() {
     useState(false)
   const [searchOpen, setSearchOpen] =
     useState(false)
-  const [theme, setTheme] = useState<
-    "dark" | "light"
-  >("dark")
 
   const currentPage = useMemo(
     () => getPageInformation(location.pathname),
@@ -80,9 +75,11 @@ export function AppShell() {
     setMobileOpen(false)
   }, [location.pathname])
 
+  // Dark only for now (owner decision, 2026-10-15): the shell and many page stylesheets still
+  // hard-code dark colours, so the light theme stays hidden until they use the design tokens.
   useEffect(() => {
-    document.documentElement.dataset.theme = theme
-  }, [theme])
+    document.documentElement.dataset.theme = "dark"
+  }, [])
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -252,25 +249,6 @@ export function AppShell() {
               <Search size={17} />
               <span>Search control plane</span>
               <kbd>⌘ K</kbd>
-            </button>
-
-            <button
-              type="button"
-              className="topbar__icon-button"
-              onClick={() =>
-                setTheme((current) =>
-                  current === "dark"
-                    ? "light"
-                    : "dark",
-                )
-              }
-              aria-label="Change appearance"
-            >
-              {theme === "dark" ? (
-                <Sun size={18} />
-              ) : (
-                <Moon size={18} />
-              )}
             </button>
 
             <button
