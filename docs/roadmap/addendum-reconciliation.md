@@ -205,15 +205,20 @@ Frontend `npm run check` is clean: lint, 118 unit tests including 3 new restrict
 
 ## P3 — Deployment packages and service reliability
 
-**Status: Planned/Deferred (mixed).** Not started as a body of work. Partial, pre-existing infrastructure that P3 would build on:
+**Status: Verified, with stated limits.** The deployment models, gateway distribution, the status page, the reliability documentation, measured load and the compatibility policy all exist. HA itself does not exist yet; its blocker was found and is documented below. Customer-managed keys and private connectivity are deliberately not offered.
 
 | Sub-item | Status | Evidence |
 |---|---|---|
-| Node/gateway enrollment and workload identity | **In progress (foundation exists)** | `workload_identities` (this session's Milestone 3) is the closest existing primitive — it's agent-certificate identity, not yet a *gateway/node* enrollment concept. Would need extension, not duplication. |
-| Signed versioned policy/configuration distribution | **Not applicable yet** | `policy_control.py`'s signed policy versions exist for the single-tenant control plane today; a distribution mechanism to external gateways doesn't exist. |
-| HA/failure-mode matrix, load/benchmarks, regional data-placement | **Planned** | Not started. `scripts/benchmark_greyguard.py` exists for basic benchmarking but nothing matrix/multi-region shaped. |
-| Status page, severity/escalation policy | **Planned** | Not started. |
-| API/SDK compatibility matrix and deprecation policy | **In progress (foundation exists)** | `api_versioning.py` + `/api/version` discovery already exist (confirmed in the original review); a published compatibility matrix/deprecation policy document does not. |
+| Deployment models (hosted, hybrid, dedicated, self-hosted) with data boundaries, responsibilities, secrets, backups, telemetry, upgrades, rollback, deletion and support | **Verified (documented)** | `docs/deployment-models.md`, stating what is built and what is not. |
+| Node/gateway enrollment and workload identity | **Verified** | `backend/app/gateways.py`, `docs/gateway-distribution.md`: a one-time enrollment token exchanged for a hashed node credential; nodes are org-scoped and Enterprise-gated; the fleet view shows IN_SYNC/OUT_OF_DATE/SILENT; revocation takes effect at once; offboarding revokes every node. Commit `d3ec0d6`. |
+| Signed versioned policy/configuration distribution | **Verified** | Bundles hold the org's published policy, emergency controls and revoked agents, signed with **Ed25519**. Gateways hold only the public key; the existing HMAC export could not serve this, because its verifier can also forge. The SDK's `greyguard_sdk.gateway` rejects bad signatures, other nodes' bundles, replays and expired bundles. |
+| Bounded offline policy use and revocation freshness | **Verified** | `valid_until` is the node's offline allowance (5 minutes to 7 days). After it, `decide()` fails closed, so the allowance is also the revocation-freshness bound. Tested, including revocation and emergency stop reaching the next bundle. |
+| HA and failure-mode matrix | **Documented; HA not yet available** | `docs/reliability.md`. **Real defect found:** the shipped image ran `--workers 2`, but agent runtime state is per-process, so an agent suspended by one worker was still **allowed** by the other, whose save then reverted the suspension (reproduced with two processes). It was fixed by running one worker and refusing a second server process on the same data directory. Moving runtime state into the database is the documented prerequisite for multi-replica HA. |
+| Load, connection and queue benchmarks | **Verified (measured)** | `scripts/benchmark_load.py` against a real uvicorn server on SQLite and PostgreSQL. The results are in `docs/reliability.md` and `artifacts/benchmarks/`, as observations rather than commitments. **Finding:** PostgreSQL, the production database, measured 4–11× slower than SQLite (`/health` 14 req/s, agent tool requests 5 req/s, 39 of 100 live streams connected), most likely because `db_compat` opens a new PostgreSQL connection for every database call, with no pool. A connection pool is the top performance follow-up, and no capacity figure may be quoted before it is re-measured. |
+| Regional data-placement matrix | **Verified (documented)** | `docs/reliability.md`: single-region per install; multi-region tenancy is not built; Dedicated gives a region choice through a separate install. |
+| Customer-managed keys, private connectivity | **Not offered** | Not implemented or verified, so not offered, per the addendum. |
+| Public status page; severity, escalation, maintenance notices and measured response | **Verified** | `backend/app/service_status.py` and a public `/status` page: live component checks, operator-declared SEV1–SEV4 incidents with escalation routes, maintenance windows, and measured median time to acknowledge and resolve, with no SLA. Commit `bb65bc4`. |
+| API/SDK compatibility matrix and deprecation policy | **Verified (documented)** | `docs/api-compatibility.md`: what v1 promises, the security-fix exception, a minimum 12-month deprecation with `Deprecation`/`Sunset`/`Link` headers (already emitted on legacy paths), and the SDK matrix. |
 
 ---
 
