@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .database import (
     claim_tool_request_execution,
+    count_runtime_states,
     delete_runtime_state,
     ensure_runtime_state,
     get_runtime_state,
@@ -125,7 +126,7 @@ class AgentRuntimeStates:
         return iter(self.keys())
 
     def __len__(self):
-        return len(list_runtime_states())
+        return count_runtime_states()
 
     def pop(self, agent_name, default=None):
         state = get_runtime_state(agent_name)
