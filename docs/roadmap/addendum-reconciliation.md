@@ -66,7 +66,7 @@ These were part of the original engineering task's "Operations and structural co
 
 ### P1.4 — Information architecture redesign (owner requirement, 2026-10-15)
 
-**Status: Verified against criteria 1–7 and 9; criterion 8 has one open item, light theme, which awaits an owner decision (2026-10-15). This is a firm final-acceptance requirement.** The project owner accepted the current interface as functional but not final. The release can't pass final acceptance (P10) while every capability is still an equal item in one long sidebar. The owner approved decisions W0–W11 of [`p7-decision-package.md`](p7-decision-package.md) as recommended, so P1.4 runs before P7.
+**Status: Verified (2026-10-15). This is a firm final-acceptance requirement.** The open light-theme item was resolved by owner decision (a): the console is dark-only. The project owner accepted the current interface as functional but not final. The release can't pass final acceptance (P10) while every capability is still an equal item in one long sidebar. The owner approved decisions W0–W11 of [`p7-decision-package.md`](p7-decision-package.md) as recommended, so P1.4 runs before P7.
 
 **Baseline (2026-10-15, `frontend/src/config/navigation.ts`):** 35 navigation entries. One is pinned (Command Center) and 34 sit in five groups: Gate 12, Watch 9, Respond 5, Evidence 4, Administration 4. Groups collapse, but every capability inside a group is a top-level item of equal weight. No page uses page-level tabs.
 
@@ -219,14 +219,16 @@ Two defects were found and fixed:
 | 5 | Every page professionally structured | **Met** | All 34 pages and both investigation pages have the shared header, guidance and states. Thin pages are rebuilt with summaries, filters and sortable or paged tables. |
 | 6 | No functionality lost | **Met** | Every pre-redesign URL is still routed (unit test). Request bodies are unchanged. The suite's existing behavioural tests pass unmodified, apart from the selector updates recorded under P1.4.1. |
 | 7 | Security boundaries unchanged | **Met** | `git diff 2c4b3d1 HEAD` is empty for `backend/`, `scripts/`, `deployment/`, `frontend/src/api`, `frontend/src/context`, `frontend/src/routes` and `usePermission.ts`. No rate limit was changed; the e2e suite was adapted to the limits instead. |
-| 8 | Accessibility and mobile | **Met, one open item** | Keyboard operation of sections and tabs is tested. Dialogs trap and restore focus. Every page is checked at 390 px for sideways scroll and clipped content. Reduced motion disables the stat-card lift. **Open: light theme.** The shell and many older page stylesheets hard-code dark colours, so with the light toggle on some labels become unreadable (seen on the Command Center and Policies). This predates P1.4: P1 deferred converging colours onto tokens. |
+| 8 | Accessibility and mobile | **Met** (light theme hidden by owner decision) | Keyboard operation of sections and tabs is tested. Dialogs trap and restore focus. Every page is checked at 390 px for sideways scroll and clipped content. Reduced motion disables the stat-card lift. **Open: light theme.** The shell and many older page stylesheets hard-code dark colours, so with the light toggle on some labels become unreadable (seen on the Command Center and Policies). This predates P1.4: P1 deferred converging colours onto tokens. |
 | 9 | Verification bar | **Met** | Below. |
 
 **Open item needing an owner decision: the light theme.** Two options:
 - **(a) Hide the light toggle until the colours converge.** This is small and immediate, and the console stays dark-only.
 - **(b) Converge the shell and the roughly 40 page stylesheets onto the existing tokens.** This is a sizable piece of work, to be scheduled as its own task.
 
-Until one is chosen, criterion 8 is not fully met.
+**Owner decision (2026-10-15): option (a).** The appearance toggle was removed and the console is dark-only (commit `1a30559`). An e2e test checks that the toggle is gone and the page renders dark. The light tokens are kept in `tokens.css`. Converging every stylesheet onto them (option (b)) remains a possible later task; it is not scheduled.
+
+**Verification run after the decision:** `npm run check` clean (158 unit tests); full Playwright suite 64 passed, 1 skipped.
 
 **Verification run for P1.4.7:**
 - `npm run check`: lint clean; 158 unit tests pass.
@@ -483,7 +485,7 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 | Trust Center source register, claim register | **In progress** | Trust Center source register built (`docs/trust/source-register.md`, P6.1). The P8 claim register has not been started. |
 | Complete source-code/security PDF | **Planned** | Not started — this is the original task's Phase D deliverable. |
 | Independent security review | **Planned** | Same gap flagged under P0 above; applies here too as a final-acceptance gate. |
-| Application information architecture (P1.4) | **Verified except light theme (owner decision pending)** | Owner requirement 2026-10-15: domain-grouped, expandable navigation; page-level tabs and contextual actions; a rich operational dashboard; every page professionally structured; role-based visibility and all security boundaries preserved. Criteria are listed under P1.4 above. Final acceptance fails until they are verified. |
+| Application information architecture (P1.4) | **Verified** | Owner requirement 2026-10-15: domain-grouped, expandable navigation; page-level tabs and contextual actions; a rich operational dashboard; every page professionally structured; role-based visibility and all security boundaries preserved. Criteria are listed under P1.4 above. Final acceptance fails until they are verified. |
 | Backup/restore/upgrade/rollback/tenant-deletion rehearsals | **In progress (partial)** | `scripts/rehearse_production.py`, `scripts/run_disaster_recovery_drill.py`, `scripts/verify_postgresql_parity.py` exist and have run successfully before (per `artifacts/production-rehearsal.json`, dated before this session's changes). The real PostgreSQL backup/restore gap this item depended on is now closed (`postgres_backup_ops.py`, above); tenant deletion is now rehearsed against a real PostgreSQL container (P2.5 verification run): two populated orgs, one deleted, the other's row counts unchanged and the integrity chain still verifying. |
 
 ---
