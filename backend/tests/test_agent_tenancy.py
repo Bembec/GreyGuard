@@ -480,6 +480,9 @@ def test_compliance_reports_snapshot_and_stay_within_the_requesting_org(tenants)
     assert not_found(lambda: api.export_compliance_report(report["report_id"], format="json", x_admin_pin=tenants["ours"]))
     assert api.compliance_report_history(tenants["ours"])["reports"] == []
     assert [r["report_id"] for r in api.compliance_report_history(tenants["theirs"])["reports"]] == [report["report_id"]]
+    # The administrator roster is the org's own members, never every account on the install.
+    roster = {admin["email"] for admin in stored["evidence"]["administrator_roster"]}
+    assert roster == {"theirs@greyguard.local"}
 
 
 def test_approval_links_are_issued_and_consumed_only_within_the_requests_org(tenants):
