@@ -271,6 +271,11 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # card data) and its hash-chained billing-event evidence - org-scoped from creation.
     "billing_accounts",
     "billing_events",
+    # P3 (gateways.py): customer-hosted gateway nodes and their event log - org-scoped from
+    # creation. Node credentials and enrollment tokens are looked up by their globally unique
+    # hash first, then scoped by the org_id read back off the row.
+    "gateway_nodes",
+    "gateway_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a

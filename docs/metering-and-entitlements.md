@@ -36,7 +36,7 @@ An org with no assigned plan is **Unassigned**: nothing is enforced, which match
 | Enterprise | all | 200 / 250 | 50 / 100 |
 | Dedicated | all | unlimited | unlimited |
 
-The gated features are SIEM export, incident-system integrations and scheduled reports.
+The gated features are SIEM export, incident-system integrations, scheduled reports and customer-hosted gateway nodes ([gateway-distribution.md](gateway-distribution.md)). Foundation includes none of them.
 
 Monthly controlled requests and deliveries are metered on every plan, but no plan sets a hard limit for them. They are reported against soft limits only:
 

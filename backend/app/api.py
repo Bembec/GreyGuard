@@ -77,6 +77,7 @@ from . import entitlements
 from . import billing
 from . import licensing
 from . import org_lifecycle
+from . import gateways
 
 
 from .policy_control import (
@@ -343,6 +344,7 @@ async def lifespan(_app: FastAPI):
         billing.initialize_billing()
         licensing.initialize_licensing()
         org_lifecycle.initialize_org_lifecycle()
+        gateways.initialize_gateways()
         initialize_isolation_operations()
         initialize_outbound_delivery()
         initialize_enterprise_sso()
@@ -404,7 +406,7 @@ async def observe_request(request: Request, call_next):
 # control - the mandatory protections. Everything else is read-only.
 OFFBOARDING_ALLOWED = re.compile(
     r"^/(auth/|organizations/|compliance-reports|alerts/|billing/contact$|policy-emergency-controls$"
-    r"|agents/[^/]+/credential/revoke$|agents/[^/]+/reset$|secrets/(emergency-revoke|[^/]+/revoke)$|service-accounts/[^/]+/revoke$"
+    r"|agents/[^/]+/credential/revoke$|agents/[^/]+/reset$|gateways/[^/]+/revoke$|secrets/(emergency-revoke|[^/]+/revoke)$|service-accounts/[^/]+/revoke$"
     r"|execution-isolation/emergency-terminate$|capability-removals/actions/emergency-shutdown$"
     r"|enterprise-identity/workloads/[^/]+/revoke$)")
 
@@ -1687,6 +1689,93 @@ def organization_deletion_certificate(org_id: str, x_admin_pin: str | None = Hea
     require_install_operator(x_admin_pin)
     certificate = _lifecycle_call(org_lifecycle.deletion_certificate, org_id)
     return {**certificate, "verified": org_lifecycle.verify_certificate(certificate)}
+
+
+class GatewayCreateRequest(BaseModel):
+    name: str = Field(min_length=3, max_length=100)
+    max_offline_seconds: int = Field(default=gateways.DEFAULT_OFFLINE_SECONDS, ge=gateways.MIN_OFFLINE_SECONDS,
+                                     le=gateways.MAX_OFFLINE_SECONDS)
+
+
+class GatewayEnrollRequest(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+    node_version: str | None = Field(default=None, max_length=100)
+
+
+class GatewayHeartbeatRequest(BaseModel):
+    applied_digest: str | None = Field(default=None, max_length=64)
+    node_version: str | None = Field(default=None, max_length=100)
+
+
+class GatewayRevokeRequest(BaseModel):
+    reason: str = Field(min_length=5, max_length=500)
+
+
+def _gateway_node(x_gateway_node, x_gateway_key):
+    try:
+        return gateways.authenticate(x_gateway_node, x_gateway_key)
+    except gateways.GatewayAuthError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+def _signing_call(function, *args):
+    try:
+        return function(*args)
+    except RuntimeError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+
+@app.get("/gateways")
+def list_gateway_nodes(x_admin_pin: str | None = Header(default=None)):
+    """The org's gateway fleet: which nodes are in sync, out of date or silent past their offline allowance."""
+    return gateways.list_nodes(organizations.resolve_org_id(require_admin(x_admin_pin)))
+
+
+@app.post("/gateways", status_code=201)
+def create_gateway_node(payload: GatewayCreateRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    entitlements.require_feature(org_id, "gateway_nodes")
+    try:
+        return gateways.create_node(org_id, payload.name, policy_actor(administrator), payload.max_offline_seconds)
+    except gateways.GatewayError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/gateways/{node_id}/revoke")
+def revoke_gateway_node(node_id: str, payload: GatewayRevokeRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_platform_admin(x_admin_pin)
+    try:
+        return gateways.revoke_node(organizations.resolve_org_id(administrator), node_id, policy_actor(administrator), payload.reason)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/gateways/distribution-key")
+def gateway_distribution_key():
+    """The public key gateways verify policy bundles with. Public by design."""
+    return _signing_call(gateways.public_key)
+
+
+@app.post("/gateways/enroll")
+def enroll_gateway_node(payload: GatewayEnrollRequest):
+    """Node side: a one-time enrollment token is the only authentication."""
+    try:
+        return _signing_call(gateways.enroll, payload.token, payload.node_version)
+    except gateways.GatewayAuthError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.get("/gateways/bundle")
+def gateway_policy_bundle(x_gateway_node: str | None = Header(default=None), x_gateway_key: str | None = Header(default=None)):
+    return _signing_call(gateways.issue_bundle, _gateway_node(x_gateway_node, x_gateway_key))
+
+
+@app.post("/gateways/heartbeat")
+def gateway_heartbeat(payload: GatewayHeartbeatRequest, x_gateway_node: str | None = Header(default=None),
+                      x_gateway_key: str | None = Header(default=None)):
+    node = _gateway_node(x_gateway_node, x_gateway_key)
+    return gateways.heartbeat(node, payload.applied_digest, payload.node_version)
 
 
 def _require_existing_org(org_id):
