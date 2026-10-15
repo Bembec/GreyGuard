@@ -80,6 +80,7 @@ While an org is offboarding:
   - the org's own sessions, lifecycle and export routes;
   - compliance reports and alert handling;
   - the billing contact;
+  - basic recovery (agent reset);
   - every emergency and revocation control: policy emergency controls, credential, secret, service-account and workload revocation, emergency isolation termination and emergency capability shutdown.
 
 `DELETE /organizations/{org_id}/offboarding` (install operator) cancels offboarding and returns the org to ACTIVE. Revoked credentials stay revoked and disabled integrations stay disabled; they are reissued and re-enabled deliberately.
