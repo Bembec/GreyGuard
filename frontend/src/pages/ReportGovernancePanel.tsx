@@ -1,37 +1,97 @@
-import {CalendarClock,FileSignature,ShieldCheck,Trash2} from "lucide-react"
-import {useEffect,useState} from "react"
-import {ErrorState,LoadingState} from "../components/AsyncState"
-import {useAuth} from "../context/AuthContext"
-import {useToast} from "../context/ToastContext"
-import "../styles/report-governance.css"
-const API=import.meta.env.VITE_API_BASE_URL??"/api"
-type Schedule={schedule_id:string;title:string;frequency:string;enabled:boolean;next_run_at:string}
-type Mapping={framework:string;control:string;evidence:string}
-type Overview={schedules:Schedule[];control_mapping:Mapping[];retention:{data_sets:Array<{data_set:string;records:number}>}}
-export const scheduleState=(enabled:boolean)=>enabled?"ACTIVE":"DISABLED"
-export default function ReportGovernancePanel(){
- const {sessionToken,administrator}=useAuth()
- const {pushToast}=useToast()
- const [data,setData]=useState<Overview|null>(null)
- const [title,setTitle]=useState("Weekly security evidence")
- const [nextRun,setNextRun]=useState("")
- const [loading,setLoading]=useState(true)
- const [loadError,setLoadError]=useState("")
- const headers={"Content-Type":"application/json","X-Admin-Pin":sessionToken??""}
- const load=async()=>{
-  setLoading(true);setLoadError("")
-  try{const r=await fetch(`${API}/report-governance`,{headers});const body=await r.json();if(!r.ok)throw new Error(body.detail??"Unable to load report governance.");setData(body)}
-  catch(error){setLoadError(error instanceof Error?error.message:"Unable to load report governance.")}
-  finally{setLoading(false)}
- }
- useEffect(()=>{void load()},[sessionToken])
- const schedule=async()=>{const r=await fetch(`${API}/report-governance/schedules`,{method:"POST",headers,body:JSON.stringify({title,frequency:"WEEKLY",next_run_at:new Date(nextRun).toISOString()})});const body=await r.json();pushToast({tone:r.ok?"success":"error",title:r.ok?"Report scheduled":"Schedule rejected",message:r.ok?"The report schedule is active.":body.detail});if(r.ok)await load()}
- const disable=async(id:string)=>{const r=await fetch(`${API}/report-governance/schedules/${id}`,{method:"DELETE",headers});if(r.ok)await load()}
- return <section className="report-governance">
-  <header><div><FileSignature/><span><strong>Report governance</strong><small>Signed evidence, scheduling and control mappings</small></span></div></header>
-  {administrator?.role==="PLATFORM_ADMIN"&&<div className="schedule-create"><input value={title} onChange={e=>setTitle(e.target.value)} aria-label="Schedule title"/><input type="datetime-local" value={nextRun} onChange={e=>setNextRun(e.target.value)} aria-label="Next run"/><button disabled={!nextRun} onClick={()=>void schedule()}><CalendarClock size={16}/>Schedule weekly</button></div>}
-  {loading&&<LoadingState label="Loading report governance" rows={3}/>}
-  {!loading&&loadError&&<ErrorState message={loadError} onRetry={()=>void load()}/>}
-  {!loading&&!loadError&&data&&<div className="governance-columns"><article><h3>Scheduled reports</h3>{data.schedules.map(item=><div className="governance-row" key={item.schedule_id}><span><strong>{item.title}</strong><small>{item.frequency} · {new Date(item.next_run_at).toLocaleString()}</small></span><b>{scheduleState(item.enabled)}</b>{item.enabled&&administrator?.role==="PLATFORM_ADMIN"&&<button aria-label={`Disable ${item.title} schedule`} onClick={()=>confirm("Disable this report schedule?")&&void disable(item.schedule_id)}><Trash2 size={14}/></button>}</div>)}</article><article><h3><ShieldCheck size={17}/>Compliance mappings</h3>{data.control_mapping.map(item=><div className="mapping-row" key={`${item.framework}-${item.control}`}><strong>{item.framework} · {item.control}</strong><span>{item.evidence}</span></div>)}</article></div>}
- </section>
+import { useQuery } from "@tanstack/react-query"
+import { CalendarClock, ShieldCheck, Trash2 } from "lucide-react"
+import { useState } from "react"
+
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { ConfirmDialog } from "../components/ConfirmDialog"
+import { DataTable, type Column } from "../components/page/DataTable"
+import { Panel } from "../components/page/Panel"
+import { StatusBadge } from "../components/page/StatusBadge"
+import { useAuth } from "../context/AuthContext"
+import { useToast } from "../context/ToastContext"
+import { adminCall } from "../lib/adminApi"
+
+type Schedule = { schedule_id: string; title: string; frequency: string; enabled: boolean; next_run_at: string }
+type Mapping = { framework: string; control: string; evidence: string }
+type Overview = { schedules: Schedule[]; control_mapping: Mapping[]; retention: { data_sets: Array<{ data_set: string; records: number }> } }
+
+export const scheduleState = (enabled: boolean) => (enabled ? "ACTIVE" : "DISABLED")
+
+export default function ReportGovernancePanel() {
+  const { sessionToken, administrator } = useAuth()
+  const { pushToast } = useToast()
+  const isPlatformAdmin = administrator?.role === "PLATFORM_ADMIN"
+  const governance = useQuery({ queryKey: ["report-governance"], queryFn: () => adminCall<Overview>("/report-governance", sessionToken), enabled: Boolean(sessionToken) })
+  const [title, setTitle] = useState("Weekly security evidence")
+  const [nextRun, setNextRun] = useState("")
+  const [disabling, setDisabling] = useState<Schedule | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const run = async (action: () => Promise<unknown>, success: string, failure: string) => {
+    setBusy(true)
+    try {
+      await action()
+      pushToast({ tone: "success", title: success, message: "The change was recorded." })
+      setDisabling(null)
+      await governance.refetch()
+    } catch (error) {
+      pushToast({ tone: "error", title: failure, message: error instanceof Error ? error.message : "Request failed." })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const scheduleColumns: Column<Schedule>[] = [
+    { key: "title", header: "Report", sortValue: (item) => item.title, render: (item) => <div className="gg-cell-stack"><strong>{item.title}</strong><small>{item.frequency.toLowerCase()}</small></div> },
+    { key: "next", header: "Next run", sortValue: (item) => item.next_run_at, render: (item) => new Date(item.next_run_at).toLocaleString() },
+    { key: "state", header: "State", sortValue: (item) => String(item.enabled), render: (item) => <StatusBadge value={scheduleState(item.enabled)} tone={item.enabled ? "success" : "neutral"} /> },
+    { key: "actions", header: "", align: "end", render: (item) => item.enabled && isPlatformAdmin
+      ? <button type="button" className="gg-button" onClick={() => setDisabling(item)} aria-label={`Disable ${item.title} schedule`}><Trash2 size={14} aria-hidden="true" />Disable</button>
+      : null },
+  ]
+  const mappingColumns: Column<Mapping>[] = [
+    { key: "control", header: "Framework control", sortValue: (item) => `${item.framework} ${item.control}`, render: (item) => <strong>{item.framework} · {item.control}</strong> },
+    { key: "evidence", header: "GreyGuard evidence", render: (item) => item.evidence },
+  ]
+
+  return (
+    <Panel id="report-governance" eyebrow="Governance" title="Scheduled reports and control mappings">
+      <div className="gg-form">
+        {isPlatformAdmin && (
+          <form className="gg-form__row" onSubmit={(event) => { event.preventDefault(); void run(() => adminCall("/report-governance/schedules", sessionToken, { method: "POST", body: { title, frequency: "WEEKLY", next_run_at: new Date(nextRun).toISOString() } }), "Report scheduled", "Schedule rejected") }}>
+            <label className="gg-field">Schedule title<input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+            <label className="gg-field">First run<input type="datetime-local" value={nextRun} onChange={(event) => setNextRun(event.target.value)} /></label>
+            <div className="gg-form__actions" style={{ alignItems: "flex-end" }}><button type="submit" className="gg-button gg-button--primary" disabled={busy || !nextRun}><CalendarClock size={16} aria-hidden="true" />Schedule weekly</button></div>
+          </form>
+        )}
+        {governance.isLoading && <LoadingState label="Loading report governance" rows={3} />}
+        {governance.isError && <ErrorState message={governance.error.message} onRetry={() => void governance.refetch()} />}
+        {governance.data && (
+          <div className="gg-layout gg-layout--even">
+            <div>
+              <h3 className="identity-subheading">Scheduled reports</h3>
+              <DataTable label="Scheduled reports" columns={scheduleColumns} rows={governance.data.schedules} rowKey={(item) => item.schedule_id}
+                empty={<EmptyState icon={<CalendarClock size={28} />} title="No scheduled reports" description="Schedule a weekly evidence report to have it generated automatically." />} />
+            </div>
+            <div>
+              <h3 className="identity-subheading"><ShieldCheck size={14} aria-hidden="true" /> Compliance mappings</h3>
+              <DataTable label="Compliance mappings" columns={mappingColumns} rows={governance.data.control_mapping} rowKey={(item) => `${item.framework}-${item.control}`}
+                empty={<p className="gg-muted">No control mappings.</p>} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={Boolean(disabling)}
+        title={`Disable ${disabling?.title ?? "this schedule"}?`}
+        description="No further reports are generated on this schedule. Reports already produced are kept."
+        confirmLabel="Disable schedule"
+        tone="warning"
+        busy={busy}
+        onCancel={() => setDisabling(null)}
+        onConfirm={() => disabling && void run(() => adminCall(`/report-governance/schedules/${disabling.schedule_id}`, sessionToken, { method: "DELETE" }), "Schedule disabled", "Change rejected")}
+      />
+    </Panel>
+  )
 }

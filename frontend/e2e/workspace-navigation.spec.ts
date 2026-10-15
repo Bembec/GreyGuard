@@ -76,3 +76,26 @@ test("the tab bar stays above a page's own background layers", async ({ page }) 
   await expect(tabs).toBeVisible()
   expect(await tabs.evaluate((element) => { const style = getComputedStyle(element); return [style.position, Number(style.zIndex) >= 1] })).toEqual(["relative", true])
 })
+
+test("sections and tabs work from the keyboard alone", async ({ page }) => {
+  await openWithSession(page, session, "/approvals")
+  const sidebar = page.getByRole("navigation", { name: "Primary navigation" })
+  const evidence = sidebar.getByRole("button", { name: "Evidence" })
+  await evidence.focus()
+  await page.keyboard.press("Enter")
+  await expect(evidence).toHaveAttribute("aria-expanded", "false")
+  await page.keyboard.press("Enter")
+  await expect(evidence).toHaveAttribute("aria-expanded", "true")
+  // Tabs are ordinary links: focus one and follow it with Enter.
+  const tabs = page.getByRole("navigation", { name: "Requests & Approvals sections" })
+  await tabs.getByRole("link", { name: "Tool Requests" }).focus()
+  await page.keyboard.press("Enter")
+  await expect(page).toHaveURL(/\/requests$/)
+  await expect(tabs.getByRole("link", { name: "Tool Requests" })).toHaveAttribute("aria-current", "page")
+})
+
+test("a platform administrator gets each threat's Review action (the control for the AUDITOR check)", async ({ page }) => {
+  await openWithSession(page, session, "/threat-register")
+  await expect(page.getByRole("table", { name: "Threats" })).toBeVisible({ timeout: 15_000 })
+  expect(await page.getByRole("button", { name: /^Review (?!by$)/ }).count()).toBeGreaterThan(0)
+})

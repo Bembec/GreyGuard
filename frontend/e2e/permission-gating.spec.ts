@@ -137,3 +137,17 @@ test("AUDITOR sees only the workspaces and tabs its role may open", async ({ pag
   await expect(controls).toHaveCount(0)
   await expect(page.locator('a[href="/secrets"]')).toHaveCount(0)
 })
+
+test("AUDITOR sees records but not the contextual actions its role may not take", async ({ page }) => {
+  await signInAsAuditor(page)
+  // Threat register: readable by every role, reviewable only by a platform administrator.
+  await page.goto("/threat-register")
+  await expect(page.getByRole("table", { name: "Threats" })).toBeVisible({ timeout: 15_000 })
+  // Each row's action is labelled "Review <threat title>"; the "Review by" column header is a sort control.
+  await expect(page.getByRole("button", { name: /^Review (?!by$)/ })).toHaveCount(0)
+  // Policy change control: an auditor can read versions but cannot draft, approve or reject.
+  await page.goto("/policies")
+  await expect(page.getByRole("region", { name: "Policy versions and approvals" })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole("button", { name: "Create draft" })).toHaveCount(0)
+  await expect(page.getByRole("button", { name: /^(Approve|Reject)$/ })).toHaveCount(0)
+})
