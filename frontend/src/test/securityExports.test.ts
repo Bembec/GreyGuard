@@ -6,3 +6,8 @@ describe("security export health",()=>{
  it("shows awaiting delivery before first result",()=>expect(destinationHealth(base)).toBe("AWAITING DELIVERY"))
  it("shows degraded when delivery failed",()=>expect(destinationHealth({...base,last_error:"timeout"})).toBe("DEGRADED"))
 })
+
+describe("archived destinations",()=>{
+ it("show ARCHIVED ahead of any delivery health",()=>expect(destinationHealth({...base,last_error:"timeout",archived_at:"2026-10-15T00:00:00+00:00"})).toBe("ARCHIVED"))
+ it("keep their normal state until archived",()=>expect(destinationHealth({...base,archived_at:null})).toBe("AWAITING DELIVERY"))
+})

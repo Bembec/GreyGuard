@@ -2,11 +2,12 @@ import {BellRing,RefreshCw,ShieldCheck} from "lucide-react"
 import {useEffect,useState} from "react"
 import {Navigate} from "react-router-dom"
 import {ErrorState,LoadingState} from "../components/AsyncState"
+import {ArchiveDestinationControl,destinationArchiveState} from "../components/ArchiveDestinationControl"
 import {useAuth} from "../context/AuthContext"
 import {useToast} from "../context/ToastContext"
 import "../styles/communication-integrations.css"
 const API=import.meta.env.VITE_API_BASE_URL??"/api"
-type Destination={destination_id:string;name:string;channel:string;endpoint_reference:string;enabled:boolean;minimum_severity:string;quiet_start_hour:number|null;quiet_end_hour:number|null;critical_bypass:boolean;escalation_minutes:number;credentials_stored:boolean}
+type Destination={destination_id:string;name:string;channel:string;endpoint_reference:string;enabled:boolean;minimum_severity:string;quiet_start_hour:number|null;quiet_end_hour:number|null;critical_bypass:boolean;escalation_minutes:number;credentials_stored:boolean;archived_at?:string|null}
 type Config={destinations:Destination[];channels:string[];templates:unknown[];recent_deliveries:Array<{delivery_id:string;status:string;subject:string;attempts:number}>}
 export const deliveryState=(enabled:boolean)=>enabled?"ENABLED":"DISABLED"
 export default function CommunicationIntegrationsPage(){
@@ -35,7 +36,7 @@ export default function CommunicationIntegrationsPage(){
   {!loading&&loadError&&<ErrorState message={loadError} onRetry={()=>void load()}/>}
   {!loading&&!loadError&&data&&<>
    <section className="communications-create"><input placeholder="Destination name" value={name} onChange={e=>setName(e.target.value)}/><select value={channel} onChange={e=>setChannel(e.target.value)}>{(data.channels.length?data.channels:[channel]).map(c=><option key={c}>{c}</option>)}</select><input placeholder="External credential or endpoint ENV reference" value={reference} onChange={e=>setReference(e.target.value.toUpperCase())}/><button onClick={()=>void save()}>Register disabled</button></section>
-   <section className="communications-grid">{data.destinations.map(d=><article key={d.destination_id}><header><BellRing/><div><h2>{d.name}</h2><span>{d.channel}</span></div><b>{deliveryState(d.enabled)}</b></header><code>{d.endpoint_reference}</code><dl><div><dt>Minimum</dt><dd>{d.minimum_severity}</dd></div><div><dt>Quiet hours</dt><dd>{d.quiet_start_hour??"–"}:00–{d.quiet_end_hour??"–"}:00</dd></div><div><dt>Escalation</dt><dd>{d.escalation_minutes} minutes</dd></div><div><dt>Credentials stored</dt><dd>{d.credentials_stored?"Yes":"No"}</dd></div></dl></article>)}</section>
+   <section className="communications-grid">{data.destinations.map(d=><article key={d.destination_id}><header><BellRing/><div><h2>{d.name}</h2><span>{d.channel}</span></div><b>{destinationArchiveState(d.archived_at)??deliveryState(d.enabled)}</b></header><code>{d.endpoint_reference}</code><dl><div><dt>Minimum</dt><dd>{d.minimum_severity}</dd></div><div><dt>Quiet hours</dt><dd>{d.quiet_start_hour??"–"}:00–{d.quiet_end_hour??"–"}:00</dd></div><div><dt>Escalation</dt><dd>{d.escalation_minutes} minutes</dd></div><div><dt>Credentials stored</dt><dd>{d.credentials_stored?"Yes":"No"}</dd></div></dl><ArchiveDestinationControl kind="notification" destinationId={d.destination_id} name={d.name} archivedAt={d.archived_at} onArchived={load}/></article>)}</section>
   </>}
  </main>
 }

@@ -2,11 +2,12 @@ import {Link2,RefreshCw,ShieldCheck,TicketCheck} from "lucide-react"
 import {useEffect,useState} from "react"
 import {Navigate} from "react-router-dom"
 import {ErrorState,LoadingState} from "../components/AsyncState"
+import {ArchiveDestinationControl,destinationArchiveState} from "../components/ArchiveDestinationControl"
 import {useAuth} from "../context/AuthContext"
 import {useToast} from "../context/ToastContext"
 import "../styles/incident-integrations.css"
 const API=import.meta.env.VITE_API_BASE_URL??"/api"
-type Destination={destination_id:string;name:string;system_type:string;endpoint:string;credential_reference:string;project_or_table:string;enabled:boolean;credentials_stored:boolean}
+type Destination={destination_id:string;name:string;system_type:string;endpoint:string;credential_reference:string;project_or_table:string;enabled:boolean;credentials_stored:boolean;archived_at?:string|null}
 type Config={destinations:Destination[];systems:string[];records:Array<{record_id:string;status:string;external_id:string|null}>;approval_links:Array<{link_id:string;request_id:string;expires_at:string;used_at:string|null}>}
 export const approvalLinkState=(used:string|null,expires:string)=>used?"USED":new Date(expires)<=new Date()?"EXPIRED":"ACTIVE"
 export default function IncidentIntegrationsPage(){
@@ -37,7 +38,7 @@ export default function IncidentIntegrationsPage(){
   {!loading&&loadError&&<ErrorState message={loadError} onRetry={()=>void load()}/>}
   {!loading&&!loadError&&data&&<>
    <section className="incident-integrations-create"><input placeholder="Integration name" value={name} onChange={e=>setName(e.target.value)}/><select value={system} onChange={e=>setSystem(e.target.value)}>{(data.systems.length?data.systems:[system]).map(s=><option key={s}>{s}</option>)}</select><input placeholder="HTTPS endpoint" value={endpoint} onChange={e=>setEndpoint(e.target.value)}/><input placeholder="Credential ENV reference" value={reference} onChange={e=>setReference(e.target.value.toUpperCase())}/><input placeholder={system==="JIRA"?"Project key":"Incident table"} value={target} onChange={e=>setTarget(e.target.value)}/><button onClick={()=>void save()}>Register disabled</button></section>
-   <section className="incident-integrations-grid">{data.destinations.map(d=><article key={d.destination_id}><header><TicketCheck/><div><h2>{d.name}</h2><span>{d.system_type}</span></div><b>{d.enabled?"ENABLED":"DISABLED"}</b></header><code>{d.endpoint}</code><dl><div><dt>Target</dt><dd>{d.project_or_table}</dd></div><div><dt>Credential storage</dt><dd>{d.credentials_stored?"Stored":"External reference"}</dd></div></dl></article>)}</section>
+   <section className="incident-integrations-grid">{data.destinations.map(d=><article key={d.destination_id}><header><TicketCheck/><div><h2>{d.name}</h2><span>{d.system_type}</span></div><b>{destinationArchiveState(d.archived_at)??(d.enabled?"ENABLED":"DISABLED")}</b></header><code>{d.endpoint}</code><dl><div><dt>Target</dt><dd>{d.project_or_table}</dd></div><div><dt>Credential storage</dt><dd>{d.credentials_stored?"Stored":"External reference"}</dd></div></dl><ArchiveDestinationControl kind="incident" destinationId={d.destination_id} name={d.name} archivedAt={d.archived_at} onArchived={load}/></article>)}</section>
    <section className="approval-link-evidence"><header><Link2/><div><h2>Approval-link evidence</h2><span>Tokens are never listed after creation.</span></div></header>{data.approval_links.map(link=><article key={link.link_id}><code>{link.request_id}</code><span>{link.expires_at}</span><b>{approvalLinkState(link.used_at,link.expires_at)}</b></article>)}</section>
   </>}
  </main>
