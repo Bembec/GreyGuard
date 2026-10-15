@@ -1,3 +1,4 @@
+import { PageHeader } from "../components/page/PageHeader"
 import { ArrowLeft, Bot, CheckCircle2, ClipboardList, Download, FileJson, RefreshCw, Route, ShieldCheck } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate, useParams } from "react-router-dom"
@@ -33,8 +34,18 @@ export default function RequestDetailPage() {
   const request = bundle.data?.request
   const download = () => { const data = bundle.data; if (!data) return; const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })); const link = document.createElement("a"); link.href = url; link.download = safeBundleFilename(requestId); link.click(); URL.revokeObjectURL(url) }
 
-  return <main className="request-investigation">
-    <header className="request-investigation__hero"><button onClick={() => navigate("/requests")}><ArrowLeft size={17}/> All requests</button><div><span><Route/></span><div><p>Request investigation</p><h1>{request ? String(request.action) : requestId}</h1><code>{requestId}</code></div></div>{bundle.data && <div><button onClick={() => void bundle.refetch()}><RefreshCw size={16}/> Refresh</button><button onClick={download}><Download size={16}/> Export bundle</button></div>}</header>
+  return <main className="request-investigation gg-page-pad">
+    <PageHeader
+      eyebrow="Requests & Approvals · Investigation"
+      title={request ? String(request.action) : requestId}
+      icon={<Route size={22} />}
+      description={<>Why GreyGuard decided as it did, the approval and execution timeline, and the redacted evidence for request <code className="gg-code">{requestId}</code>.</>}
+      actions={<>
+        <button type="button" className="gg-button" onClick={() => navigate("/requests")}><ArrowLeft size={16} aria-hidden="true"/>All requests</button>
+        {bundle.data && <button type="button" className="gg-button" onClick={() => void bundle.refetch()}><RefreshCw size={16} aria-hidden="true"/>Refresh</button>}
+        {bundle.data && <button type="button" className="gg-button gg-button--primary" onClick={download}><Download size={16} aria-hidden="true"/>Export bundle</button>}
+      </>}
+    />
 
     {bundle.isLoading && <LoadingState label="Loading request investigation" rows={6}/>}
     {bundle.isError && <ErrorState message={bundle.error.message} onRetry={() => void bundle.refetch()}/>}

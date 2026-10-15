@@ -1,3 +1,4 @@
+import { PageHeader } from "../components/page/PageHeader"
 import { Activity, ArrowLeft, Bot, Clock3, FileSearch, Fingerprint, KeyRound, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
@@ -52,17 +53,23 @@ export default function AgentDetailPage() {
   const credentialHistory = useQuery({
     queryKey: ["agent-credential-history", agentName, credentialHistoryOffset],
     queryFn: () => loadCredentialHistory(agentName, credentialHistoryOffset),
-    enabled: Boolean(agentName),
+    // A legacy agent has no scoped credential, so it has no credential history to load.
+    enabled: Boolean(agentName) && Boolean(investigation.data?.agent.identity),
   })
 
   const agent = investigation.data?.agent
 
-  return <main className="agent-investigation">
-    <header className="agent-investigation__hero">
-      <button type="button" onClick={() => navigate("/agents")}><ArrowLeft size={17}/> All agents</button>
-      <div><span><Bot size={20}/></span><div><p>Agent investigation</p><h1>{agent?.agent_name ?? agentName}</h1><small>Correlated identity, risk, authentication and controlled-execution evidence.</small></div></div>
-      {investigation.data && <button type="button" onClick={() => void investigation.refetch()}><RefreshCw size={17}/> Refresh evidence</button>}
-    </header>
+  return <main className="agent-investigation gg-page-pad">
+    <PageHeader
+      eyebrow="Agents & Identity · Investigation"
+      title={agent?.agent_name ?? agentName}
+      icon={<Bot size={22} />}
+      description="Correlated identity, risk, authentication, credential and controlled-execution evidence for one agent."
+      actions={<>
+        <button type="button" className="gg-button" onClick={() => navigate("/agents")}><ArrowLeft size={16} aria-hidden="true"/>All agents</button>
+        {investigation.data && <button type="button" className="gg-button" onClick={() => void investigation.refetch()}><RefreshCw size={16} aria-hidden="true"/>Refresh</button>}
+      </>}
+    />
 
     {investigation.isLoading && <LoadingState label="Loading agent investigation" rows={6}/>}
     {investigation.isError && <ErrorState message={investigation.error.message} onRetry={() => void investigation.refetch()}/>}
@@ -93,7 +100,8 @@ export default function AgentDetailPage() {
 
         <section className="investigation-card">
           <header><KeyRound/><div><h2>Credential history</h2><p>Issue, rotation, and revocation evidence &mdash; never the credential itself.</p></div></header>
-          {credentialHistory.isLoading && <LoadingState label="Loading credential history" rows={3}/>}
+          {!agent.identity && <EmptyState title="No scoped credential" description="This agent uses a legacy identity, so there is no credential to issue, rotate or revoke."/>}
+          {agent.identity && credentialHistory.isLoading && <LoadingState label="Loading credential history" rows={3}/>}
           {credentialHistory.isError && <ErrorState message={credentialHistory.error.message} onRetry={() => void credentialHistory.refetch()}/>}
           {credentialHistory.data && (credentialHistory.data.events.length === 0
             ? <EmptyState title="No credential events" description="No issue, rotation, or revocation events are recorded for this agent."/>

@@ -38,6 +38,16 @@ for(const item of navigationItems){
 }
 
 test("unknown agent detail page fails gracefully",async({page})=>{await expectHealthyPage(page,"/agents/no-such-agent")})
+test("a registered agent's investigation page loads every panel",async({page})=>{
+ await expectHealthyPage(page,"/agents")
+ const agents=await page.evaluate(async()=>{const response=await fetch("/api/agents",{headers:{"X-Admin-Pin":sessionStorage.getItem("greyguard_admin_pin")??""}});return (await response.json()) as Array<{agent_name:string}>})
+ test.skip(agents.length===0,"no agents registered in this environment")
+ await expectHealthyPage(page,`/agents/${encodeURIComponent(agents[0].agent_name)}`)
+ await expect(page.getByRole("heading",{name:"Credential history"})).toBeVisible()
+ // The credential panel loads separately (with a retry), so wait for it to settle before judging it.
+ await expect(page.getByRole("status",{name:"Loading credential history"})).toHaveCount(0,{timeout:15_000})
+ await expect(page.getByText("Something went wrong"),"a panel shows an error state").toHaveCount(0)
+})
 test("unknown request detail page fails gracefully",async({page})=>{await expectHealthyPage(page,"/requests/no-such-request")})
 test("settings shows the organization's plan and lifecycle from the real backend",async({page})=>{
  await expectHealthyPage(page,"/settings")

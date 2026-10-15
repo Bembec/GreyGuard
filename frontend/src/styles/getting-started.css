@@ -1,7 +1,5 @@
 .getting-started {
-  display: grid;
-  gap: 1.5rem;
-  max-width: 60rem;
+  gap: 1.25rem;
 }
 
 .getting-started-hero p {

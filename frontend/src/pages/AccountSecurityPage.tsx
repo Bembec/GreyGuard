@@ -1,38 +1,153 @@
+import { useQuery } from "@tanstack/react-query"
 import { Fingerprint, KeyRound, Laptop, RefreshCw, ShieldCheck, Trash2 } from "lucide-react"
-import { useEffect, useState } from "react"
-import { ErrorState, LoadingState } from "../components/AsyncState"
-import { useAuth } from "../context/AuthContext"
-import "../styles/account-security.css"
+import { useState } from "react"
 
-type Session={session_id:string;created_at:string;expires_at:string;revoked_at:string|null;device_name:string|null;ip_address:string|null;last_seen_at:string|null}
-export const sessionState=(session:Session)=>session.revoked_at?"Revoked":new Date(session.expires_at)<=new Date()?"Expired":"Active"
-const API=import.meta.env.VITE_API_BASE_URL??"/api"
-export default function AccountSecurityPage(){
- const {sessionToken,administrator}=useAuth()
- const [sessions,setSessions]=useState<Session[]>([])
- const [secret,setSecret]=useState("")
- const [code,setCode]=useState("")
- const [message,setMessage]=useState("")
- const [loading,setLoading]=useState(true)
- const [loadError,setLoadError]=useState("")
- const headers={"Content-Type":"application/json","X-Admin-Pin":sessionToken??""}
- const load=async()=>{
-  setLoading(true);setLoadError("")
-  try{const response=await fetch(`${API}/auth/sessions`,{headers});const body=await response.json();if(!response.ok)throw new Error(body.detail??"Unable to load sessions.");setSessions(body.sessions)}
-  catch(error){setLoadError(error instanceof Error?error.message:"Unable to load sessions.")}
-  finally{setLoading(false)}
- }
- useEffect(()=>{void load()},[sessionToken])
- const enroll=async()=>{const response=await fetch(`${API}/auth/mfa/enroll`,{method:"POST",headers});const body=await response.json();if(!response.ok){setMessage(body.detail);return}setSecret(body.secret);setMessage("Add this secret to your authenticator, then confirm the six-digit code.")}
- const confirm=async()=>{const response=await fetch(`${API}/auth/mfa/confirm`,{method:"POST",headers,body:JSON.stringify({code})});const body=await response.json();if(!response.ok){setMessage(body.detail);return}setSecret("");setCode("");setMessage("Multi-factor authentication enabled.")}
- const revoke=async(id:string)=>{await fetch(`${API}/auth/sessions/${id}`,{method:"DELETE",headers});setMessage("Device session revoked.");await load()}
- return <main className="account-security-page">
-  <section className="account-security-hero"><div><p><ShieldCheck size={15}/> Operator protection</p><h1>Account Security</h1><span>Protect {administrator?.email} with MFA and review signed-in devices.</span></div><button onClick={()=>void load()}><RefreshCw size={16}/> Refresh</button></section>
-  {message&&<p className="account-security-message">{message}</p>}
-  <section className="account-security-grid"><article><header><Fingerprint/><div><strong>Authenticator MFA</strong><small>{administrator?.mfa_enabled?"Enabled":"Enrollment available"}</small></div></header><p>Require a time-based six-digit code after password verification.</p>{!secret?<button onClick={()=>void enroll()}><KeyRound size={16}/> {administrator?.mfa_enabled?"Replace authenticator":"Set up MFA"}</button>:<div className="mfa-enrollment"><label>One-time setup secret<code>{secret}</code></label><label>Six-digit code<input inputMode="numeric" maxLength={6} value={code} onChange={event=>setCode(event.target.value.replace(/\D/g,""))}/></label><button disabled={code.length!==6} onClick={()=>void confirm()}>Confirm MFA</button></div>}</article><article><header><KeyRound/><div><strong>Password lifecycle</strong><small>Automatic expiration</small></div></header><p>Expires: {administrator?.password_expires_at?new Date(administrator.password_expires_at).toLocaleString():"Not recorded"}</p><span className="security-note">Password resets revoke every active session.</span></article></section>
-  {loading&&<LoadingState label="Loading session inventory" rows={3}/>}
-  {!loading&&loadError&&<ErrorState message={loadError} onRetry={()=>void load()}/>}
-  {!loading&&!loadError&&
-  <section className="sessions-panel"><header><Laptop/><div><strong>Device and session inventory</strong><small>{sessions.length} recorded sessions</small></div></header>{sessions.map(session=><article key={session.session_id}><div><strong>{session.device_name||"Unknown device"}</strong><small>{session.ip_address||"Unknown address"} · created {new Date(session.created_at).toLocaleString()}</small></div><span className={`session-state ${sessionState(session).toLowerCase()}`}>{sessionState(session)}</span>{!session.revoked_at&&<button onClick={()=>void revoke(session.session_id)}><Trash2 size={15}/> Revoke</button>}</article>)}</section>}
- </main>
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { ConfirmDialog } from "../components/ConfirmDialog"
+import { DataTable, type Column } from "../components/page/DataTable"
+import { FilterBar } from "../components/page/FilterBar"
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
+import { Panel } from "../components/page/Panel"
+import { StatCard, StatGrid } from "../components/page/StatCard"
+import { StatusBadge } from "../components/page/StatusBadge"
+import { relativeTime } from "../components/page/timeFormat"
+import { useAuth } from "../context/AuthContext"
+import { useToast } from "../context/ToastContext"
+import { adminCall } from "../lib/adminApi"
+
+type Session = { session_id: string; created_at: string; expires_at: string; revoked_at: string | null; device_name: string | null; ip_address: string | null; last_seen_at: string | null }
+
+export const sessionState = (session: Session) => (session.revoked_at ? "Revoked" : new Date(session.expires_at) <= new Date() ? "Expired" : "Active")
+
+const SESSION_TONE = { Active: "success", Expired: "neutral", Revoked: "neutral" } as const
+
+export default function AccountSecurityPage() {
+  const { sessionToken, administrator } = useAuth()
+  const { pushToast } = useToast()
+  const sessions = useQuery({ queryKey: ["auth-sessions"], queryFn: () => adminCall<{ sessions: Session[] }>("/auth/sessions", sessionToken), enabled: Boolean(sessionToken) })
+  const [secret, setSecret] = useState("")
+  const [code, setCode] = useState("")
+  const [mfaJustEnabled, setMfaJustEnabled] = useState(false)
+  const [filter, setFilter] = useState("Active")
+  const [revoking, setRevoking] = useState<Session | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const all = sessions.data?.sessions ?? []
+  const visible = all.filter((item) => filter === "ALL" || sessionState(item) === filter)
+  const mfaEnabled = Boolean(administrator?.mfa_enabled) || mfaJustEnabled
+  const passwordExpires = administrator?.password_expires_at ? new Date(administrator.password_expires_at) : null
+  const passwordDaysLeft = passwordExpires ? Math.ceil((passwordExpires.getTime() - Date.now()) / 86_400_000) : null
+
+  const enroll = async () => {
+    try {
+      const body = await adminCall<{ secret: string }>("/auth/mfa/enroll", sessionToken, { method: "POST" })
+      setSecret(body.secret)
+    } catch (error) {
+      pushToast({ tone: "error", title: "MFA enrollment failed", message: error instanceof Error ? error.message : "Request failed." })
+    }
+  }
+  const confirmMfa = async () => {
+    try {
+      await adminCall("/auth/mfa/confirm", sessionToken, { method: "POST", body: { code } })
+      setSecret(""); setCode(""); setMfaJustEnabled(true)
+      pushToast({ tone: "success", title: "Multi-factor authentication enabled", message: "Your next sign-in will ask for a six-digit code." })
+    } catch (error) {
+      pushToast({ tone: "error", title: "Code not accepted", message: error instanceof Error ? error.message : "Request failed." })
+    }
+  }
+  const revoke = async () => {
+    if (!revoking) return
+    setBusy(true)
+    try {
+      await adminCall(`/auth/sessions/${revoking.session_id}`, sessionToken, { method: "DELETE" })
+      pushToast({ tone: "success", title: "Device session revoked", message: "That device must sign in again." })
+      setRevoking(null)
+      await sessions.refetch()
+    } catch (error) {
+      pushToast({ tone: "error", title: "Revocation failed", message: error instanceof Error ? error.message : "Request failed." })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const columns: Column<Session>[] = [
+    { key: "device", header: "Device", sortValue: (item) => item.device_name, render: (item) => <div className="gg-cell-stack"><strong>{item.device_name || "Unknown device"}</strong><small>{item.ip_address || "Unknown address"}</small></div> },
+    { key: "state", header: "State", sortValue: (item) => sessionState(item), render: (item) => <StatusBadge value={sessionState(item)} tone={SESSION_TONE[sessionState(item)]} /> },
+    { key: "seen", header: "Last seen", sortValue: (item) => item.last_seen_at ?? item.created_at, render: (item) => <span title={item.last_seen_at ?? item.created_at}>{relativeTime(item.last_seen_at ?? item.created_at)}</span> },
+    { key: "created", header: "Signed in", secondary: true, sortValue: (item) => item.created_at, render: (item) => new Date(item.created_at).toLocaleString() },
+    { key: "actions", header: "Actions", align: "end", render: (item) => item.revoked_at ? null : <button type="button" className="gg-button" onClick={() => setRevoking(item)} aria-label={`Revoke ${item.device_name || "this"} session`}><Trash2 size={14} aria-hidden="true" />Revoke</button> },
+  ]
+
+  return (
+    <section className="gg-page">
+      <PageHeader
+        eyebrow="Access & Accounts"
+        title="Account security"
+        icon={<ShieldCheck size={22} />}
+        description={<>Protect <strong>{administrator?.email}</strong> with multi-factor authentication, and review every device signed in to your account.</>}
+        actions={<button type="button" className="gg-button" onClick={() => void sessions.refetch()}><RefreshCw size={16} aria-hidden="true" />Refresh</button>}
+      />
+
+      <Guidance id="account-security" title="Keeping your account safe">
+        <ul>
+          <li>Turn on <strong>MFA</strong>: a stolen password alone then cannot open your account.</li>
+          <li>Revoke any session you don't recognise. Revoking the device you are using now signs you out.</li>
+          <li>Passwords expire automatically. A password reset by an install operator ends every active session.</li>
+        </ul>
+      </Guidance>
+
+      <StatGrid label="Account security summary">
+        <StatCard label="Multi-factor authentication" value={mfaEnabled ? "On" : "Off"} hint={mfaEnabled ? "Code required at sign-in" : "Recommended for every administrator"} tone={mfaEnabled ? "success" : "warning"} />
+        <StatCard label="Password expires" value={passwordDaysLeft === null ? "—" : passwordDaysLeft <= 0 ? "Expired" : `${passwordDaysLeft} days`} hint={passwordExpires ? passwordExpires.toLocaleDateString() : "Not recorded"} tone={passwordDaysLeft !== null && passwordDaysLeft <= 14 ? "warning" : "neutral"} />
+        <StatCard label="Active sessions" value={sessions.data ? all.filter((item) => sessionState(item) === "Active").length : "—"} hint="Signed-in devices" tone="info" />
+      </StatGrid>
+
+      <Panel id="account-mfa" eyebrow="Authentication" title="Authenticator app">
+        {!secret ? (
+          <div className="gg-form">
+            <p className="gg-note"><Fingerprint size={16} aria-hidden="true" />After your password, GreyGuard asks for a six-digit code from an authenticator app.</p>
+            <div className="gg-form__actions"><button type="button" className="gg-button gg-button--primary" onClick={() => void enroll()}><KeyRound size={16} aria-hidden="true" />{mfaEnabled ? "Replace authenticator" : "Set up MFA"}</button></div>
+          </div>
+        ) : (
+          <form className="gg-form" onSubmit={(event) => { event.preventDefault(); void confirmMfa() }}>
+            <p className="gg-note">Add this secret to your authenticator app, then enter the six-digit code it shows.</p>
+            <label className="gg-field">One-time setup secret<code className="gg-code">{secret}</code></label>
+            <label className="gg-field">Six-digit code<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} /></label>
+            <div className="gg-form__actions">
+              <button type="button" className="gg-button" onClick={() => { setSecret(""); setCode("") }}>Cancel</button>
+              <button type="submit" className="gg-button gg-button--primary" disabled={code.length !== 6}>Confirm MFA</button>
+            </div>
+          </form>
+        )}
+      </Panel>
+
+      <Panel id="account-sessions" eyebrow="Devices" title="Device and session inventory">
+        {sessions.isLoading && <LoadingState label="Loading session inventory" rows={3} />}
+        {sessions.isError && <ErrorState message={sessions.error.message} onRetry={() => void sessions.refetch()} />}
+        {sessions.data && (
+          <>
+            <FilterBar options={{ label: "State", value: filter, onChange: setFilter, items: [
+              { value: "Active", label: "Active", count: all.filter((item) => sessionState(item) === "Active").length },
+              { value: "Expired", label: "Expired", count: all.filter((item) => sessionState(item) === "Expired").length },
+              { value: "Revoked", label: "Revoked", count: all.filter((item) => sessionState(item) === "Revoked").length },
+              { value: "ALL", label: "All", count: all.length },
+            ] }} summary={`${visible.length} of ${all.length} shown`} />
+            <DataTable label="Sessions" columns={columns} rows={visible} rowKey={(item) => item.session_id} initialSort={{ key: "seen", direction: "desc" }}
+              empty={<EmptyState icon={<Laptop size={28} />} title="No sessions in this view" description="Change the state filter to see other sessions." />} />
+          </>
+        )}
+      </Panel>
+
+      <ConfirmDialog
+        open={Boolean(revoking)}
+        title={`Revoke ${revoking?.device_name || "this"} session?`}
+        description="That device is signed out and must sign in again. If it is the device you are using now, you will be signed out."
+        confirmLabel="Revoke session"
+        busy={busy}
+        onCancel={() => setRevoking(null)}
+        onConfirm={() => void revoke()}
+      />
+    </section>
+  )
 }

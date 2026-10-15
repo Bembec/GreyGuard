@@ -1,6 +1,9 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import {
-  Ban, KeyRound, Plus, RefreshCw, Search, ShieldCheck,
-  ShieldEllipsis, UserCog, UsersRound, X,
+  Ban, KeyRound, Plus, RefreshCw, Search,
+  ShieldEllipsis, UsersRound, X,
 } from "lucide-react"
 import { useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -91,9 +94,27 @@ export default function TeamAccessPage() {
 
   if (!administrator?.install_operator) return <main className="team-page"><section className="team-denied"><Ban size={34}/><h1>Install operator access required</h1><p>Your role cannot manage operator identities.</p></section></main>
 
-  return <main className="team-page">
-    <section className="team-hero"><div><p><ShieldEllipsis size={15}/> Identity administration</p><h1>Team & Access</h1><span>Create accountable operators and enforce least-privilege roles.</span></div><button type="button" onClick={()=>setCreating(true)}><Plus size={17}/> Add administrator</button></section>
-    <section className="team-stats"><article><UsersRound/><div><strong>{team.data?.count ?? 0}</strong><span>Total operators</span></div></article><article><ShieldCheck/><div><strong>{team.data?.administrators.filter(x=>x.status==="ACTIVE").length ?? 0}</strong><span>Active accounts</span></div></article><article><UserCog/><div><strong>3</strong><span>Enforced roles</span></div></article></section>
+  return <main className="team-page gg-page-pad">
+    <PageHeader
+      eyebrow="Access & Accounts"
+      title="Team & Access"
+      icon={<ShieldEllipsis size={22} />}
+      description="Every administrator account on this install, with its role, its install-operator flag and its status. Create accountable operators and keep roles to the least privilege needed."
+      actions={<button type="button" className="gg-button gg-button--primary" onClick={()=>setCreating(true)}><Plus size={16} aria-hidden="true"/>Add administrator</button>}
+    />
+    <Guidance id="team-access" title="Roles and install operators">
+      <ul>
+        <li><strong>Role</strong> sets what an administrator can do inside an organization. <strong>Install operator</strong> is separate: it controls install-wide settings for every organization.</li>
+        <li>Keep at least two install operators, so one can reset the other's password.</li>
+        <li>Disable an account rather than sharing it. Revoking sessions signs the person out everywhere.</li>
+      </ul>
+    </Guidance>
+    <StatGrid label="Team summary">
+      <StatCard label="Administrators" value={team.data?.count ?? 0} hint="On this install" tone="info" />
+      <StatCard label="Active accounts" value={team.data?.administrators.filter(x=>x.status==="ACTIVE").length ?? 0} hint="Able to sign in" tone="success" />
+      <StatCard label="Install operators" value={team.data?.administrators.filter(x=>x.install_operator&&x.status==="ACTIVE").length ?? 0} hint="Two or more recommended" tone={(team.data?.administrators.filter(x=>x.install_operator&&x.status==="ACTIVE").length ?? 0) < 2 ? "warning" : "success"} />
+      <StatCard label="Roles" value={Object.keys(roleDescriptions).length} hint="Enforced by the server" />
+    </StatGrid>
     <section className="team-panel"><header><label><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search operators or roles"/></label><button type="button" onClick={()=>void refresh()}><RefreshCw size={16}/>Refresh</button></header>
       {team.isLoading && <LoadingState label="Loading administrator accounts" rows={3}/>} 
       {team.isError && <ErrorState message={team.error.message} onRetry={() => void refresh()}/>} 

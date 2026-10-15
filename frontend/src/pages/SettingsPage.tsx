@@ -1,3 +1,5 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
 import {
   Bell,
   Check,
@@ -10,7 +12,6 @@ import {
   Save,
   Server,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
 } from "lucide-react"
 import {
@@ -129,38 +130,21 @@ export default function SettingsPage() {
 
 
   return (
-    <main className="settings-page">
-      <section className="settings-hero">
-        <div className="settings-hero-copy">
-          <span className="settings-eyebrow">
-            <SlidersHorizontal size={15} />
-            Control configuration
-          </span>
+    <main className="settings-page gg-page-pad">
+      <PageHeader
+        eyebrow="Organization"
+        title="Settings"
+        icon={<MonitorCog size={22} />}
+        description="Your organization's plan, usage and lifecycle, this console's display preferences, and the security environment protecting this session."
+      />
 
-          <h1>Settings</h1>
-
-          <p>
-            Configure the GreyGuard command
-            center experience and inspect the
-            security environment currently
-            protecting this administrative
-            session.
-          </p>
-        </div>
-
-        <div className="settings-hero-orbit">
-          <div className="settings-orbit-ring ring-one" />
-          <div className="settings-orbit-ring ring-two" />
-
-          <div className="settings-orbit-core">
-            <MonitorCog size={30} />
-          </div>
-
-          <span className="orbit-node node-one" />
-          <span className="orbit-node node-two" />
-          <span className="orbit-node node-three" />
-        </div>
-      </section>
+      <Guidance id="settings" title="What lives here">
+        <ul>
+          <li><strong>Plan & usage</strong> and <strong>Readiness & data</strong> belong to the organization; install operators assign plans.</li>
+          <li>Interface preferences such as density, motion and accent are saved on this device only.</li>
+          <li>Exporting organization data is always available, whatever the plan's state.</li>
+        </ul>
+      </Guidance>
 
       <section className="settings-status-grid">
         <article>

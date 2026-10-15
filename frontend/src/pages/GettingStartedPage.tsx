@@ -1,9 +1,12 @@
+import { Guidance } from "../components/page/Guidance"
+import { PageHeader } from "../components/page/PageHeader"
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { CheckCircle2, Circle, Flag, Rocket } from "lucide-react"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
-import { ErrorState, LoadingState } from "../components/AsyncState"
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
 import { progressLabel, stepFor } from "../config/onboardingSteps"
 import { useAuth } from "../context/AuthContext"
 import "../styles/getting-started.css"
@@ -97,24 +100,42 @@ export default function GettingStartedPage() {
   const done = items.filter((item) => item.done).length
 
   return (
-    <main className="getting-started">
-      <section className="getting-started-hero">
-        <p><Rocket size={15} /> Onboarding</p>
-        <h1>Getting started</h1>
-        <span>{lifecycle.data ? progressLabel(done, items.length) : "Your path from first agent to governed production."}</span>
-        {items.length > 0 && (
-          <div className="getting-started-progress" role="progressbar" aria-valuemin={0} aria-valuemax={items.length} aria-valuenow={done}>
-            <div style={{ width: `${(done / items.length) * 100}%` }} />
-          </div>
-        )}
-      </section>
+    <section className="gg-page getting-started">
+      <PageHeader
+        eyebrow="Organization"
+        title="Getting started"
+        icon={<Rocket size={22} />}
+        description="Your organization's path from its first agent to governed production. Each step is computed from your real configuration, so it completes itself when the work is done."
+        meta={lifecycle.data ? <span>{progressLabel(done, items.length)}</span> : undefined}
+      />
 
-      {!orgId && <p>Choose an organization to see its onboarding.</p>}
+      <Guidance id="getting-started" title="How onboarding works">
+        <ul>
+          <li>Work through the readiness steps in order. Each one links to the page where it is done, and names who usually does it.</li>
+          <li>Nobody ticks a step by hand: GreyGuard checks your organization's data and marks it complete.</li>
+          <li>During a pilot, the success criteria below show how the pilot is measured and when its decision is due.</li>
+        </ul>
+      </Guidance>
+
+      {!orgId && <EmptyState title="No active organization" description="Choose an organization from your account menu to see its onboarding." />}
+
+      {lifecycle.data && items.length > 0 && (
+        <StatGrid label="Onboarding summary">
+          <StatCard label="Readiness" value={`${done} of ${items.length}`} hint="Steps complete" tone={done === items.length ? "success" : "info"} />
+          <StatCard label="Steps remaining" value={items.length - done} hint={items.find((item) => !item.done) ? `Next: ${items.find((item) => !item.done)!.label}` : "Ready for production"} tone={done === items.length ? "success" : "warning"} />
+          {pilot.data && <StatCard label="Pilot criteria" value={`${pilot.data.criteria_met} of ${pilot.data.criteria_total}`} hint={`Decision due ${new Date(pilot.data.decision_due_at).toLocaleDateString()}`} tone={pilot.data.criteria_met === pilot.data.criteria_total ? "success" : "warning"} />}
+        </StatGrid>
+      )}
+      {items.length > 0 && (
+        <div className="getting-started-progress" role="progressbar" aria-label="Readiness progress" aria-valuemin={0} aria-valuemax={items.length} aria-valuenow={done}>
+          <div style={{ width: `${(done / items.length) * 100}%` }} />
+        </div>
+      )}
       {lifecycle.isLoading && <LoadingState label="Loading your onboarding steps" rows={3} />}
       {lifecycle.isError && <ErrorState message={lifecycle.error.message} onRetry={() => void lifecycle.refetch()} />}
 
       {pilot.data && (
-        <section className="pilot-panel" aria-labelledby="pilot-heading">
+        <section className="pilot-panel gg-panel" aria-labelledby="pilot-heading">
           <h2 id="pilot-heading"><Flag size={18} /> {pilotHeadline(pilot.data)}</h2>
           <p>
             {pilot.data.criteria_met} of {pilot.data.criteria_total} success criteria met · decision due{" "}
@@ -137,7 +158,7 @@ export default function GettingStartedPage() {
       )}
 
       {items.length > 0 && (
-        <section aria-labelledby="steps-heading">
+        <section className="gg-panel" aria-labelledby="steps-heading">
           <h2 id="steps-heading">Readiness steps</h2>
           <ol className="getting-started-steps">
             {items.map((item) => {
@@ -150,13 +171,13 @@ export default function GettingStartedPage() {
                     {step.why && <span>{step.why}</span>}
                     {step.who && <span className="step-who">Who: {step.who}</span>}
                   </div>
-                  {!item.done && (step.href ? <Link to={step.href}>{step.action}</Link> : <em>{step.action}</em>)}
+                  {!item.done && (step.href ? <Link className="gg-link" to={step.href}>{step.action}</Link> : <em>{step.action}</em>)}
                 </li>
               )
             })}
           </ol>
         </section>
       )}
-    </main>
+    </section>
   )
 }
