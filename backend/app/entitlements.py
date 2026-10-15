@@ -24,7 +24,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from . import billing, licensing
+from . import billing, licensing, organizations
 from . import db_compat as sqlite3
 from .database import database_path
 
@@ -97,6 +97,8 @@ RESTRICTION_REASONS = {
     "SUBSCRIPTION_CANCELED": "the subscription is cancelled",
     "LICENSE_LAPSED": "this install's licence lease has lapsed",
     "LICENSE_MISSING": "this install has no valid licence lease",
+    "ORG_OFFBOARDING": "the organization is offboarding",
+    "ORG_DELETED": "the organization has been deleted",
 }
 
 
@@ -206,7 +208,7 @@ def get_entitlements(org_id: str, meters=None) -> dict[str, Any]:
                 limits[meter][level] = override["value"]
     current = usage(org_id, meters)
     reasons = [f"PLAN_{assignment['status']}"] if assignment["status"] in RESTRICTED_STATUSES else []
-    reasons += [reason for reason in (billing.restriction(org_id), licensing.restriction()) if reason]
+    reasons += [reason for reason in (billing.restriction(org_id), licensing.restriction(), _lifecycle_restriction(org_id)) if reason]
     return {
         "org_id": org_id,
         **assignment,
@@ -222,6 +224,10 @@ def get_entitlements(org_id: str, meters=None) -> dict[str, Any]:
             if limit["soft"] is not None and meter in current and current[meter] >= limit["soft"]),
         "overrides": overrides,
     }
+
+
+def _lifecycle_restriction(org_id: str) -> str | None:
+    return {"OFFBOARDING": "ORG_OFFBOARDING", "DELETED": "ORG_DELETED"}.get(organizations.org_status(org_id))
 
 
 def _restricted_message(entitlements: dict[str, Any], what: str) -> str:

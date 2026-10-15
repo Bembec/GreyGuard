@@ -48,3 +48,10 @@ for(const item of navigationItems){
 
 test("unknown agent detail page fails gracefully",async({page})=>{await expectHealthyPage(page,"/agents/no-such-agent")})
 test("unknown request detail page fails gracefully",async({page})=>{await expectHealthyPage(page,"/requests/no-such-request")})
+test("settings shows the organization's plan and lifecycle from the real backend",async({page})=>{
+ await expectHealthyPage(page,"/settings")
+ await expect(page.getByRole("heading",{name:/Plan & usage/})).toBeVisible()
+ await expect(page.getByRole("heading",{name:/Readiness & data/})).toBeVisible()
+ await expect(page.getByText(/\d+ of 9 complete/)).toBeVisible({timeout:15_000})
+ await expect(page.getByRole("button",{name:/Export organization data/})).toBeVisible()
+})

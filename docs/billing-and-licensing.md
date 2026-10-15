@@ -31,6 +31,9 @@ These come from the commercial roadmap addendum.
 | `LICENSE_LAPSED` | The install's licence lease and its grace period have both ended. |
 | `LICENSE_MISSING` | Leases are required, and none is installed or the installed one no longer verifies. |
 
+| `ORG_OFFBOARDING` | The org is offboarding ([organization-lifecycle.md](organization-lifecycle.md)). |
+| `ORG_DELETED` | The org has been deleted. |
+
 The two licence reasons apply to every org on the install.
 
 ## Billing
@@ -164,4 +167,4 @@ The mechanics are complete. These decisions belong to the business:
 2. **Grace length.** `GRACE_DAYS` (14) is a working value.
 3. **Self-serve checkout.** Whether org owners should ever start or change their own subscription. Today only install operators link billing.
 4. **Lease terms.** The default lease length and grace period issued to self-hosted customers, and how lease renewal is delivered (manually, or automated against a licensing service).
-5. **Cancellation beyond restricted mode.** For example, a data-retention period after which an org is offboarded. That belongs with P2.5 (organization lifecycle).
+5. **Cancellation beyond restricted mode.** A cancelled org stays restricted until someone offboards it. Offboarding and deletion now exist ([organization-lifecycle.md](organization-lifecycle.md)), but whether cancellation should start offboarding automatically is a policy decision.

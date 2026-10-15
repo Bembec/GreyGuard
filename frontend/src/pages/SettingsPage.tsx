@@ -19,6 +19,7 @@ import {
   useState,
 } from "react"
 
+import { OrganizationLifecyclePanel } from "../components/OrganizationLifecyclePanel"
 import { PlanUsagePanel } from "../components/PlanUsagePanel"
 import { useAuth } from "../context/AuthContext"
 import {
@@ -439,6 +440,7 @@ export default function SettingsPage() {
         </section>
 
         <PlanUsagePanel />
+        <OrganizationLifecyclePanel />
 
         <section className="settings-panel">
           <div className="settings-panel-heading">
