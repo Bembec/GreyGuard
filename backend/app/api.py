@@ -400,10 +400,11 @@ async def observe_request(request: Request, call_next):
 
 
 # What an offboarding org may still change: its own sessions, lifecycle and export, evidence
-# reports, alert handling, and every emergency or revocation control. Everything else is read-only.
+# reports, alert handling, basic recovery (agent reset), and every emergency or revocation
+# control - the mandatory protections. Everything else is read-only.
 OFFBOARDING_ALLOWED = re.compile(
     r"^/(auth/|organizations/|compliance-reports|alerts/|billing/contact$|policy-emergency-controls$"
-    r"|agents/[^/]+/credential/revoke$|secrets/(emergency-revoke|[^/]+/revoke)$|service-accounts/[^/]+/revoke$"
+    r"|agents/[^/]+/credential/revoke$|agents/[^/]+/reset$|secrets/(emergency-revoke|[^/]+/revoke)$|service-accounts/[^/]+/revoke$"
     r"|execution-isolation/emergency-terminate$|capability-removals/actions/emergency-shutdown$"
     r"|enterprise-identity/workloads/[^/]+/revoke$)")
 
