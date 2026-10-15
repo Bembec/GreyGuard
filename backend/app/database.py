@@ -273,6 +273,9 @@ def initialize_database():
                     "org_id TEXT NOT NULL DEFAULT 'org_default'"
                 )
 
+    # Archive metadata (D6): retired agents keep their record as history and free plan capacity.
+    sqlite3.ensure_columns(database_path, "agent_identities", sqlite3.ARCHIVE_COLUMNS)
+
 
 # --- Agent runtime state ---------------------------------------------------------------------
 # Risk score, blocked attempts and suspension used to live in each server process's memory and a
@@ -284,6 +287,7 @@ RUNTIME_COLUMNS = "agent_name, org_id, agent_status, risk_score, blocked_attempt
 
 
 def initialize_agent_runtime_states():
+    sqlite3.ensure_columns(database_path, "agent_identities", sqlite3.ARCHIVE_COLUMNS)
     with sqlite3.connect(database_path) as connection:
         connection.execute("""CREATE TABLE IF NOT EXISTS agent_runtime_states (
             agent_name TEXT PRIMARY KEY, org_id TEXT NOT NULL DEFAULT 'org_default',
@@ -682,7 +686,7 @@ def update_agent_scopes(
             """
             UPDATE agent_identities
             SET scopes_json = ?
-            WHERE agent_name = ? AND org_id = ?
+            WHERE agent_name = ? AND org_id = ? AND archived_at IS NULL
             """,
             (
                 scopes_json,
@@ -714,7 +718,7 @@ def rotate_agent_credential(
                 credential_status = 'ACTIVE',
                 rotated_at = ?,
                 revoked_at = NULL
-            WHERE agent_name = ? AND org_id = ?
+            WHERE agent_name = ? AND org_id = ? AND archived_at IS NULL
             """,
             (
                 credential_salt,

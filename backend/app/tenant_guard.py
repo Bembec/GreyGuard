@@ -308,6 +308,8 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     "audit_integrity_erasures",
     # P3 (service_status.py): the public status page describes the operated service itself -
     # incidents, their updates and maintenance windows - never any tenant.
+    # D6 (entitlements.py): one-time schema migration marks - install-level bookkeeping.
+    "entitlement_schema_marks",
     "status_incidents",
     "status_incident_updates",
     "status_maintenance",
@@ -439,9 +441,10 @@ _STATEMENT_TABLE = re.compile(
 # deliberately NOT here: it stays checked, because a CREATE TABLE for an org-scoped table is
 # expected to define an org_id column and so naturally mentions the literal token - exempting
 # it too would silently let a table be (re)created without that column and only surface the
-# mistake later, on the first real query against it.
+# mistake later, on the first real query against it. ALTER TABLE ... ADD COLUMN is exempt for the
+# same reason as RENAME: it reads no rows, and adding a column can never remove org_id.
 _SCHEMA_RESTRUCTURING_STATEMENT = re.compile(
-    r"^\s*ALTER\s+TABLE\s+\S+\s+RENAME\b|^\s*DROP\s+TABLE\b",
+    r"^\s*ALTER\s+TABLE\s+\S+\s+RENAME\b|^\s*DROP\s+TABLE\b|^\s*ALTER\s+TABLE\s+\S+\s+ADD\s+COLUMN\b",
     re.IGNORECASE,
 )
 

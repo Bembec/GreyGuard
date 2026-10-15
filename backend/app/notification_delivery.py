@@ -48,6 +48,8 @@ def initialize_notification_delivery():
   if "claim_token" not in delivery_columns:c.execute("ALTER TABLE notification_deliveries ADD COLUMN claim_token TEXT")
   if "claimed_at" not in delivery_columns:c.execute("ALTER TABLE notification_deliveries ADD COLUMN claimed_at TEXT")
   if "org_id" not in delivery_columns:c.execute("ALTER TABLE notification_deliveries ADD COLUMN org_id TEXT NOT NULL DEFAULT 'org_default'")
+ sqlite3.ensure_columns(database_path,"notification_destinations",sqlite3.ARCHIVE_COLUMNS)
+
 def list_configuration(org_id=organizations.DEFAULT_ORG_ID):
  initialize_notification_delivery()
  with sqlite3.connect(database_path) as c:
@@ -64,9 +66,10 @@ def save_destination(name,channel,endpoint_reference,enabled,minimum_severity,qu
  if not 0<=escalation_minutes<=1440:raise ValueError("Escalation delay is outside the supported range.")
  did="ndst_"+uuid.uuid4().hex
  with sqlite3.connect(database_path) as c:
-  old=c.execute("SELECT destination_id FROM notification_destinations WHERE name=? AND org_id=?",(name.strip(),org_id)).fetchone()
+  old=c.execute("SELECT destination_id,archived_at FROM notification_destinations WHERE name=? AND org_id=?",(name.strip(),org_id)).fetchone()
+  if old and old[1]:raise ValueError("That destination is archived and kept as history; use a new name.")
   if old:
-   did=old[0];c.execute("UPDATE notification_destinations SET channel=?,endpoint_reference=?,enabled=?,minimum_severity=?,quiet_start_hour=?,quiet_end_hour=?,critical_bypass=?,escalation_minutes=? WHERE destination_id=? AND org_id=?",(channel,endpoint_reference,int(enabled),minimum_severity,quiet_start_hour,quiet_end_hour,int(critical_bypass),escalation_minutes,did,org_id))
+   did=old[0];c.execute("UPDATE notification_destinations SET channel=?,endpoint_reference=?,enabled=?,minimum_severity=?,quiet_start_hour=?,quiet_end_hour=?,critical_bypass=?,escalation_minutes=? WHERE destination_id=? AND org_id=? AND archived_at IS NULL",(channel,endpoint_reference,int(enabled),minimum_severity,quiet_start_hour,quiet_end_hour,int(critical_bypass),escalation_minutes,did,org_id))
   else:c.execute("INSERT INTO notification_destinations(destination_id,name,channel,endpoint_reference,enabled,minimum_severity,quiet_start_hour,quiet_end_hour,critical_bypass,escalation_minutes,created_at,created_by,org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(did,name.strip(),channel,endpoint_reference,int(enabled),minimum_severity,quiet_start_hour,quiet_end_hour,int(critical_bypass),escalation_minutes,utc_now(),actor,org_id))
  return next(d for d in list_configuration(org_id)["destinations"] if d["destination_id"]==did)
 def save_template(name,event_type,subject_template,body_template,actor,org_id=organizations.DEFAULT_ORG_ID):

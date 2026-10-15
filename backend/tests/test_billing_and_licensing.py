@@ -59,6 +59,7 @@ def org(tmp_path, monkeypatch):
         token = admin_auth.authenticate(email, PASSWORD)["access_token"]
         organizations.switch_active_org(person["admin_id"], tenant["org_id"], hashlib.sha256(token.encode()).hexdigest())
         tokens[governance] = token
+    entitlements.assign_plan(tenant["org_id"], "ENTERPRISE", "ACTIVE", "test")
     return {"org_id": tenant["org_id"], "operator": operator_token, "admin": tokens["OWNER"],
             "billing_admin": tokens["BILLING_ADMIN"], "member": tokens["MEMBER"]}
 

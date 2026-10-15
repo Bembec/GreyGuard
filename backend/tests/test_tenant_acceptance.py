@@ -48,6 +48,7 @@ def tenants(install, monkeypatch):
     victim, attacker = tenant(install, "Victim"), tenant(install, "Attacker")
     populate(victim, "zqvictim")
     # The default org is a second victim: a route that forgets its org_id falls back to it.
+    entitlements.assign_plan(organizations.DEFAULT_ORG_ID, "ENTERPRISE", "ACTIVE", "test")
     populate({"org_id": organizations.DEFAULT_ORG_ID, "owner": install["operator"]}, "zqdefault")
     issued = populate(attacker, "attacker")
     # Some catalogs (adapters, the threat register) are seeded into an org on first use. Visit

@@ -77,10 +77,16 @@ def test_no_plan_feature_can_ever_be_a_mandatory_protection():
     entitlements.require_feature("org_anything", "emergency_stop")
 
 
-def test_an_unassigned_org_is_not_restricted_at_all(org):
+def test_an_org_without_a_plan_cannot_grow_but_keeps_every_protection(org):
+    """D6: no unlimited-by-default. A new org needs an explicit plan or trial before it can add
+    agents or integrations; nothing it already has is interrupted."""
     current = api.current_entitlements(org["admin"])
-    assert current["plan"] == "UNASSIGNED" and current["restricted"] is False
-    assert set(current["features"]) == entitlements.FEATURES
+    assert current["plan"] == "UNASSIGNED" and current["plan_required"] is True and current["features"] == []
+    assert "no plan yet" in refused(lambda: register(org, "first_agent"))
+    assert "no plan yet" in refused(lambda: siem(org))
+    # A trial is enough to start.
+    assign(org, "ENTERPRISE", "TRIAL", trial_days=14)
+    register(org, "first_agent")
     assert siem(org)["name"] == "SIEM"
 
 
@@ -102,7 +108,7 @@ def test_hard_limits_refuse_growth_and_soft_limits_are_reported(org):
         key="limit:agents:soft", value=1, reason="Warn the pilot at its first agent"), org["operator"])
     register(org, "pilot_one")
     register(org, "pilot_two")
-    assert "allows 2 agents" in refused(lambda: register(org, "pilot_three"))
+    assert "allows 2 active agents" in refused(lambda: register(org, "pilot_three"))
     current = api.current_entitlements(org["admin"])
     assert current["usage"]["agents"] == 2 and current["soft_limits_exceeded"] == ["agents"]
 
@@ -113,7 +119,7 @@ def test_updating_an_existing_integration_is_not_growth(org):
         key="limit:integrations:hard", value=1, reason="One SIEM destination for this pilot"), org["operator"])
     siem(org, "Primary")
     assert siem(org, "PRIMARY")["name"] == "Primary"  # same destination (names are case-insensitive)
-    assert "allows 1 integrations" in refused(lambda: siem(org, "Secondary"))
+    assert "allows 1 active integrations" in refused(lambda: siem(org, "Secondary"))
 
 
 def test_an_expired_trial_pauses_growth_but_never_protection_or_evidence(org):
@@ -177,6 +183,7 @@ def test_only_install_operators_assign_plans_or_overrides(org):
 
 
 def test_meters_count_the_orgs_own_usage_only(org):
+    assign(org, "ENTERPRISE")
     register(org, "metered_agent")
     main.submit_tool_request("metered_agent", "read_file", "a.txt")
     siem(org)
