@@ -73,7 +73,7 @@ def initialize_outbound_delivery() -> None:
             # Pre-existing tenant evidence predates orgs, so it all belongs to org_default; only
             # the install-level subsystems keep NULL.
             connection.execute(f"""UPDATE outbound_delivery_evidence SET org_id='org_default'
-                WHERE subsystem NOT IN ({",".join("?" * len(INSTALL_LEVEL_EVIDENCE_SUBSYSTEMS))})""",
+                WHERE subsystem NOT IN ({",".join("?" * len(INSTALL_LEVEL_EVIDENCE_SUBSYSTEMS))})""",  # nosec B608  # table and column names are code constants (one-time schema migration)
                 tuple(INSTALL_LEVEL_EVIDENCE_SUBSYSTEMS))
 
 

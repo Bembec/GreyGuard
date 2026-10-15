@@ -27,7 +27,7 @@ def initialize_incident_integrations():
    # max_attempts, so that column is only copied when present.
    columns=_DESTINATION_COLUMNS+(",max_attempts" if "max_attempts" in existing else "")
    c.execute("CREATE TABLE incident_destinations_org "+_DESTINATIONS_SCHEMA)
-   c.execute(f"INSERT INTO incident_destinations_org({columns},org_id) SELECT {columns},'org_default' FROM incident_destinations")
+   c.execute(f"INSERT INTO incident_destinations_org({columns},org_id) SELECT {columns},'org_default' FROM incident_destinations")  # nosec B608  # table and column names are code constants (one-time schema migration)
    c.execute("DROP TABLE incident_destinations")
    c.execute("ALTER TABLE incident_destinations_org RENAME TO incident_destinations")
   c.execute("CREATE TABLE IF NOT EXISTS incident_destinations "+_DESTINATIONS_SCHEMA)
@@ -67,7 +67,7 @@ def save_destination(name,system_type,endpoint,credential_reference,project_or_t
   old=c.execute("SELECT destination_id,archived_at FROM incident_destinations WHERE name=? AND org_id=?",(name.strip(),org_id)).fetchone()
   if old and old[1]:raise ValueError("That destination is archived and kept as history; use a new name.")
   if old:did=old[0];c.execute("UPDATE incident_destinations SET system_type=?,endpoint=?,credential_reference=?,project_or_table=?,enabled=? WHERE destination_id=? AND org_id=? AND archived_at IS NULL",(system_type,endpoint,credential_reference,project_or_table,int(enabled),did,org_id))
-  else:c.execute(f"INSERT INTO incident_destinations({_DESTINATION_COLUMNS},org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(did,name.strip(),system_type,endpoint,credential_reference,project_or_table,int(enabled),utc_now(),actor,None,None,None,org_id))
+  else:c.execute(f"INSERT INTO incident_destinations({_DESTINATION_COLUMNS},org_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",(did,name.strip(),system_type,endpoint,credential_reference,project_or_table,int(enabled),utc_now(),actor,None,None,None,org_id))  # nosec B608  # column list is a module constant; every value is a bound parameter
  return next(d for d in list_controls(org_id)["destinations"] if d["destination_id"]==did)
 def queue_incident(destination_id,alert,org_id=organizations.DEFAULT_ORG_ID):
  initialize_incident_integrations();safe=redact(alert)

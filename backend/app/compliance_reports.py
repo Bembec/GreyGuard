@@ -79,13 +79,13 @@ def _privileged_activity(date_from: str | None, date_to: str | None, org_id: str
             if table in tenant_guard.ORG_SCOPED_TABLES:
                 query = (
                     f"SELECT {timestamp}, {actor}, {event_type}, {detail}, {subject} "
-                    f"FROM {table} WHERE org_id=? ORDER BY {timestamp} DESC LIMIT 500"
+                    f"FROM {table} WHERE org_id=? ORDER BY {timestamp} DESC LIMIT 500"  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
                 )
                 rows = connection.execute(query, (org_id,)).fetchall()
             else:
                 rows = connection.execute(
                     f"SELECT {timestamp}, {actor}, {event_type}, {detail}, {subject} "
-                    f"FROM {table} ORDER BY {timestamp} DESC LIMIT 500"
+                    f"FROM {table} ORDER BY {timestamp} DESC LIMIT 500"  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
                 ).fetchall()
             for row in rows:
                 if _within(row[0], date_from, date_to):

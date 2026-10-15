@@ -93,14 +93,14 @@ def archive_destination(org_id: str, kind: str, destination_id: str, actor: str,
     table = DESTINATION_TABLES[kind]
     now = _now()
     with sqlite3.connect(database.database_path) as connection:
-        row = connection.execute(f"SELECT name, archived_at FROM {table} WHERE destination_id = ? AND org_id = ?",
+        row = connection.execute(f"SELECT name, archived_at FROM {table} WHERE destination_id = ? AND org_id = ?",  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
                                  (destination_id, org_id)).fetchone()
         if row is None:
             raise KeyError("Destination not found.")
         if row[1]:
             raise ArchiveError("This destination is already archived.")
         connection.execute(
-            f"UPDATE {table} SET enabled = 0, archived_at = ?, archived_by = ?, archive_reason = ? WHERE destination_id = ? AND org_id = ? AND archived_at IS NULL",
+            f"UPDATE {table} SET enabled = 0, archived_at = ?, archived_by = ?, archive_reason = ? WHERE destination_id = ? AND org_id = ? AND archived_at IS NULL",  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
             (now, actor, reason, destination_id, org_id))
     _entitlement_event(org_id, actor, "INTEGRATION_ARCHIVED",
                        {"kind": kind, "destination_id": destination_id, "name": row[0], "reason": reason})

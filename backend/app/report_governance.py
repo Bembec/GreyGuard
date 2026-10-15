@@ -139,9 +139,9 @@ def retention_report(org_id=organizations.DEFAULT_ORG_ID):
   for table in ("compliance_reports","audit_events","administrator_audit_events","security_notifications","quarantined_artifacts"):
    if table not in tables:continue
    if table in tenant_guard.ORG_SCOPED_TABLES:
-    count=c.execute(f"SELECT COUNT(*) FROM {table} WHERE org_id=?",(org_id,)).fetchone()[0]
+    count=c.execute(f"SELECT COUNT(*) FROM {table} WHERE org_id=?",(org_id,)).fetchone()[0]  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
    else:
-    count=c.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    count=c.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
    rows.append({"data_set":table,"records":count,"retention_action":"Review configured retention before deletion"})
  return {"generated_at":utc_now(),"data_sets":rows,"automatic_deletion":False}
 def administrator_action_report(limit=200,org_id=organizations.DEFAULT_ORG_ID):

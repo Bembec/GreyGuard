@@ -615,7 +615,7 @@ def _upgrade_legacy_policy_tables():
             connection.execute("CREATE TABLE policy_versions_org " + _POLICY_VERSIONS_SCHEMA)
             connection.execute(
                 f"INSERT INTO policy_versions_org ({_POLICY_VERSION_COLUMNS},org_id) "
-                f"SELECT {_POLICY_VERSION_COLUMNS},'org_default' FROM policy_versions"
+                f"SELECT {_POLICY_VERSION_COLUMNS},'org_default' FROM policy_versions"  # nosec B608  # table and column names are code constants (one-time schema migration)
             )
             connection.execute("DROP TABLE policy_versions")
             connection.execute("ALTER TABLE policy_versions_org RENAME TO policy_versions")

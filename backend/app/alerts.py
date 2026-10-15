@@ -77,7 +77,7 @@ def initialize_alert_database(database=None) -> None:
             alert_columns = {row[1] for row in connection.execute(f"PRAGMA table_info({alert_table})")}
             if "org_id" not in alert_columns:
                 connection.execute(f"ALTER TABLE {alert_table} ADD COLUMN org_id TEXT")
-                connection.execute(f"UPDATE {alert_table} SET org_id = 'org_default'")
+                connection.execute(f"UPDATE {alert_table} SET org_id = 'org_default'")  # nosec B608  # table and column names are code constants (one-time schema migration)
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_alert_status "
             "ON security_alerts(status)"
@@ -183,7 +183,7 @@ def get_alerts(
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
-            "SELECT * FROM security_alerts" + where + " ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM security_alerts" + where + " ORDER BY created_at DESC LIMIT ?",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (*parameters, safe_limit),
         ).fetchall()
         alerts = [_serialize(connection, row) for row in rows]
@@ -200,7 +200,7 @@ def get_alert(alert_id: str, *, org_id, include_install_level: bool = False) -> 
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = connection.execute(
-            f"SELECT * FROM security_alerts WHERE alert_id = ? AND {visible}",
+            f"SELECT * FROM security_alerts WHERE alert_id = ? AND {visible}",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (alert_id, *visible_parameters),
         ).fetchone()
         return None if row is None else _serialize(connection, row)
@@ -254,7 +254,7 @@ def add_alert_note(alert_id: str, actor: str, note: str, *, org_id,
     visible, visible_parameters = _visibility(org_id, include_install_level)
     with sqlite3.connect(database_path) as connection:
         exists = connection.execute(
-            f"SELECT org_id FROM security_alerts WHERE alert_id = ? AND {visible}",
+            f"SELECT org_id FROM security_alerts WHERE alert_id = ? AND {visible}",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
             (alert_id, *visible_parameters),
         ).fetchone()
         if exists is None:
@@ -284,7 +284,7 @@ def alert_summary(*, org_id, include_install_level: bool = False) -> dict[str, i
                 SUM(CASE WHEN status IN ('RESOLVED','DISMISSED') THEN 1 ELSE 0 END),
                 SUM(CASE WHEN severity = 'CRITICAL' AND status NOT IN ('RESOLVED','DISMISSED') THEN 1 ELSE 0 END)
             FROM security_alerts WHERE {visible}
-        """, visible_parameters).fetchone()
+        """, visible_parameters).fetchone()  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
     return {
         "total": row[0] or 0,
         "open": row[1] or 0,

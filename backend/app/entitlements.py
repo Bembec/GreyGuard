@@ -171,7 +171,7 @@ def _migrate_existing_orgs() -> None:
         has_data = False
         for table in ("agent_identities", "export_destinations", "incident_destinations", "notification_destinations"):
             if table in tables and connection.execute(
-                    f"-- install-wide existence check across every org_id\nSELECT 1 FROM {table} LIMIT 1").fetchone():
+                    f"-- install-wide existence check across every org_id\nSELECT 1 FROM {table} LIMIT 1").fetchone():  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
                 has_data = True
         orgs = connection.execute("SELECT org_id FROM organizations WHERE status != 'DELETED'").fetchall() \
             if "organizations" in tables else []
@@ -372,7 +372,7 @@ def require_new_integration_capacity(org_id: str, table: str, name: str, enabled
     sqlite3.initialize_once("entitlements", database_path, initialize_entitlements)
     with sqlite3.connect(database_path) as connection:
         existing = connection.execute(
-            f"SELECT enabled, archived_at FROM {table} WHERE org_id = ? AND LOWER(name) = LOWER(?)", (org_id, str(name).strip())
+            f"SELECT enabled, archived_at FROM {table} WHERE org_id = ? AND LOWER(name) = LOWER(?)", (org_id, str(name).strip())  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
         ).fetchone()
     if existing and existing[1]:
         raise ValueError("That destination is archived and kept as history; use a new name.")

@@ -191,7 +191,7 @@ def export_organization(org_id: str, actor: str) -> dict[str, Any]:
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         for table in sorted(_scoped_tables(connection)):
-            rows = [dict(row) for row in connection.execute(f"SELECT * FROM {table} WHERE org_id = ?", (org_id,)).fetchall()]
+            rows = [dict(row) for row in connection.execute(f"SELECT * FROM {table} WHERE org_id = ?", (org_id,)).fetchall()]  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
             columns = sorted({column for row in rows for column in row} & REDACTED_COLUMNS)
             for row in rows:
                 for column in columns:
@@ -249,7 +249,7 @@ def _close_doors(org_id: str, actor: str) -> dict[str, Any]:
                 existing = _existing_tables(connection)
                 if table not in existing:
                     return 0
-                return connection.execute(f"UPDATE {table} SET enabled = 0 WHERE org_id = ? AND enabled != 0", (org_id,)).rowcount
+                return connection.execute(f"UPDATE {table} SET enabled = 0 WHERE org_id = ? AND enabled != 0", (org_id,)).rowcount  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
         return run
 
     def revoke_invitations():
@@ -353,7 +353,7 @@ def delete_organization(org_id: str, actor: str, confirm_slug: str) -> dict[str,
         audit_integrity.record_erasures(connection, erased, actor, f"Organization {org_id} deleted")
         deleted: dict[str, int] = {}
         for table in _scoped_tables(connection):
-            count = connection.execute(f"DELETE FROM {table} WHERE org_id = ?", (org_id,)).rowcount
+            count = connection.execute(f"DELETE FROM {table} WHERE org_id = ?", (org_id,)).rowcount  # nosec B608  # table name comes from a fixed allowlist; every value is a bound parameter
             if count:
                 deleted[table] = count
         deleted["org_memberships"] = connection.execute("DELETE FROM org_memberships WHERE org_id = ?", (org_id,)).rowcount
