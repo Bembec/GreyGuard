@@ -35,7 +35,7 @@ MANDATORY_PROTECTIONS = frozenset({
 })
 
 # Capabilities a plan may or may not include.
-FEATURES = frozenset({"siem_export", "incident_integrations", "scheduled_reports"})
+FEATURES = frozenset({"siem_export", "incident_integrations", "scheduled_reports", "gateway_nodes"})
 
 # Metered units. Members are deliberately not metered (see module docstring).
 METERS = {

@@ -44,6 +44,7 @@ def tenants(install, monkeypatch):
     # Signed policy bundles and report manifests need their keys, or those routes stop at a 503.
     monkeypatch.setenv("GREYGUARD_POLICY_SIGNING_KEY", "acceptance-suite-policy-signing-key-0123456789")
     monkeypatch.setenv("GREYGUARD_REPORT_SIGNING_KEY", "acceptance-suite-report-signing-key-0123456789")
+    monkeypatch.setenv("GREYGUARD_DISTRIBUTION_SIGNING_KEY", "Qf3LkkbgYw3-hUQOP8WqvL4uRvcrB8tBbvHmLk3P2Ao")
     victim, attacker = tenant(install, "Victim"), tenant(install, "Attacker")
     populate(victim, "zqvictim")
     # The default org is a second victim: a route that forgets its org_id falls back to it.

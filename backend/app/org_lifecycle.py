@@ -46,7 +46,7 @@ MAX_RETENTION_DAYS = 365
 # so a new column cannot reach an export without a decision.
 REDACTED_COLUMNS = frozenset({
     "credential_hash", "credential_salt", "key_hash", "token_hash", "claim_token", "token",
-    "password_hash", "password_salt", "mfa_secret",
+    "password_hash", "password_salt", "mfa_secret", "enrollment_token_hash",
 })
 # Secret-looking names that are not secrets: digests, chain hashes, references and identifiers.
 EVIDENCE_COLUMNS = frozenset({
@@ -219,7 +219,7 @@ def export_organization(org_id: str, actor: str) -> dict[str, Any]:
 def _close_doors(org_id: str, actor: str) -> dict[str, Any]:
     """Stop everything that acts or sends data on the org's behalf. Each step reports what it did;
     a failing step is recorded and the rest still run."""
-    from . import main, service_accounts  # main imports half the backend; keep it lazy
+    from . import gateways, main, service_accounts  # main imports half the backend; keep it lazy
 
     actions: dict[str, Any] = {}
 
@@ -266,6 +266,7 @@ def _close_doors(org_id: str, actor: str) -> dict[str, Any]:
         return "cancelled"
 
     step("agent_credentials_revoked", revoke_agents)
+    step("gateway_nodes_revoked", lambda: gateways.revoke_all(org_id, actor, "Organization offboarding"))
     step("service_accounts_revoked", revoke_service_accounts)
     for table in ("export_destinations", "incident_destinations", "notification_destinations", "report_schedules"):
         step(f"{table}_disabled", disable(table))

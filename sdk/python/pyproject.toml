@@ -12,6 +12,9 @@ license = {text = "Proprietary"}
 authors = [{name = "GreyGuard"}]
 dependencies = []
 
+[project.optional-dependencies]
+gateway = ["cryptography>=42"]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["greyguard_sdk*"]
