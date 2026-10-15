@@ -921,6 +921,11 @@ code {
   color: var(--text-3);
 }
 
+.badge--control {
+  color: var(--text-2);
+  border-color: rgba(140, 160, 180, 0.35);
+}
+
 .badge--limit {
   color: var(--steel-light);
 }

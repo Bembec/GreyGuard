@@ -28,6 +28,9 @@ REGISTER = ROOT / "website" / "content" / "claims.json"
 GROUPS = {"gate", "watch", "respond", "evidence", "connect", "platform", "trust"}
 KINDS = {"capability", "limitation"}
 AVAILABILITY = {"verified", "pilot", "preview", "planned"}
+# How the control acts (decision V3 of the v3 roadmap); separate from how mature it is.
+CONTROLS = {"enforced", "observed", "advisory", "simulated"}
+CONTROLLED_GROUPS = {"gate", "watch", "respond", "evidence"}
 STATUSES = {"proposed", "approved", "withdrawn"}
 OWNERS = {"Engineering", "Project owner"}
 ID_PATTERN = re.compile(r"^GG-[A-Z]+-\d+$")
@@ -73,7 +76,7 @@ def check_claim(claim: dict, today: date, root: Path = ROOT) -> list[str]:
     def problem(message: str) -> None:
         problems.append(f"{claim_id}: {message}")
 
-    required = ("id", "group", "kind", "availability", "claim", "scope", "evidence", "owner", "status",
+    required = ("id", "group", "kind", "availability", "control", "claim", "scope", "evidence", "owner", "status",
                 "approved_by", "approved_on", "review_by", "pages")
     missing = [field for field in required if field not in claim]
     if missing:
@@ -88,6 +91,12 @@ def check_claim(claim: dict, today: date, root: Path = ROOT) -> list[str]:
         problem(f"has an unknown kind {claim['kind']!r}")
     if claim["availability"] not in AVAILABILITY:
         problem(f"has an unknown availability {claim['availability']!r}")
+    if claim["control"] is not None and claim["control"] not in CONTROLS:
+        problem(f"has an unknown control {claim['control']!r}")
+    if claim["kind"] == "capability" and claim["group"] in CONTROLLED_GROUPS and claim["control"] is None:
+        problem("is a product capability but does not say whether it is enforced, observed, advisory or simulated")
+    if claim["kind"] == "limitation" and claim["control"] is not None:
+        problem("is a limitation, so it has no control type")
     if claim["status"] not in STATUSES:
         problem(f"has an unknown status {claim['status']!r}")
     if claim["owner"] not in OWNERS:

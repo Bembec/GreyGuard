@@ -1,5 +1,5 @@
 ---
-import { availabilityLabel, getClaim } from "../lib/claims"
+import { availabilityLabel, controlLabel, getClaim } from "../lib/claims"
 import { siteMode } from "../lib/site"
 
 interface Props { id: string; showScope?: boolean }
@@ -10,6 +10,7 @@ const claim = getClaim(id)
   <p class="claim__text">{claim.claim}</p>
   <p class="claim__meta">
     <span class="badge" data-availability={claim.availability}>{availabilityLabel[claim.availability]}</span>
+          {claim.control && <span class="badge badge--control" data-control={claim.control}>{controlLabel[claim.control]}</span>}
     {claim.kind === "limitation" && <span class="badge badge--limit">Limitation</span>}
     {siteMode === "preview" && claim.status !== "approved" && <span class="badge badge--draft">Proposed, not approved · {claim.id}</span>}
   </p>

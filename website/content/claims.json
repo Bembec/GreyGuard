@@ -6,6 +6,7 @@
       "group": "gate",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Each agent has its own identity, and identity never implies permission: an agent can only request the actions it has been granted.",
       "scope": "Agents registered with GreyGuard. Enforced server-side per request; the SDKs also check declared scopes before sending.",
       "evidence": [
@@ -26,6 +27,7 @@
       "group": "gate",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Policy decides ALLOW, ASK or BLOCK for every requested action, and an action with no rule is blocked.",
       "scope": "The organization's published policy, or a staged rollout of a newer version for selected agents.",
       "evidence": [
@@ -46,6 +48,7 @@
       "group": "gate",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "An action that needs approval waits for a person and does not run until approved. A denied action never runs.",
       "scope": "Actions whose policy decision is ASK.",
       "evidence": [
@@ -64,6 +67,7 @@
       "group": "gate",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "A policy change takes effect only after a second administrator approves it.",
       "scope": "Policy versions edited in GreyGuard. The author cannot approve their own change.",
       "evidence": [
@@ -82,6 +86,7 @@
       "group": "gate",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Emergency global deny refuses every agent action in an organization at once, without affecting other organizations.",
       "scope": "One organization's agents, until the control is lifted.",
       "evidence": [
@@ -99,6 +104,7 @@
       "group": "gate",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Agent credentials can be rotated or revoked at any time, and their history is kept without ever storing the credential itself.",
       "scope": "Agent credentials issued by GreyGuard.",
       "evidence": [
@@ -117,6 +123,7 @@
       "group": "watch",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Blocked actions add risk to the agent that attempted them, and an agent that reaches its threshold is suspended automatically. A suspended agent is refused everything.",
       "scope": "Thresholds come from the published policy (by default 3 blocked attempts or a risk score of 100).",
       "evidence": [
@@ -135,6 +142,7 @@
       "group": "watch",
       "kind": "capability",
       "availability": "verified",
+      "control": "observed",
       "claim": "Security decisions stream live to the console, and events missed during a reconnect are recovered.",
       "scope": "Events still within the live stream's retention window.",
       "evidence": [
@@ -153,6 +161,7 @@
       "group": "watch",
       "kind": "capability",
       "availability": "verified",
+      "control": "observed",
       "claim": "High-severity evidence opens an incident with an owner, notes and a workflow to resolution.",
       "scope": "High and critical events. Duplicate events do not open duplicate incidents.",
       "evidence": [
@@ -171,6 +180,7 @@
       "group": "watch",
       "kind": "capability",
       "availability": "verified",
+      "control": "simulated",
       "claim": "A simulation lab checks that prohibited actions are refused, using predefined scenarios against fictional targets with no real effect.",
       "scope": "The lab is disabled by default and accepts only its predefined scenarios.",
       "evidence": [
@@ -189,6 +199,7 @@
       "group": "respond",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Containment is recoverable: after investigation, an administrator can reset a suspended agent and restore it.",
       "scope": "Agents suspended by risk or blocked-attempt thresholds.",
       "evidence": [
@@ -206,6 +217,7 @@
       "group": "respond",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "A capability can be retired safely: it is fail-closed first, and each recovery step needs recorded evidence, in order.",
       "scope": "Registered high-risk capabilities, including an emergency shutdown of all of them.",
       "evidence": [
@@ -225,6 +237,7 @@
       "group": "respond",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Isolated execution runs only predefined jobs in hardened containers, is off by default, and can terminate every job at once.",
       "scope": "Self-hosted installs with Docker available; arbitrary commands are rejected.",
       "evidence": [
@@ -244,6 +257,7 @@
       "group": "respond",
       "kind": "capability",
       "availability": "verified",
+      "control": "advisory",
       "claim": "Incidents can be sent to Jira or ServiceNow, and approval links sent with them work only once.",
       "scope": "Destinations an administrator registers and enables; credentials are held as external references.",
       "evidence": [
@@ -262,6 +276,7 @@
       "group": "evidence",
       "kind": "capability",
       "availability": "verified",
+      "control": "observed",
       "claim": "Audit records are hash-chained, and verification detects tampering.",
       "scope": "Records sealed into the audit chain.",
       "evidence": [
@@ -280,6 +295,7 @@
       "group": "evidence",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Legal holds stop evidence from being deleted by retention.",
       "scope": "Evidence covered by an active hold.",
       "evidence": [
@@ -297,6 +313,7 @@
       "group": "evidence",
       "kind": "capability",
       "availability": "verified",
+      "control": "observed",
       "claim": "Every request has an evidence bundle explaining the decision, exportable with secrets redacted.",
       "scope": "Tool requests made through GreyGuard.",
       "evidence": [
@@ -315,6 +332,7 @@
       "group": "evidence",
       "kind": "capability",
       "availability": "verified",
+      "control": "observed",
       "claim": "Compliance reports are sealed snapshots with an integrity check, and scheduled reports carry a signed manifest.",
       "scope": "Reports generated in GreyGuard. The control mappings are evidence references, not certifications.",
       "evidence": [
@@ -333,6 +351,7 @@
       "group": "evidence",
       "kind": "capability",
       "availability": "verified",
+      "control": "observed",
       "claim": "Security evidence can be exported to a SIEM, minimized and redacted before it is queued, from destinations that start disabled.",
       "scope": "Destinations an administrator registers and enables.",
       "evidence": [
@@ -351,6 +370,7 @@
       "group": "connect",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Python and JavaScript SDKs submit agent actions to GreyGuard, keep credentials out of logs and never retry a policy decision.",
       "scope": "The SDKs in this repository; the SDK never executes an action itself.",
       "evidence": [
@@ -370,6 +390,7 @@
       "group": "connect",
       "kind": "capability",
       "availability": "verified",
+      "control": null,
       "claim": "A versioned REST API exposes every route under /api/v1.",
       "scope": "The public API contract published with each release.",
       "evidence": [
@@ -387,6 +408,7 @@
       "group": "connect",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Adapters accept tool requests in Model Context Protocol, LangChain, LangGraph, CrewAI, AutoGen and generic JSON formats, each disabled until an administrator enables it.",
       "scope": "Request-format translation only. It does not imply endorsement by, or a partnership with, any of these projects.",
       "evidence": [
@@ -406,6 +428,7 @@
       "group": "connect",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Gateways enforce signed policy bundles close to the agent, and deny everything once a bundle passes its offline allowance.",
       "scope": "Enterprise plan; gateways enrolled to one organization.",
       "evidence": [
@@ -424,6 +447,7 @@
       "group": "connect",
       "kind": "capability",
       "availability": "planned",
+      "control": "observed",
       "claim": "Monitor-only connection: observe an agent's actions without enforcing decisions.",
       "scope": "Not built. Must not be described as available.",
       "evidence": [],
@@ -439,6 +463,7 @@
       "group": "connect",
       "kind": "limitation",
       "availability": "verified",
+      "control": null,
       "claim": "GreyGuard governs only agents that are registered with it and send their actions through it.",
       "scope": "All deployments. Agents that bypass GreyGuard are not covered.",
       "evidence": [
@@ -456,6 +481,7 @@
       "group": "platform",
       "kind": "capability",
       "availability": "verified",
+      "control": "enforced",
       "claim": "Organizations are isolated: an automated suite checks that no route returns or changes another organization's data.",
       "scope": "Every API route, generated from the route table.",
       "evidence": [
@@ -475,6 +501,7 @@
       "group": "platform",
       "kind": "limitation",
       "availability": "verified",
+      "control": null,
       "claim": "GreyGuard runs on a single host and is not highly available, and there is no SLA or committed recovery time.",
       "scope": "All current deployment models.",
       "evidence": [
@@ -493,6 +520,7 @@
       "group": "platform",
       "kind": "limitation",
       "availability": "verified",
+      "control": null,
       "claim": "GreyGuard does not encrypt the live database; encryption at rest is the operator's responsibility.",
       "scope": "Self-hosted and hosted installs.",
       "evidence": [
@@ -511,6 +539,7 @@
       "group": "trust",
       "kind": "limitation",
       "availability": "verified",
+      "control": null,
       "claim": "No independent penetration test has been performed and GreyGuard holds no security certification.",
       "scope": "Until a report or certificate exists; this claim must change when one does.",
       "evidence": [

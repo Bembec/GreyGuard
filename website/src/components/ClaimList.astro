@@ -1,6 +1,6 @@
 ---
 import Icon from "./Icon.astro"
-import { availabilityLabel, getClaim } from "../lib/claims"
+import { availabilityLabel, controlLabel, getClaim } from "../lib/claims"
 import { siteMode } from "../lib/site"
 
 interface Props { ids: string[] }
@@ -14,6 +14,7 @@ const claims = Astro.props.ids.map((id) => getClaim(id))
         {claim.claim}
         <span class="claim-list__meta">
           <span class="badge" data-availability={claim.availability}>{availabilityLabel[claim.availability]}</span>
+          {claim.control && <span class="badge badge--control" data-control={claim.control}>{controlLabel[claim.control]}</span>}
           {siteMode === "preview" && claim.status !== "approved" && <span class="badge badge--draft">Proposed · {claim.id}</span>}
         </span>
       </span>

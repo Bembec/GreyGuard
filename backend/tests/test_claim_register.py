@@ -17,7 +17,7 @@ def register():
 
 def good_claim(**changes):
     claim = {
-        "id": "GG-GATE-99", "group": "gate", "kind": "capability", "availability": "verified",
+        "id": "GG-GATE-99", "group": "gate", "kind": "capability", "availability": "verified", "control": "enforced",
         "claim": "An action with no rule is blocked.", "scope": "Every request.",
         "evidence": ["backend/tests/test_security_foundation.py::test_unknown_action_defaults_to_block"],
         "owner": "Engineering", "status": "proposed", "approved_by": None, "approved_on": None,
@@ -57,7 +57,7 @@ def test_a_verified_capability_needs_a_test_not_just_prose():
     claim = good_claim(evidence=["docs/agent-integration.md"])
     assert any("cites no test" in item for item in problems_for(claim))
     # A limitation can rest on documentation alone.
-    assert problems_for(good_claim(kind="limitation", evidence=["docs/agent-integration.md"])) == []
+    assert problems_for(good_claim(kind="limitation", control=None, evidence=["docs/agent-integration.md"])) == []
 
 
 @pytest.mark.parametrize("text", [
@@ -71,7 +71,7 @@ def test_claims_implying_partnerships_certifications_or_guarantees_are_rejected(
 
 
 def test_a_limitation_may_say_what_greyguard_does_not_hold():
-    claim = good_claim(kind="limitation", claim="GreyGuard holds no security certification.", evidence=["docs/trust/certifications.md"])
+    claim = good_claim(kind="limitation", control=None, claim="GreyGuard holds no security certification.", evidence=["docs/trust/certifications.md"])
     assert problems_for(claim) == []
 
 
@@ -94,3 +94,9 @@ def test_planned_work_is_labelled_planned(register):
     assert planned, "the register should carry what is planned, so the site can show it honestly"
     for claim in planned:
         assert claim["evidence"] == [] or all(not check_claims.is_test_reference(r) for r in claim["evidence"])
+
+
+def test_a_product_capability_says_how_its_control_acts():
+    assert any("enforced, observed" in item for item in problems_for(good_claim(control=None)))
+    assert any("unknown control" in item for item in problems_for(good_claim(control="blocking")))
+    assert any("no control type" in item for item in problems_for(good_claim(kind="limitation", control="enforced", evidence=["docs/agent-integration.md"])))

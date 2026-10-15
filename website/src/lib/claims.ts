@@ -2,12 +2,14 @@ import register from "../../content/claims.json"
 import { siteMode } from "./site"
 
 export type Availability = "verified" | "pilot" | "preview" | "planned"
+export type Control = "enforced" | "observed" | "advisory" | "simulated"
 
 export interface Claim {
   id: string
   group: string
   kind: "capability" | "limitation"
   availability: Availability
+  control: Control | null
   claim: string
   scope: string
   evidence: string[]
@@ -45,4 +47,11 @@ export const availabilityLabel: Record<Availability, string> = {
   pilot: "Pilot",
   preview: "Preview",
   planned: "Planned",
+}
+
+export const controlLabel: Record<Control, string> = {
+  enforced: "Enforced",
+  observed: "Observed",
+  advisory: "Advisory",
+  simulated: "Simulated",
 }
