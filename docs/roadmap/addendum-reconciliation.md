@@ -94,7 +94,7 @@ These were part of the original engineering task's "Operations and structural co
 | P1.4.1 | Domain workspaces, page tabs, mega-menu, permission-filtered page search, route inventory | **Verified** (below) |
 | P1.4.2 | Shared page kit (header, stats, panels, filters, sortable and paged tables, guidance, offline state) and a Command Center that shows only real data | **Verified** (below) |
 | P1.4.3 | Gate pages: Agents & Identity, Requests & Approvals, Policies & Controls | **Verified** (below) |
-| P1.4.4 | Watch pages: Live Monitoring, Risk & Threats, Telemetry & Sensors | Planned |
+| P1.4.4 | Watch pages: Live Monitoring, Risk & Threats, Telemetry & Sensors | **Verified** (below) |
 | P1.4.5 | Respond and Evidence pages | Planned |
 | P1.4.6 | Administration pages and the two investigation pages | Planned |
 | P1.4.7 | Acceptance: every criterion above, checked in a real browser at desktop and phone widths | Planned |
@@ -160,6 +160,18 @@ Every permission redirect and request body is unchanged.
   This run was on a tree that also contained the first four Watch pages of P1.4.4, then still in progress.
 - Reviewed by screenshot at 1440 px and 390 px: the Command Center, the collapsed mega-menu, and every Gate page.
 - Known gap, carried to P1.4.7: the policy-governance section at the foot of Policies still uses its older, larger type.
+
+**P1.4.4 (commit `a1f5461`).** All nine Watch pages now share the page structure.
+- **Rebuilt on the kit:** Threat Register, Simulation Lab, Endpoint Telemetry, Defensive Integrations and Observability, with summaries, filters, sortable tables or record cards, and guidance. Their native `confirm()` dialogs became confirmation dialogs.
+- **Two silent failures fixed:** Simulation Lab and Endpoint Telemetry used to ignore a failed lab-state or uninstall request. They now report the error.
+- **Header and guidance added:** Live Operations, Notifications, Authentication and Risk Center. Authentication and Risk Center had fixed "Live … telemetry" badges; these now show the real polling interval (15 s and 10 s) and the last-update time.
+
+A screenshot review found that Live Operations' fixed, full-viewport background layer painted over the shell's tab bar and plan banner. The shell's bands now sit in their own stacking layer. A hit test can't detect this, because the layer has `pointer-events: none`. A spec assertion therefore guards only the stacking rule itself, and the screenshot review remains the real check.
+
+**Verification run for P1.4.4:**
+- `npm run check`: lint clean; 158 unit tests pass.
+- Full Playwright suite: 59 passed, 1 skipped (no agents registered), including the 390 px horizontal-scroll check on every page.
+- Reviewed by screenshot at 1440 px and 390 px: all nine Watch pages.
 
 ---
 
