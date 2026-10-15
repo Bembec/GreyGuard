@@ -535,3 +535,57 @@
     min-height: 120px;
   }
 }
+
+/* Command Center (P1.4.2) */
+.dashboard-readiness {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.dashboard-readiness p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--gg-text-secondary);
+  font-size: 0.82rem;
+}
+
+.dashboard-readiness progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+  accent-color: var(--gg-cyan);
+}
+
+.dashboard-readiness progress::-webkit-progress-bar {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.dashboard-readiness progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--gg-cyan);
+}
+
+.dashboard-readiness__todo {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border: 2px solid var(--gg-text-muted);
+  border-radius: 50%;
+}
+
+.dashboard-services {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--gg-border);
+}
+
+.dashboard-services .gg-list__main span {
+  color: var(--gg-text-primary);
+  text-transform: capitalize;
+}

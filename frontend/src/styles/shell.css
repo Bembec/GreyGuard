@@ -335,8 +335,9 @@
 }
 
 .nav-flyout__panel {
+  position: fixed;
   width: 320px;
-  max-height: calc(100vh - 2rem);
+  max-height: calc(100vh - 1rem);
   overflow-y: auto;
 }
 
@@ -835,8 +836,29 @@
   }
 
   .topbar__operator div,
-  .topbar__search {
+  .topbar__search,
+  .user-menu__identity {
     display: none;
+  }
+
+  .topbar__left {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .topbar__left > div {
+    min-width: 0;
+  }
+
+  .topbar__left .topbar__title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar__actions {
+    flex: 0 0 auto;
+    gap: 0.35rem;
   }
 
   .topbar__operator {

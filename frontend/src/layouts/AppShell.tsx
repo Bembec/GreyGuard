@@ -32,6 +32,7 @@ import { commandCenter, pageForPath, workspaceForPath, workspaces } from "../con
 import { useAuth } from "../context/AuthContext"
 import { recordPageView } from "../lib/pageViewAnalytics"
 import { CapacityBanner } from "../components/CapacityBanner"
+import { OfflineBanner } from "../components/page/OfflineBanner"
 import "../styles/shell.css"
 
 const pinnedItem = commandCenter
@@ -304,6 +305,7 @@ export function AppShell() {
           </div>
 
           <WorkspaceTabs />
+          <OfflineBanner />
           <CapacityBanner />
           <Outlet />
         </main>

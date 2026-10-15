@@ -1,22 +1,16 @@
 import { expect, test } from "@playwright/test"
 
-import { openWithSession, signInOnce } from "./session"
+import { adminSession, openWithSession } from "./session"
 
 // The P1.4 information architecture: the sidebar lists product domains and their workspaces,
 // and a workspace's pages are tabs that keep their own URLs.
 
 let session: Record<string, string> = {}
+test.beforeAll(() => { session = adminSession() })
 
-test.beforeAll(async ({ browser }) => {
-  test.setTimeout(120_000)
-  session = await signInOnce(browser)
-})
-
-test.beforeEach(async ({ page }) => {
-  await openWithSession(page, session, "/dashboard")
-})
 
 test("the sidebar groups workspaces into expandable product domains", async ({ page }) => {
+  await openWithSession(page, session, "/getting-started")
   const sidebar = page.getByRole("navigation", { name: "Primary navigation" })
   for (const domain of ["Gate", "Watch", "Respond", "Evidence", "Administration"]) {
     await expect(sidebar.getByRole("button", { name: domain })).toHaveAttribute("aria-expanded", "true")
@@ -33,6 +27,7 @@ test("the sidebar groups workspaces into expandable product domains", async ({ p
 })
 
 test("workspace tabs move between pages and keep each page's URL", async ({ page }) => {
+  await openWithSession(page, session, "/getting-started")
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: /Requests & Approvals/ }).click()
   await expect(page).toHaveURL(/\/approvals$/)
   const tabs = page.getByRole("navigation", { name: "Requests & Approvals sections" })
@@ -48,6 +43,7 @@ test("workspace tabs move between pages and keep each page's URL", async ({ page
 })
 
 test("search jumps to a page by name", async ({ page }) => {
+  await openWithSession(page, session, "/getting-started")
   await page.keyboard.press("Control+k")
   await page.getByRole("textbox", { name: /Search control plane/ }).fill("threat")
   await page.getByRole("listbox", { name: "Pages" }).getByRole("option", { name: /Threat Register/ }).click()
@@ -55,11 +51,18 @@ test("search jumps to a page by name", async ({ page }) => {
 })
 
 test("the collapsed sidebar opens a mega-menu with every workspace and page in a domain", async ({ page }) => {
+  await openWithSession(page, session, "/getting-started")
   await page.getByRole("button", { name: "Collapse sidebar" }).click()
   await page.getByTitle("Respond").click()
   const menu = page.getByRole("menu", { name: "Respond navigation" })
   await expect(menu.getByRole("group", { name: "Incident Response" })).toBeVisible()
   await expect(menu.getByRole("group", { name: "Containment" })).toBeVisible()
-  await menu.getByRole("menuitem", { name: /Isolation Operations/ }).click()
+  // The panel must actually be painted, not clipped by the sidebar: the item is the topmost
+  // element at its own centre point.
+  const item = menu.getByRole("menuitem", { name: /Isolation Operations/ })
+  const box = (await item.boundingBox())!
+  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[role=menuitem]")?.textContent ?? "", { x: box.x + box.width / 2, y: box.y + box.height / 2 })
+  expect(hit).toContain("Isolation Operations")
+  await item.click()
   await expect(page).toHaveURL(/\/isolation-operations$/)
 })

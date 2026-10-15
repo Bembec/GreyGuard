@@ -12,6 +12,7 @@ import "@fontsource/inter/700.css"
 import "@fontsource/saira/600.css"
 import "@fontsource/saira/700.css"
 import "./styles/global.css"
+import "./styles/page-kit.css"
 
 const queryClient = new QueryClient({
   defaultOptions: {

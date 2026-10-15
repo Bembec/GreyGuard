@@ -1,29 +1,14 @@
 import {expect,test,type Page} from "@playwright/test"
 import {navigationItems} from "../src/config/navigation"
+import {adminSession} from "./session"
 
-// Signs in once as the platform administrator, then opens every console page in its own tab
+// Uses the platform administrator's shared session to open every console page in its own tab
 // with that session. A page fails if it throws in the browser, shows an error state or
 // triggers an API server error. Each page passes or fails independently.
 
+// The administrator session signed in once by global-setup.ts.
 let session:Record<string,string>={}
-
-test.beforeAll(async({browser})=>{
- // The first login on a fresh database also runs one-time initialization.
- test.setTimeout(120_000)
- const page=await browser.newPage()
- await page.goto("/")
- await page.locator("#admin-email").fill(process.env.GREYGUARD_E2E_EMAIL!)
- await page.locator("#admin-password").fill(process.env.GREYGUARD_E2E_PASSWORD!)
- const [login]=await Promise.all([
-  page.waitForResponse(response=>response.url().endsWith("/auth/login")&&response.request().method()==="POST",{timeout:90_000}),
-  page.getByRole("button",{name:/Enter command center/i}).click(),
- ])
- expect(login.status(),`login failed: ${await login.text()}`).toBe(200)
- // The login page also has a level-1 heading, so wait until the console has replaced it.
- await expect(page.getByRole("heading",{level:1})).not.toHaveText(/Every action passes/i,{timeout:30_000})
- session=await page.evaluate(()=>Object.fromEntries(Object.entries(sessionStorage)))
- await page.close()
-})
+test.beforeAll(()=>{session=adminSession()})
 
 async function expectHealthyPage(page:Page,path:string){
  const pageErrors:string[]=[],serverErrors:string[]=[]
@@ -40,6 +25,10 @@ async function expectHealthyPage(page:Page,path:string){
  await expect(page.getByText("Something went wrong"),"page shows an error state").toHaveCount(0)
  expect(pageErrors,"uncaught browser errors").toEqual([])
  expect(serverErrors,"API server errors").toEqual([])
+ // At phone width the page must fit without horizontal scrolling. Resizing re-lays out the page
+ // without reloading it, so this adds no API requests.
+ await page.setViewportSize({width:390,height:844})
+ await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth),{message:"page scrolls sideways at 390px"}).toBeLessThanOrEqual(390)
 }
 
 for(const item of navigationItems){
