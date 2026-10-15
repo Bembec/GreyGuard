@@ -287,6 +287,35 @@ def connect(database=None,*args,**kwargs):
     kwargs.setdefault("factory",_GuardedSqliteConnection)
     return _sqlite.connect(Path(database) if isinstance(database,Path) else database,*args,**kwargs)
 
+_INITIALIZED: set = set()
+_INITIALIZED_LOCK = threading.Lock()
+
+
+def initialize_once(name, database, initialize):
+    """Run a module's schema initialization once per database rather than on every request.
+
+    Keyed by the PostgreSQL URL, or by the SQLite file's path and inode - a missing, replaced or
+    different database file is initialized again (deleting a SQLite file under a running server is
+    unsupported: the filesystem may hand the recreated file the same inode). Hot paths (rate limiting, observability) used
+    to re-issue their CREATE TABLE statements on every request."""
+    url = _postgres_url()
+    if url:
+        key = (name, url)
+    else:
+        try:
+            path = Path(database)
+            key = (name, str(path.resolve()), path.stat().st_ino)
+        except (OSError, TypeError):
+            initialize()
+            return
+    if key in _INITIALIZED:
+        return
+    with _INITIALIZED_LOCK:
+        if key not in _INITIALIZED:
+            initialize()
+            _INITIALIZED.add(key)
+
+
 def backend_name() -> str:
     return "postgresql" if os.environ.get("GREYGUARD_DATABASE_URL","").startswith("postgresql") else "sqlite"
 

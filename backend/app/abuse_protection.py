@@ -111,7 +111,7 @@ def _event(connection, category, event_type, severity, hint, count, detail):
 
 def check_rate_limit(identifier: str, category: str = "GENERAL") -> dict[str, Any]:
     """Consume one request and return an allow/block decision."""
-    initialize_abuse_protection()
+    sqlite3.initialize_once("abuse_protection", database_path, initialize_abuse_protection)
     normalized_category = str(category).upper()
     identifier_hash, hint = _identifier(identifier)
     now = utc_now_datetime()

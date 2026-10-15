@@ -311,6 +311,12 @@ def list_runtime_states():
     return [(row[0], _runtime(row)) for row in rows]
 
 
+def count_runtime_states():
+    with sqlite3.connect(database_path) as connection:
+        return connection.execute(
+            "-- install-wide count across every org_id\nSELECT COUNT(*) FROM agent_runtime_states").fetchone()[0]
+
+
 def ensure_runtime_state(agent_name, org_id, state=None):
     """Create an agent's runtime state if it has none. Never overwrites existing state."""
     state = state or {}

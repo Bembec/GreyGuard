@@ -81,13 +81,25 @@ def _bound_correlation(path):
     return row[0] if row else None
 
 
-def get_config():
-    initialize_observability()
+# Read on every request, so cached briefly: a change made in this process applies at once, and
+# other worker processes pick it up within CONFIG_TTL_SECONDS.
+CONFIG_TTL_SECONDS = 5.0
+_config_cache: dict = {}
+
+
+def get_config(cached=False):
+    key = str(database_path)
+    if cached:
+        hit = _config_cache.get(key)
+        if hit and time.monotonic() - hit[0] < CONFIG_TTL_SECONDS:
+            return dict(hit[1])
+    sqlite3.initialize_once("observability", database_path, initialize_observability)
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         row = dict(connection.execute("SELECT * FROM observability_config WHERE config_id=1").fetchone())
-    for key in ("tracing_enabled", "metrics_enabled", "structured_logs_enabled"):
-        row[key] = bool(row[key])
+    for key_name in ("tracing_enabled", "metrics_enabled", "structured_logs_enabled"):
+        row[key_name] = bool(row[key_name])
+    _config_cache[key] = (time.monotonic(), dict(row))
     return row
 
 
@@ -104,11 +116,12 @@ def update_config(tracing_enabled, metrics_enabled, structured_logs_enabled,
             int(tracing_enabled), int(metrics_enabled), int(structured_logs_enabled),
             float(sample_rate), int(retention_limit), utc_now(), actor,
         ))
+    _config_cache.clear()
     return get_config()
 
 
 def start_request(method, path, incoming_correlation=None, traceparent=None):
-    config = get_config()
+    config = get_config(cached=True)
     valid_incoming = incoming_correlation if incoming_correlation and re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", incoming_correlation) else None
     correlation = valid_incoming or _bound_correlation(path) or "corr_" + secrets.token_hex(16)
     trace_match = re.fullmatch(r"00-([0-9a-f]{32})-[0-9a-f]{16}-0[01]", traceparent or "")
@@ -118,11 +131,12 @@ def start_request(method, path, incoming_correlation=None, traceparent=None):
     sampled = config["tracing_enabled"] and int(hashlib.sha256(trace_id.encode()).hexdigest()[:8], 16) % 10_000 < threshold
     current_correlation_id.set(correlation)
     return {"trace_id": trace_id, "span_id": span_id, "correlation_id": correlation,
-            "started": time.perf_counter(), "sampled": sampled, "method": method, "path": redact(path)}
+            "started": time.perf_counter(), "sampled": sampled, "method": method, "path": redact(path),
+            "_config": config}
 
 
 def finish_request(context, status_code):
-    config = get_config()
+    config = context.pop("_config", None) or get_config(cached=True)
     duration = round((time.perf_counter() - context["started"]) * 1000, 3)
     if config["metrics_enabled"]:
         key = (context["method"], context["path"], int(status_code))
