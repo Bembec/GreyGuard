@@ -1,6 +1,6 @@
 # P6 decision package — Vendor trust and procurement readiness
 
-**Status: prepared for approval; not started.** The addendum requires Michael's approval before each major workstream begins, and before any legal or compliance claim is made. This package scopes P6 against the evidence that exists in this repository today, so that the approval covers a defined piece of work. Nothing here is published, and nothing here is a legal conclusion.
+**Status: approved 2026-10-15 (T1–T8 as recommended); in progress.** See the P6 section of [`addendum-reconciliation.md`](addendum-reconciliation.md) for progress. Correction found during P6.1: the AES-256-GCM backup tool applies only to SQLite installs, and production PostgreSQL backups are not encrypted by GreyGuard. The addendum requires Michael's approval before each major workstream begins, and before any legal or compliance claim is made. This package scopes P6 against the evidence that exists in this repository today, so that the approval covers a defined piece of work. Nothing here is published, and nothing here is a legal conclusion.
 
 ## Decision record
 
