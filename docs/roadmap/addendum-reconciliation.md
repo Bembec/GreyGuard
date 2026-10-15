@@ -542,6 +542,44 @@ Every navigation page now has content. The site check passes on all 17 pages, th
 
 Remaining before publication: the owner's claim approvals, W4 (domain and host), W5 (demo route), W8 (counsel's legal pages), the logo masters and the trademark search. Final product screenshots and the tour wait for P7.5, per v3. Next: P7.5's console gap matrix.
 
+**Deferred-decision architecture (owner instruction, 2026-10-15; commits `5ac82ec`, `581ead0`, `79a4bfe`).** Development continues without forcing founder, brand, legal, hosting or commercial decisions. Every such value now lives in one place, renders through a slot, and has a safe state until it is decided.
+
+- **Decision registry.** `config/decisions.json` holds 43 typed decisions across brand, commercial, company, legal/trust and operations, each with an owner, a tier and a remediation step. The tiers are BLOCKING_FOR_PRODUCTION, REQUIRED_BEFORE_PUBLIC_LAUNCH, OPTIONAL_POST_LAUNCH and COMPLETED.
+  - 4 are decided: the product name, the tagline, the security contact (T3) and the disclosure contact, which references it.
+  - `scripts/decisions.py` validates the registry, scans it for secrets and renders [`FOUNDER_DECISIONS_REQUIRED.md`](FOUNDER_DECISIONS_REQUIRED.md).
+  - `readiness --target development|preview|production|public-launch` reports each missing item and its fix. Development and preview always pass; production and public launch fail while their items are open.
+  - Newly discovered decisions were added rather than guessed, among them the penetration test (LEG-12).
+- **Brand slots.** `config/brand-assets.json` names 16 slots:
+  - dark and light lockups, horizontal lockup, symbol, mono symbol;
+  - favicons at 16, 32 and 48 px plus ICO, Apple touch at 180 px;
+  - PWA icons at 192 and 512 px plus maskable;
+  - a 1200 × 630 social preview, a document logo and a splash.
+  
+  12 slots are provisional, using the existing logo unchanged and resized only. 4 are missing and render their fallback. `scripts/brand_assets.py sync` generates the console's typed map and CSS variables and [`docs/brand/ASSET_MANIFEST.md`](../brand/ASSET_MANIFEST.md). `npm run brand` in `website/` derives the site's copies. Components ask for a slot, never a file, so a final master replaces a provisional one by dropping the file at the slot's path and updating its status. The provisional state is internal and never shown to visitors.
+- **Website slots:** BrandMark, BrandLockup, PublicContact, DemoRequestDestination, PlanDisplay, SupportInformation, LegalDocument, LegalDocumentLink and TrustClaim, all reading the registry. Safe states:
+  - plans show "Contact sales";
+  - every demo button leads to `/request-demo/`, which explains that requests open soon and collects nothing, so nothing is silently discarded;
+  - unapproved legal pages show "Draft: awaiting qualified legal review", are noindex, and are tagged "(draft)" in the footer;
+  - certifications always read "Not currently claimed", and the penetration test reads "Not independently verified".
+  - A publish build runs the production readiness gate and fails with the report.
+
+**Verification run:**
+- Registry, brand and claim tests: 43 passed. That is 19 for the registry, 10 for brand assets and 14 for claims.
+- Mutations caught:
+  - a hard-coded `/brand/` path in a component;
+  - a secret in the console's brand map;
+  - an extra `VITE_` variable;
+  - a security.txt contact that differs from CO-03;
+  - a manifest edit without sync;
+  - an unlabelled legal draft (site check);
+  - plus the registry mutations recorded with `5ac82ec`.
+- Full backend suite in two halves: 432 + 322 = 754 passed.
+- Playwright: 64 passed, 1 skipped (the existing light-theme skip).
+- Frontend `npm run check` passes. Website preview build: 18 pages, and the site check passes. A publish build fails at the readiness gate, as intended.
+- Screenshots of `/request-demo/`, Company, Privacy and Terms at 1440 px and 390 px: no horizontal scroll.
+
+Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
