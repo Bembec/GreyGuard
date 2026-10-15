@@ -29,6 +29,7 @@ import { UserMenu } from "../components/navigation/UserMenu"
 import { navigationItems } from "../config/navigation"
 import { navigationGroups } from "../config/navigationGroups"
 import { useAuth } from "../context/AuthContext"
+import { recordPageView } from "../lib/pageViewAnalytics"
 import "../styles/shell.css"
 
 const pinnedItem = navigationItems.find((item) => !item.group)
@@ -53,6 +54,7 @@ function getPageInformation(pathname: string) {
 
 export function AppShell() {
   const location = useLocation()
+  useEffect(() => recordPageView(location.pathname), [location.pathname])
   const navigate = useNavigate()
   const { logout } = useAuth()
 

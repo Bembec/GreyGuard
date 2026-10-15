@@ -238,7 +238,15 @@ No prices, payment credentials or live billing exist anywhere. Interviews, desig
 
 ## P5 — Customer onboarding and success
 
-**Status: Deferred**, gated behind P1–P2 (there's no tenant/organization model yet to onboard anyone *into*). Not started.
+**Status: Verified (product side); business values pending.** Built to the provisional P4 decisions (D2 pilot model, D8 sales-assisted, no prices).
+
+| Sub-item | Status | Evidence |
+|---|---|---|
+| Repeatable customer lifecycle (discovery → offboarding) with exit criteria | **Verified (documented)** | `docs/customer-lifecycle.md`: 12 stages, each tied to product evidence. Stages 3–10 map onto the readiness checklist that `GET /organizations/{org_id}/lifecycle` computes (P2.5). |
+| Implementation checklist, responsibility matrix, training material, support and version policy | **Verified (documented); business values pending** | `docs/customer-lifecycle.md`: a RACI matrix, role training with hands-on practice, and a support policy. Contacts, hours, cadence and supported versions are left marked **[commercial team]** rather than invented. Response targets are measured by the status page, not promised. |
+| Product onboarding experience | **Verified** | A Getting Started page (`/getting-started`) turns the computed readiness checklist into guided steps (why, who, a link to the page that does it), with tests ensuring every link is a real page and every backend step has guidance. Pilot tracking (`backend/app/pilots.py`) follows P4 D2: Enterprise TRIAL, 90 days, decision at day 75, six success criteria (four measured from product data, two operator-confirmed with a note), and outcomes convert / extend once / offboard. No fee or price is stored (D3 open). |
+| Product analytics excluding prompts, secrets and payloads, and disableable | **Verified** | `backend/app/product_analytics.py`, `docs/product-analytics.md`. Adoption is counts only, computed from existing data. The only new collection is daily page-view counts per fixed navigation path (no user, session, IP or URL parameters; the browser honours Do Not Track). It can be turned off install-wide (`GREYGUARD_PRODUCT_ANALYTICS=off`) or per org by its owners, which also deletes what was collected. Tests prove no request content reaches the adoption output. |
+| Export, credential revocation, data deletion, offboarding | **Verified** | P2.5 (`docs/organization-lifecycle.md`). |
 
 ---
 

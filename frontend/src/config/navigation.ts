@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Plug,
   Radar,
+  Rocket,
   RadioTower,
   Satellite,
   Settings,
@@ -57,6 +58,13 @@ export const navigationItems: NavigationItem[] = [
     path: "/dashboard",
     description: "Security overview and live posture",
     icon: Command,
+  },
+  {
+    label: "Getting Started",
+    path: "/getting-started",
+    description: "Onboarding steps and pilot progress",
+    group: "administration",
+    icon: Rocket,
   },
   {
     label: "Live Operations",
