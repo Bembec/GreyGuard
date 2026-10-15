@@ -13,6 +13,7 @@ import AgentDetailPage from "../pages/AgentDetailPage"
 import { DashboardPage } from "../pages/DashboardPage"
 import { InstallWizardPage } from "../pages/InstallWizardPage"
 import { LoginPage } from "../pages/LoginPage"
+import { StatusPage } from "../pages/StatusPage"
 import { SsoCallbackPage } from "../pages/SsoCallbackPage"
 import LiveOperationsPage from "../pages/LiveOperationsPage"
 import ToolRequestsPage from "../pages/ToolRequestsPage"
@@ -55,6 +56,7 @@ function UnauthenticatedRoutes() {
   return (
     <Routes>
       <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
+      <Route path="/status" element={<StatusPage />} />
       <Route path="/setup" element={<InstallWizardPage />} />
       <Route
         path="*"
@@ -77,6 +79,7 @@ export function AppRoutes() {
 
   return (
     <Routes>
+      <Route path="/status" element={<StatusPage />} />
       <Route element={<AppShell />}>
         <Route
           index

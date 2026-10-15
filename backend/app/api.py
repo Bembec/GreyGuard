@@ -78,6 +78,7 @@ from . import billing
 from . import licensing
 from . import org_lifecycle
 from . import gateways
+from . import service_status
 
 
 from .policy_control import (
@@ -345,6 +346,7 @@ async def lifespan(_app: FastAPI):
         licensing.initialize_licensing()
         org_lifecycle.initialize_org_lifecycle()
         gateways.initialize_gateways()
+        service_status.initialize_service_status()
         initialize_isolation_operations()
         initialize_outbound_delivery()
         initialize_enterprise_sso()
@@ -1776,6 +1778,71 @@ def gateway_heartbeat(payload: GatewayHeartbeatRequest, x_gateway_node: str | No
                       x_gateway_key: str | None = Header(default=None)):
     node = _gateway_node(x_gateway_node, x_gateway_key)
     return gateways.heartbeat(node, payload.applied_digest, payload.node_version)
+
+
+class StatusIncidentRequest(BaseModel):
+    title: str = Field(min_length=5, max_length=200)
+    severity: Literal["SEV1", "SEV2", "SEV3", "SEV4"]
+    components: list[Literal["api", "database", "delivery_worker", "policy_distribution"]] = Field(min_length=1)
+    message: str = Field(min_length=5, max_length=2000)
+
+
+class StatusUpdateRequest(BaseModel):
+    state: Literal["INVESTIGATING", "IDENTIFIED", "MONITORING", "RESOLVED"]
+    message: str = Field(min_length=5, max_length=2000)
+
+
+class StatusMaintenanceRequest(BaseModel):
+    title: str = Field(min_length=5, max_length=200)
+    components: list[Literal["api", "database", "delivery_worker", "policy_distribution"]] = Field(min_length=1)
+    starts_at: str = Field(min_length=10, max_length=40)
+    ends_at: str = Field(min_length=10, max_length=40)
+    message: str = Field(default="", max_length=2000)
+
+
+def _status_call(function, *args):
+    try:
+        return function(*args)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except service_status.StatusError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/status")
+def public_service_status():
+    """Public, tenant-free service status for the operated service."""
+    return service_status.public_status()
+
+
+@app.get("/status/history")
+def public_status_history():
+    return service_status.history()
+
+
+@app.get("/status/severities")
+def public_status_severities():
+    return {"severities": service_status.SEVERITIES, "note": service_status.NOT_AN_OUTAGE}
+
+
+@app.post("/status/incidents", status_code=201)
+def open_status_incident(payload: StatusIncidentRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    return _status_call(service_status.open_incident, payload.title, payload.severity, payload.components,
+                        payload.message, policy_actor(administrator))
+
+
+@app.post("/status/incidents/{incident_id}/updates")
+def update_status_incident(incident_id: str, payload: StatusUpdateRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    return _status_call(service_status.update_incident, incident_id, payload.state, payload.message, policy_actor(administrator))
+
+
+@app.post("/status/maintenance", status_code=201)
+def schedule_status_maintenance(payload: StatusMaintenanceRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    return _status_call(service_status.schedule_maintenance, payload.title, payload.components, payload.starts_at,
+                        payload.ends_at, payload.message, policy_actor(administrator))
 
 
 def _require_existing_org(org_id):

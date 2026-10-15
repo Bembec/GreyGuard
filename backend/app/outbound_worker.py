@@ -13,6 +13,7 @@ contains no delivery logic of its own.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 import os
 import socket
 import sys
@@ -58,6 +59,7 @@ def _batch_limit() -> int:
 def _run_tick() -> None:
     """One pass over every outbound queue. Never let one subsystem's failure stop the others."""
     limit = _batch_limit()
+    failed = []
     for label, action in (
         ("notification_delivery", lambda: process_deliveries(send_notification, limit=limit, worker_id=WORKER_ID)),
         ("incident_integrations", lambda: process_incidents(send_incident, limit=limit, worker_id=WORKER_ID)),
@@ -77,6 +79,13 @@ def _run_tick() -> None:
             # worth surfacing through whatever process-level log aggregation is configured.
             import logging
             logging.getLogger("greyguard.outbound_worker").exception("Delivery tick failed for %s", label)
+            failed.append(label)
+    # Read by service_status.py for the public status page: when the worker last completed a tick
+    # and which subsystems failed in it.
+    LAST_TICK.update(at=datetime.now(timezone.utc).isoformat(), failed=failed)
+
+
+LAST_TICK: dict = {"at": None, "failed": []}
 
 
 async def _loop(stop_event: "asyncio.Event") -> None:

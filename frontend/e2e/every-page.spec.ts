@@ -55,3 +55,9 @@ test("settings shows the organization's plan and lifecycle from the real backend
  await expect(page.getByText(/\d+ of 9 complete/)).toBeVisible({timeout:15_000})
  await expect(page.getByRole("button",{name:/Export organization data/})).toBeVisible()
 })
+test("the public status page works without signing in",async({page})=>{
+ await page.goto("/status")
+ await expect(page.getByRole("heading",{level:1,name:/service status/i})).toBeVisible()
+ await expect(page.getByText("Control-plane API")).toBeVisible({timeout:15_000})
+ await expect(page.getByText(/not a service outage/)).toBeVisible()
+})
