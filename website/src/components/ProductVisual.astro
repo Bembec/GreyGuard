@@ -1,0 +1,68 @@
+---
+// Synthetic product illustrations for the platform page. Each is drawn in HTML from real product
+// behaviour (default policy, thresholds, removal steps, the evidence chain) and labelled synthetic.
+interface Props { kind: "approval" | "risk" | "contain" | "evidence" }
+const { kind } = Astro.props
+---
+<figure class={`pv pv--${kind}`}>
+  <div class="pv__window">
+    {kind === "approval" && (
+      <>
+        <div class="pv__bar"><span>Approval needed</span><span class="pill pill--muted">Synthetic data</span></div>
+        <div class="pv__body">
+          <p class="pv__kicker">ops-agent requests</p>
+          <p class="pv__title"><code>delete_file</code> notes/q3-plan.md</p>
+          <dl class="pv__facts">
+            <div><dt>Policy</dt><dd><span class="pv__tag pv__tag--ask">ASK</span></dd></div>
+            <div><dt>Risk added</dt><dd>+20</dd></div>
+            <div><dt>Execution</dt><dd>Not started</dd></div>
+          </dl>
+          <div class="pv__note">Reviewer note: “Confirmed with the plan owner.”</div>
+          <div class="pv__actions"><span class="pv__btn pv__btn--deny">Deny</span><span class="pv__btn pv__btn--approve">Approve</span></div>
+        </div>
+      </>
+    )}
+    {kind === "risk" && (
+      <>
+        <div class="pv__bar"><span>Agent risk · mail-agent</span><span class="pill pill--muted">Synthetic data</span></div>
+        <div class="pv__body">
+          <ol class="pv__timeline">
+            <li><span class="pv__tag pv__tag--block">BLOCK</span> send_email <em>blocked attempt 1 of 3</em></li>
+            <li><span class="pv__tag pv__tag--block">BLOCK</span> send_email <em>blocked attempt 2 of 3</em></li>
+            <li><span class="pv__tag pv__tag--block">BLOCK</span> send_email <em>blocked attempt 3 of 3</em></li>
+            <li class="pv__timeline--alert"><span class="pv__tag pv__tag--refused">SUSPENDED</span> every further request refused</li>
+          </ol>
+          <div class="pv__meter" aria-hidden="true"><span></span></div>
+          <p class="pv__caption-line">Threshold reached → suspended automatically</p>
+        </div>
+      </>
+    )}
+    {kind === "contain" && (
+      <>
+        <div class="pv__bar"><span>Capability removal</span><span class="pill pill--muted">Synthetic data</span></div>
+        <div class="pv__body">
+          <ol class="pv__steps">
+            <li class="is-done">Fail closed <em>capability disabled at once</em></li>
+            <li class="is-done">Preserve evidence <em>audit history retained</em></li>
+            <li class="is-current">Revoke access <em>needs recorded evidence</em></li>
+            <li>Verify recovery</li>
+          </ol>
+          <div class="pv__actions"><span class="pv__btn pv__btn--approve">Reset agent after investigation</span></div>
+        </div>
+      </>
+    )}
+    {kind === "evidence" && (
+      <>
+        <div class="pv__bar"><span>Audit chain</span><span class="pill pill--muted">Synthetic data</span></div>
+        <div class="pv__body">
+          <ol class="pv__chain">
+            <li><strong>#1042</strong> read_file · ALLOW <code>a91f…e2c0</code></li>
+            <li><strong>#1043</strong> delete_file · APPROVED by reviewer <code>3b7d…19aa</code></li>
+            <li><strong>#1044</strong> send_email · BLOCK <code>c04e…7f51</code></li>
+          </ol>
+          <div class="pv__verified">Chain verified · 1,044 records · no gaps</div>
+        </div>
+      </>
+    )}
+  </div>
+</figure>

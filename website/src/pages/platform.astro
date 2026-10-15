@@ -1,9 +1,143 @@
 ---
 import Base from "../layouts/Base.astro"
-import PageIntro from "../components/PageIntro.astro"
-import InPreparation from "../components/InPreparation.astro"
+import ClaimList from "../components/ClaimList.astro"
+import Icon from "../components/Icon.astro"
+import ProductVisual from "../components/ProductVisual.astro"
+import { demoContact } from "../lib/site"
+
+const demoHref = demoContact ?? "/company/#contact"
+
+// Every product page carries the addendum's nine elements: buyer problem, how the control works,
+// supported environments, a real or clearly synthetic visual, evidence created, deployment path,
+// limitations, availability (on each claim) and a next action.
+const groups = [
+  {
+    id: "gate", icon: "gate", name: "Gate", title: "Decide before an agent acts",
+    problem: "Agents are given broad credentials and act on a model's output. Without a gate, nothing stops an unsafe action before it runs.",
+    how: ["Each agent authenticates with its own credential.", "The requested action must be within the agent's granted scopes.", "The organization's policy returns ALLOW, ASK or BLOCK; an action with no rule is blocked.", "ASK pauses the request until a person decides."],
+    claims: ["GG-GATE-1", "GG-GATE-2", "GG-GATE-3", "GG-GATE-4", "GG-GATE-5", "GG-GATE-6"],
+    evidence: "Every decision, approval and credential change is written to the audit trail with the actor, time and reason.",
+    visual: "approval",
+  },
+  {
+    id: "watch", icon: "watch", name: "Watch", title: "See risk build, as it happens",
+    problem: "A misbehaving agent rarely fails once. Repeated refusals are a signal, and they are lost if no one is counting.",
+    how: ["Blocked actions add risk to the agent that tried them.", "At its threshold the agent is suspended automatically.", "Decisions stream live to the console; high-severity evidence opens an incident.", "A simulation lab checks that prohibited actions are refused."],
+    claims: ["GG-WATCH-1", "GG-WATCH-2", "GG-WATCH-3", "GG-WATCH-4"],
+    evidence: "Risk changes, suspensions and incidents are recorded with the decisions that caused them.",
+    visual: "risk",
+  },
+  {
+    id: "respond", icon: "respond", name: "Respond", title: "Contain, then recover",
+    problem: "When an agent or integration goes wrong, teams need to stop it at once, and to restore service safely afterwards.",
+    how: ["Suspension stops a risky agent while you investigate.", "A capability can be retired: fail-closed first, then each step with recorded evidence.", "Isolated execution runs only predefined jobs, and can terminate them all at once.", "Incidents can open tickets in Jira or ServiceNow."],
+    claims: ["GG-RESP-1", "GG-RESP-2", "GG-RESP-3", "GG-RESP-4"],
+    evidence: "Each containment step, reset and removal is recorded, with the evidence the operator supplied.",
+    visual: "contain",
+  },
+  {
+    id: "evidence", icon: "evidence", name: "Evidence", title: "Prove what happened",
+    problem: "After an incident, or for an auditor, you need to show who acted, under which rule, and that the record was not altered.",
+    how: ["Audit records are hash-chained and can be verified end to end.", "Legal holds stop retention from deleting evidence.", "Each request has an exportable evidence bundle, with secrets redacted.", "Evidence can be exported to your SIEM, minimized and signed."],
+    claims: ["GG-EVID-1", "GG-EVID-2", "GG-EVID-3", "GG-EVID-4", "GG-EVID-5"],
+    evidence: "The records are the product here: decisions, approvals, executions and administrator actions.",
+    visual: "evidence",
+  },
+] as const
+
+const steps = [
+  ["Identity", "The agent authenticates with its own credential, by key or optional certificate."],
+  ["Scope", "The action must be one the agent was granted. Anything else is denied."],
+  ["Policy", "The organization's published policy decides ALLOW, ASK or BLOCK."],
+  ["Approval", "ASK waits for a person. Nothing runs while it waits."],
+  ["Execution boundary", "Approved work runs inside controlled limits, or as a dry run."],
+  ["Evidence", "Each step is recorded in a hash-chained trail you can verify."],
+]
 ---
-<Base title="Platform" description="How a request moves from an authenticated agent through policy, approval, execution and evidence.">
-  <PageIntro eyebrow="Platform" title="Platform" lead="How a request moves from an authenticated agent through policy, approval, execution and evidence." />
-  <InPreparation phase="P7.2" covers={['The request path, step by step', 'Gate, Watch, Respond and Evidence in detail', 'Deployment models and what each one covers']} />
+<Base title="Platform" description="GreyGuard's platform: Gate, Watch, Respond and Evidence controls for AI agents, and how every request is decided.">
+  <section class="hero hero--compact">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container">
+      <p class="eyebrow">Platform</p>
+      <h1 class="hero__title">One control plane for every agent action</h1>
+      <p class="hero__lead">Four controls work together: Gate decides, Watch notices, Respond contains, and Evidence proves. Each capability shows whether it is enforced or observed, and how mature it is.</p>
+      <nav class="subnav" aria-label="On this page">
+        {groups.map((group) => <a href={`#${group.id}`}><Icon name={group.icon} size={16} />{group.name}</a>)}
+        <a href="#request-path"><Icon name="arrow" size={16} />Request path</a>
+      </nav>
+    </div>
+  </section>
+
+  {groups.map((group, index) => (
+    <section class:list={["section", { "section--band": index % 2 === 1 }]} id={group.id} aria-labelledby={`${group.id}-title`}>
+      <div class="container feature">
+        <div class="feature__copy">
+          <p class="eyebrow"><Icon name={group.icon} size={16} /> {group.name}</p>
+          <h2 id={`${group.id}-title`}>{group.title}</h2>
+          <p class="feature__problem">{group.problem}</p>
+          <h3>How it works</h3>
+          <ol class="feature__how">{group.how.map((line) => <li>{line}</li>)}</ol>
+        </div>
+        <ProductVisual kind={group.visual} />
+        <div class="feature__details">
+          <div class="feature__panel">
+            <h3>Capabilities</h3>
+            <ClaimList ids={[...group.claims]} />
+          </div>
+          <div class="feature__panel">
+            <h3>Evidence created</h3>
+            <p>{group.evidence}</p>
+            <h3>Where it runs</h3>
+            <p>Every agent connected through the SDKs, the REST API, a framework adapter or a gateway. <a href="/environments/">Connection methods</a></p>
+            <h3>Limits</h3>
+            <p>Covers only agents that send their actions through GreyGuard. <a href="#limits">All limitations</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+  ))}
+
+  <section class="section" id="request-path" aria-labelledby="path-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">How a request is decided</p>
+        <h2 id="path-title">Six steps, every time</h2>
+        <p class="section-head__lead">An action reaches the execution boundary only after every earlier step has passed.</p>
+      </div>
+      <ol class="path">
+        {steps.map(([title, text], index) => (
+          <li class="path__step">
+            <span class="path__number">{String(index + 1).padStart(2, "0")}</span>
+            <h3>{title}</h3>
+            <p>{text}</p>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+
+  <section class="section section--band" id="limits" aria-labelledby="limits-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Limits</p>
+        <h2 id="limits-title">What the platform does not do</h2>
+        <p class="section-head__lead">Stated here so you can plan around them.</p>
+      </div>
+      <div class="coverage__grid">
+        <div class="coverage__col coverage__col--limits"><ClaimList ids={["GG-CONN-6", "GG-PLAT-2"]} /></div>
+        <div class="coverage__col coverage__col--limits"><ClaimList ids={["GG-PLAT-3", "GG-TRUST-1"]} /></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta" aria-labelledby="cta-title">
+    <div class="container cta__inner">
+      <h2 id="cta-title">Walk through a decision with us</h2>
+      <p>We'll run your own agent scenarios through GreyGuard on synthetic data.</p>
+      <div class="hero__actions">
+        <a class="button button--large" href={demoHref}>Request a demo</a>
+        <a class="button button--large button--ghost" href="/environments/">See connection methods</a>
+      </div>
+    </div>
+  </section>
 </Base>
