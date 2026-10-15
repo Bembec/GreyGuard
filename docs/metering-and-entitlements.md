@@ -52,7 +52,9 @@ Monthly controlled requests and deliveries are metered on every plan, but no pla
 | ACTIVE | Plan in force. |
 | TRIAL | Plan in force until `trial_ends_at` (1–90 days); it becomes EXPIRED the moment it ends. |
 | EXPIRED | Restricted mode. |
-| SUSPENDED | Restricted mode (for example, after a payment failure). |
+| SUSPENDED | Restricted mode, set by an install operator. |
+
+Billing and the install's licence lease can also restrict an org without changing its status. `restriction_reasons` names every cause (see [billing-and-licensing.md](billing-and-licensing.md)).
 
 ## Meters
 
@@ -97,4 +99,4 @@ The engine is complete, but these decisions belong to the business and are not m
 2. **Defaults.** Whether new orgs should start on a trial automatically, and on which plan and length. Today every org starts Unassigned.
 3. **Storage.** Whether storage should be metered, and in what unit.
 4. **Payment-failure behaviour beyond restricted mode.** For example, whether existing agents should ever stop. The current rule is that they never do.
-5. **Billing link.** How plan status connects to the provider-neutral billing interface (P2.4).
+5. ~~**Billing link.**~~ Settled in P2.4: billing and licence state are separate inputs to restricted mode, and plans stay operator decisions. See [billing-and-licensing.md](billing-and-licensing.md).

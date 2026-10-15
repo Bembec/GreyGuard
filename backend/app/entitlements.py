@@ -6,7 +6,8 @@ Design rules, from the commercial roadmap addendum:
 - Plan limits must never remove a protection required for safe operation. MANDATORY_PROTECTIONS
   lists what no plan, status or override can gate; FEATURES may only contain capabilities outside
   it (a test asserts the two never overlap).
-- On trial expiry or payment failure an org enters a restricted mode that blocks *new* growth
+- On trial expiry, suspension, an overdue payment past its grace period, a cancelled subscription
+  or a lapsed self-hosted licence lease (RESTRICTION_REASONS) an org enters a restricted mode that blocks *new* growth
   (new agents, new gated configuration) but preserves export, evidence, security controls and
   safe offboarding. Existing agents keep being enforced exactly as before.
 - Reviewers, auditors and other members are never metered, so oversight is never discouraged.
@@ -23,6 +24,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from . import billing, licensing
 from . import db_compat as sqlite3
 from .database import database_path
 
@@ -84,6 +86,18 @@ PLANS: dict[str, dict[str, Any]] = {
 STATUSES = {"ACTIVE", "TRIAL", "EXPIRED", "SUSPENDED"}
 RESTRICTED_STATUSES = {"EXPIRED", "SUSPENDED"}
 MAX_TRIAL_DAYS = 90
+
+# Every reason an org can be in restricted mode, and how a refusal names it. The plan status is
+# set by an install operator; billing (billing.py) and the install's licence lease (licensing.py)
+# are separate inputs, so lifting one never lifts another.
+RESTRICTION_REASONS = {
+    "PLAN_EXPIRED": "the plan has expired",
+    "PLAN_SUSPENDED": "the plan is suspended",
+    "PAYMENT_OVERDUE": "payment is overdue past its grace period",
+    "SUBSCRIPTION_CANCELED": "the subscription is cancelled",
+    "LICENSE_LAPSED": "this install's licence lease has lapsed",
+    "LICENSE_MISSING": "this install has no valid licence lease",
+}
 
 
 class EntitlementError(PermissionError):
@@ -191,11 +205,14 @@ def get_entitlements(org_id: str, meters=None) -> dict[str, Any]:
             if meter in limits and level in ("soft", "hard"):
                 limits[meter][level] = override["value"]
     current = usage(org_id, meters)
+    reasons = [f"PLAN_{assignment['status']}"] if assignment["status"] in RESTRICTED_STATUSES else []
+    reasons += [reason for reason in (billing.restriction(org_id), licensing.restriction()) if reason]
     return {
         "org_id": org_id,
         **assignment,
         "plan_label": plan["label"],
-        "restricted": assignment["status"] in RESTRICTED_STATUSES,
+        "restricted": bool(reasons),
+        "restriction_reasons": reasons,
         "features": sorted(features),
         "mandatory_protections": sorted(MANDATORY_PROTECTIONS),
         "limits": limits,
@@ -207,6 +224,12 @@ def get_entitlements(org_id: str, meters=None) -> dict[str, Any]:
     }
 
 
+def _restricted_message(entitlements: dict[str, Any], what: str) -> str:
+    because = " and ".join(RESTRICTION_REASONS[reason] for reason in entitlements["restriction_reasons"])
+    return (f"This organization is restricted because {because}: {what} is paused. "
+            "Evidence, export and security controls remain available.")
+
+
 def require_feature(org_id: str, feature: str) -> None:
     """Refuse a gated capability the org's plan does not include. Mandatory protections can
     never be refused here."""
@@ -216,9 +239,7 @@ def require_feature(org_id: str, feature: str) -> None:
         raise ValueError(f"Unknown entitlement feature: {feature}")
     entitlements = get_entitlements(org_id, meters=())
     if entitlements["restricted"]:
-        raise EntitlementError(
-            f"This organization's plan is {entitlements['status'].lower()}: new {feature.replace('_', ' ')} "
-            "configuration is paused. Evidence, export and security controls remain available.")
+        raise EntitlementError(_restricted_message(entitlements, f"new {feature.replace('_', ' ')} configuration"))
     if feature not in entitlements["features"]:
         raise EntitlementError(
             f"The {entitlements['plan_label']} plan does not include {feature.replace('_', ' ')}.")
@@ -231,9 +252,7 @@ def require_capacity(org_id: str, meter: str, increment: int = 1) -> dict[str, A
         raise ValueError(f"Unknown meter: {meter}")
     entitlements = get_entitlements(org_id, meters=(meter,))
     if entitlements["restricted"]:
-        raise EntitlementError(
-            f"This organization's plan is {entitlements['status'].lower()}: new {meter.replace('_', ' ')} "
-            "cannot be added. Evidence, export and security controls remain available.")
+        raise EntitlementError(_restricted_message(entitlements, f"adding {meter.replace('_', ' ')}"))
     limit = entitlements["limits"][meter]
     current = entitlements["usage"][meter]
     if limit["hard"] is not None and current + increment > limit["hard"]:

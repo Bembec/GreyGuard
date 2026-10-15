@@ -267,6 +267,10 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "org_entitlements",
     "entitlement_overrides",
     "entitlement_events",
+    # P2.4 (billing.py): each org's billing account (opaque provider references only - never
+    # card data) and its hash-chained billing-event evidence - org-scoped from creation.
+    "billing_accounts",
+    "billing_events",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
@@ -275,6 +279,11 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
 # exactly one of these two sets; a table in neither fails the CI check in
 # tests/test_tenant_guard.py::test_every_schema_table_is_in_exactly_one_registry.
 GLOBAL_TABLES: frozenset[str] = frozenset({
+    # P2.4 (licensing.py): a self-hosted licence lease covers the whole install, not one org -
+    # the install's identity and clock high-water mark, its leases and their event log.
+    "license_install",
+    "license_leases",
+    "license_events",
     "administrators",
     "administrator_sessions",
     "administrator_refresh_tokens",

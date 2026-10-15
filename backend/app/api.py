@@ -73,6 +73,8 @@ from .enterprise_sso import (
 )
 from . import organizations
 from . import entitlements
+from . import billing
+from . import licensing
 
 
 from .policy_control import (
@@ -336,6 +338,8 @@ async def lifespan(_app: FastAPI):
         initialize_incident_integrations()
         initialize_execution_isolation()
         entitlements.initialize_entitlements()
+        billing.initialize_billing()
+        licensing.initialize_licensing()
         initialize_isolation_operations()
         initialize_outbound_delivery()
         initialize_enterprise_sso()
@@ -1446,6 +1450,134 @@ def revoke_entitlement_override(org_id: str, override_id: str, x_admin_pin: str 
         return entitlements.revoke_override(org_id, override_id, policy_actor(administrator))
     except KeyError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+class BillingLinkRequest(BaseModel):
+    plan: Literal["FOUNDATION", "ENTERPRISE", "DEDICATED"]
+    billing_email: str = Field(min_length=3, max_length=254)
+
+
+class BillingContactRequest(BaseModel):
+    billing_email: str = Field(min_length=3, max_length=254)
+
+
+class BillingSimulationRequest(BaseModel):
+    event_type: Literal["PAYMENT_SUCCEEDED", "PAYMENT_FAILED", "SUBSCRIPTION_CANCELED"]
+    amount_minor: int | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+
+
+class LicenseLeaseRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=4000)
+
+
+def require_billing_manager(x_admin_pin):
+    """Billing is an org-governance concern: its owners and billing administrators manage it,
+    whatever their operational role. Install operators can always see it."""
+    administrator = require_admin(x_admin_pin)
+    if administrator.get("governance_role") not in ("OWNER", "BILLING_ADMIN") and not administrator.get("install_operator"):
+        raise HTTPException(status_code=403, detail="Organization owner or billing administrator access is required.")
+    return administrator
+
+
+@app.get("/billing")
+def current_billing(x_admin_pin: str | None = Header(default=None)):
+    """Billing status for the administrator's own org. GreyGuard holds no card data to show."""
+    return billing.billing_summary(organizations.resolve_org_id(require_admin(x_admin_pin)))
+
+
+@app.get("/billing/events")
+def current_billing_events(x_admin_pin: str | None = Header(default=None)):
+    org_id = organizations.resolve_org_id(require_billing_manager(x_admin_pin))
+    return {"events": billing.billing_events(org_id), "verification": billing.verify_billing_evidence(org_id)}
+
+
+@app.put("/billing/contact")
+def update_billing_contact(payload: BillingContactRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_billing_manager(x_admin_pin)
+    try:
+        return billing.update_contact(organizations.resolve_org_id(administrator), payload.billing_email, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except billing.BillingError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/billing/webhooks/{provider_name}")
+async def receive_billing_webhook(provider_name: str, request: Request):
+    """Provider webhooks authenticate by signature, not by session. Rejections say only why the
+    request was not trusted; acknowledgements never reveal whether a subscription exists."""
+    body = await request.body()
+    if len(body) > 64_000:
+        raise HTTPException(status_code=413, detail="Billing webhook body is too large.")
+    try:
+        return billing.handle_webhook(provider_name, body, request.headers)
+    except billing.WebhookRejected as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except billing.BillingError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/billing/{org_id}")
+def organization_billing(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    require_install_operator(x_admin_pin)
+    _require_existing_org(org_id)
+    return {**billing.billing_summary(org_id), "events": billing.billing_events(org_id),
+            "verification": billing.verify_billing_evidence(org_id)}
+
+
+@app.post("/billing/{org_id}/link", status_code=201)
+def link_organization_billing(org_id: str, payload: BillingLinkRequest, x_admin_pin: str | None = Header(default=None)):
+    """Open a subscription at the provider and assign the matching plan. Plans stay
+    install-operator decisions: an org never subscribes itself into a plan."""
+    administrator = require_install_operator(x_admin_pin)
+    _require_existing_org(org_id)
+    actor = policy_actor(administrator)
+    try:
+        summary = billing.link_account(org_id, payload.plan, payload.billing_email, actor)
+    except billing.BillingError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    entitlements.assign_plan(org_id, payload.plan, "ACTIVE", actor)
+    return summary
+
+
+@app.post("/billing/{org_id}/cancel")
+def cancel_organization_billing(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    try:
+        return billing.cancel_account(org_id, policy_actor(administrator))
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except billing.BillingError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/billing/{org_id}/simulate")
+def simulate_organization_billing_event(org_id: str, payload: BillingSimulationRequest, x_admin_pin: str | None = Header(default=None)):
+    """Sandbox only: drive a mock-provider event through the real signed webhook path."""
+    require_install_operator(x_admin_pin)
+    try:
+        result = billing.simulate_event(org_id, payload.event_type, payload.amount_minor, payload.currency)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except (billing.BillingError, billing.WebhookRejected) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {**result, "billing": billing.billing_summary(org_id)}
+
+
+@app.get("/license")
+def install_license(x_admin_pin: str | None = Header(default=None)):
+    require_install_operator(x_admin_pin)
+    return {**licensing.license_status(), "history": licensing.license_history()}
+
+
+@app.put("/license")
+def install_license_lease(payload: LicenseLeaseRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    try:
+        return licensing.install_lease(payload.token, policy_actor(administrator))
+    except licensing.LicenseError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 def _require_existing_org(org_id):
