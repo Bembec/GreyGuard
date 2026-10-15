@@ -18,6 +18,13 @@ from pathlib import Path
 
 from .database import (
     claim_tool_request_execution,
+    delete_runtime_state,
+    ensure_runtime_state,
+    get_runtime_state,
+    initialize_agent_runtime_states,
+    list_runtime_states,
+    record_runtime_decision,
+    reset_runtime_state,
     complete_tool_request_execution,
     create_agent_identity as save_agent_identity,
     decide_tool_request,
@@ -89,7 +96,46 @@ state_path = (
     data_path / "greyguard_state.json"
 )
 
-agent_states = {}
+class AgentRuntimeStates:
+    """Read-through view of agent runtime state (risk score, blocked attempts, suspension), which
+    lives in the database (database.agent_runtime_states) so every server process and replica
+    sees the same state. Reads return fresh snapshots; changes go through the atomic functions in
+    database.py (record_runtime_decision, reset_runtime_state). Assigning a state only creates a
+    missing agent's state - it never overwrites one."""
+
+    def __contains__(self, agent_name):
+        return get_runtime_state(agent_name) is not None
+
+    def __getitem__(self, agent_name):
+        state = get_runtime_state(agent_name)
+        if state is None:
+            raise KeyError(agent_name)
+        return state
+
+    def __setitem__(self, agent_name, state):
+        ensure_runtime_state(agent_name, agent_org_id(agent_name), state)
+
+    def items(self):
+        return list_runtime_states()
+
+    def keys(self):
+        return [name for name, _ in list_runtime_states()]
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def __len__(self):
+        return len(list_runtime_states())
+
+    def pop(self, agent_name, default=None):
+        state = get_runtime_state(agent_name)
+        if state is None:
+            return default
+        delete_runtime_state(agent_name, agent_org_id(agent_name))
+        return state
+
+
+agent_states = AgentRuntimeStates()
 active_agent_name = ""
 
 
@@ -223,37 +269,6 @@ def authenticate_admin():
     )
 
 
-_RUNTIME_STATE_LOCKS = {}
-
-
-def claim_runtime_state():
-    """Make this process the only owner of the agent runtime state in its data directory.
-
-    Agent runtime state (risk score, blocked attempts, suspension) lives in this process's memory
-    and is saved whole to state_path. Two processes sharing it diverge: an agent suspended by one
-    is still allowed by the other, whose next save writes the suspension back to ACTIVE (reproduced
-    with the image's former `--workers 2`). Until that state moves into the database, a second
-    server process on the same data directory must refuse to start rather than run unsafely."""
-    try:
-        import fcntl
-    except ImportError:  # pragma: no cover - non-POSIX development hosts
-        return
-    lock_path = state_path.parent / ".agent-runtime-state.lock"
-    if str(lock_path) in _RUNTIME_STATE_LOCKS:
-        return
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    handle = open(lock_path, "a+")
-    try:
-        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError as error:
-        handle.close()
-        raise RuntimeError(
-            "Another GreyGuard server process already owns the agent runtime state in "
-            f"{lock_path.parent}. Run exactly one backend process (uvicorn --workers 1) per data "
-            "directory: agent suspension and risk state are per-process today.") from error
-    _RUNTIME_STATE_LOCKS[str(lock_path)] = handle
-
-
 def load_state():
     """Load saved multi-agent state."""
 
@@ -333,11 +348,12 @@ def load_state():
 
 
 def save_state():
-    """Save every agent's security state."""
+    """Save the CLI's active agent, with a snapshot of agent states for reference. The database
+    is the source of truth for agent state; the snapshot is never read back over it."""
 
     state_data = {
         "active_agent": active_agent_name,
-        "agents": agent_states,
+        "agents": dict(agent_states.items()),
     }
 
     with state_path.open(
@@ -354,15 +370,19 @@ def save_state():
 def initialize_greyguard():
     """Initialize GreyGuard V10."""
 
-    global agent_states
     global active_agent_name
 
     initialize_database()
+    initialize_agent_runtime_states()
     initialize_sandbox()
 
     saved_state = load_state()
 
-    agent_states = saved_state["agents"]
+    # One-time import of state kept in the state file before it moved into the database. Existing
+    # database state always wins (ensure_runtime_state never overwrites).
+    for legacy_name, legacy_state in saved_state["agents"].items():
+        if isinstance(legacy_state, dict):
+            ensure_runtime_state(legacy_name, agent_org_id(legacy_name), legacy_state)
     active_agent_name = saved_state[
         "active_agent"
     ]
@@ -612,10 +632,6 @@ def issue_agent_credential(
             "This agent name is unavailable."
         )
 
-    registration = register_agent(
-        normalized_name
-    )
-
     credential = generate_agent_credential()
     credential_salt = (
         generate_credential_salt()
@@ -638,6 +654,11 @@ def issue_agent_credential(
         raise ValueError(
             "Agent identity could not be created."
         )
+
+    # After the identity, so the runtime state is created under the agent's own org.
+    registration = register_agent(
+        normalized_name
+    )
 
     record_credential_history_event(
         agent_name=normalized_name,
@@ -1265,8 +1286,6 @@ def evaluate_action(
         50,
     )
 
-    state["risk_score"] += risk_added
-
     if policy_decision == "ASK":
         if approval in (
             "APPROVED",
@@ -1279,18 +1298,21 @@ def evaluate_action(
     else:
         approval_result = "NOT_REQUIRED"
 
-    if policy_decision == "BLOCK":
-        state["blocked_attempts"] += 1
-
-    if (
-        state["blocked_attempts"]
-        >= active_block_limit
-        or state["risk_score"]
-        >= active_risk_limit
-    ):
-        state["agent_status"] = "SUSPENDED"
-
-    save_state()
+    # Risk, blocked attempts and suspension change in one atomic database update, so concurrent
+    # requests - in this process or any other - never lose an increment or undo a suspension.
+    updated = record_runtime_decision(
+        normalized_name, org_id, risk_added, 1 if policy_decision == "BLOCK" else 0,
+        active_block_limit, active_risk_limit,
+    )
+    if updated is None:
+        # Suspended by a concurrent request after the check above.
+        write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED",
+                  approval="NOT_REQUIRED", risk_added=0)
+        return action_result(
+            agent_name=normalized_name, action=normalized_action, policy_decision="REFUSED",
+            approval="NOT_REQUIRED", risk_added=0,
+            message="Action refused because the agent is suspended.",
+        )
 
     write_log(
         agent_name=normalized_name,
@@ -1660,11 +1682,8 @@ def reset_agent(agent_name):
             "state": state,
         }
 
-    state["agent_status"] = "ACTIVE"
-    state["blocked_attempts"] = 0
-    state["risk_score"] = 0
-
-    save_state()
+    reset_runtime_state(normalized_name, agent_org_id(normalized_name))
+    state = get_agent_state(normalized_name)
 
     write_log(
         agent_name=normalized_name,

@@ -4,34 +4,41 @@ This page states what GreyGuard does today when parts of it fail, where data liv
 
 ## High availability
 
-**Today the shipped deployment (`docker-compose.production.yml`) is not highly available.** It runs:
+**The shipped deployment (`docker-compose.production.yml`) runs on one host.** It is not highly available at the host level. It runs:
 
-- one backend container running **one** process, which the image enforces (`--workers 1`);
+- one backend container with **two** worker processes (`--workers 2`);
 - one PostgreSQL container;
 - one frontend container.
 
-Containers restart on failure (`restart: unless-stopped`).
+Containers restart on failure (`restart: unless-stopped`). Losing a worker process does not take the service down; losing the host or the database does.
 
-**The blocker for running more than one backend process.** Agent runtime state (risk score, blocked attempts, suspension) is held in process memory and saved to a file in the data directory. Two processes sharing that state diverge. With the image's former `--workers 2`, this was reproduced as an enforcement bypass:
+**Running several backend processes or replicas is safe.** All shared state lives in PostgreSQL:
 
-- an agent suspended by one worker was still allowed by the other;
-- the other worker's next save wrote the suspension back to `ACTIVE`.
+- agent runtime state;
+- sessions;
+- rate limits;
+- queues;
+- evidence.
 
-Since P3, the image runs one worker, and a second server process on the same data directory refuses to start (`main.claim_runtime_state()`).
+Delivery workers claim work with leases, so several of them never deliver the same item twice.
 
-**The path to HA**, in order:
+**Agent runtime state was the blocker.** Risk score, blocked attempts and suspension used to be held in each process's memory and saved to a file. With the image's `--workers 2` this was an enforcement bypass: an agent suspended by one worker was still allowed by the other, whose next save wrote the suspension back to `ACTIVE`.
 
-1. Move agent runtime state into the database, with atomic per-agent updates. This is required.
-2. Run several backend replicas behind a load balancer. Everything else is already database-backed, and the delivery workers already claim work with leases, so several workers can run safely.
-3. Use a managed or replicated PostgreSQL with failover, and point-in-time recovery for backups.
+That state now lives in the database (`agent_runtime_states`). Every decision applies its risk, its blocked count and any suspension in a single atomic `UPDATE`, so concurrent requests in any process never lose an increment or undo a suspension. This is verified across processes, and on a live `uvicorn --workers 2` server, where all 40 requests after a suspension were refused.
+
+**The remaining path to multi-host HA:**
+
+1. Run several backend replicas behind a load balancer, with the data directory (isolated workspaces and quarantine) on a shared volume. SQLite is for development only.
+2. Use a managed or replicated PostgreSQL with failover, and point-in-time recovery for backups.
+3. Know one per-process detail: each process reports its own delivery-worker heartbeat on the status page.
 
 ## Failure-mode matrix
 
 | Failure | What happens | Safe? |
 |---|---|---|
 | PostgreSQL unavailable | Requests that need the database fail; agents get errors rather than decisions. `/health/ready` reports not ready, and the status page shows the database as a major outage. | Fails closed: no action is allowed without a decision. |
-| Backend process crashes | The container restarts. In-flight requests are lost and agents retry. Agent runtime state is saved on each change, so the last saved state is reloaded. | Yes |
-| Second backend process started on the same data directory | Refuses to start with an explicit error. | Yes (since P3) |
+| Backend process crashes | Uvicorn replaces the worker and the container restarts if needed. In-flight requests are lost and agents retry. Agent runtime state is in the database, so nothing is lost. | Yes |
+| Several backend processes or replicas | All share state through the database; decisions are atomic per agent. | Yes |
 | Delivery worker stops or fails a tick | Queued SIEM, incident and notification deliveries wait in the database. Claimed items are released after their 120-second lease. The status page shows the delivery worker as degraded. | Evidence is kept; delivery is delayed. |
 | A delivery destination is down | Retries with backoff, then a dead letter after the destination's maximum attempts. Every attempt is recorded as evidence. | Yes |
 | Gateway loses the control plane | Enforces its last bundle until `valid_until`, then denies everything. | Fails closed within the offline allowance. |
@@ -55,7 +62,7 @@ A single-region install keeps all GreyGuard-held data in that region. Multi-regi
 
 ## Measured load
 
-Measured with `scripts/benchmark_load.py` on 2026-10-15. The benchmark ran a real uvicorn server (one process) on a 4-vCPU development Codespace, with 16 concurrent clients over HTTP and rate limits lifted through the operator API. The raw results are in `artifacts/benchmarks/p3-sqlite.json` and `p3-postgresql.json`.
+Measured with `scripts/benchmark_load.py` on 2026-10-15. The benchmark ran a real uvicorn server (one worker process) on a 4-vCPU development Codespace, with 16 concurrent clients over HTTP and rate limits lifted through the operator API. The raw results are in `artifacts/benchmarks/p3-sqlite.json` and `p3-postgresql.json`.
 
 **These are observations of one small machine, not capacity commitments.** Every request in every run succeeded.
 
@@ -76,7 +83,7 @@ Measured with `scripts/benchmark_load.py` on 2026-10-15. The benchmark ran a rea
 ### Follow-up work, in priority order
 
 1. ~~A PostgreSQL connection pool~~. Done.
-2. Database-backed agent runtime state, which is also the HA blocker above.
+2. ~~Database-backed agent runtime state~~. Done.
 3. Cheaper per-request bookkeeping.
 4. Re-measuring after each of these.
 

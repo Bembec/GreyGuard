@@ -276,6 +276,10 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # hash first, then scoped by the org_id read back off the row.
     "gateway_nodes",
     "gateway_events",
+    # P3 HA (database.py): agent runtime state - risk score, blocked attempts, suspension - moved
+    # out of per-process memory. Looked up by the globally unique agent name, then scoped by the
+    # org_id read back off the row; every change is scoped by org_id.
+    "agent_runtime_states",
 })
 
 # Tables that are deliberately never org-scoped - identity/account tables that represent a
