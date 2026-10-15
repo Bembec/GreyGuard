@@ -82,3 +82,30 @@ test("getting started shows the computed readiness steps",async({page})=>{
  await expect(page.getByRole("heading",{name:"Readiness steps"})).toBeVisible({timeout:15_000})
  await expect(page.getByText(/steps complete|Ready for production/).first()).toBeVisible()
 })
+test("a platform admin archives a destination with a reason, and it stays listed as ARCHIVED",async({page})=>{
+ await expectHealthyPage(page,"/communication-integrations")
+ // Self-contained: give the org a plan with integration capacity and register a disabled destination.
+ const name=`Archive e2e ${Date.now()}`
+ const setup=await page.evaluate(async(destinationName)=>{
+  const headers={"Content-Type":"application/json","X-Admin-Pin":sessionStorage.getItem("greyguard_admin_pin")??""}
+  const me=await (await fetch("/api/auth/me",{headers})).json()
+  const plan=await fetch(`/api/entitlements/${me.active_org_id}`,{method:"PUT",headers,body:JSON.stringify({plan:"FOUNDATION",status:"ACTIVE"})})
+  const created=await fetch("/api/notification-delivery/destinations",{method:"POST",headers,body:JSON.stringify({name:destinationName,channel:"EMAIL",endpoint_reference:"SECOPS_EMAIL",enabled:false})})
+  return {plan:plan.status,created:created.status,detail:await created.text()}
+ },name)
+ expect(setup.plan).toBe(200)
+ expect(setup.created,setup.detail).toBe(201)
+ await page.reload()
+ const card=page.locator("article").filter({has:page.getByRole("heading",{name})})
+ await card.getByRole("button",{name:"Archive"}).click()
+ const dialog=page.getByRole("alertdialog")
+ await expect(dialog.getByRole("button",{name:"Archive destination"})).toBeDisabled()
+ await dialog.getByLabel(/Reason/).fill("Retired by the end-to-end suite")
+ const [archived]=await Promise.all([
+  page.waitForResponse(response=>/\/integrations\/notification\/[^/]+\/archive$/.test(response.url())),
+  dialog.getByRole("button",{name:"Archive destination"}).click(),
+ ])
+ expect(archived.status(),await archived.text()).toBe(200)
+ await expect(card.getByText("ARCHIVED",{exact:true})).toBeVisible()
+ await expect(card.getByRole("button",{name:"Archive"})).toHaveCount(0)
+})

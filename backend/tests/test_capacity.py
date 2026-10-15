@@ -109,6 +109,32 @@ def test_archiving_a_destination_frees_capacity_and_it_can_never_be_reused(org):
     assert row[0] == 0 and row[1] and row[2] == "Moved to the new on-call tool"
 
 
+def test_every_destination_list_reports_archive_state(install):
+    """The console shows archived destinations as ARCHIVED, with no archive control, on all three
+    integration pages, so each list must carry archived_at."""
+    org = tenant(install, "Archive lists", plan="ENTERPRISE")
+    client, h = TestClient(api.app), {"X-Admin-Pin": org["owner"]}
+    created = {
+        "security_export": client.post("/security-exports/destinations", headers=h, json={
+            "name": "SIEM", "destination_type": "SPLUNK", "endpoint": "https://siem.example.com/ingest", "enabled": False,
+            "minimization_profile": "STANDARD", "rate_limit_per_minute": 60, "max_attempts": 3}),
+        "incident": client.post("/incident-integrations/destinations", headers=h, json={
+            "name": "Tickets", "system_type": "JIRA", "endpoint": "https://jira.example.com", "credential_reference": "JIRA_TOKEN",
+            "project_or_table": "SEC", "enabled": False}),
+        "notification": client.post("/notification-delivery/destinations", headers=h, json={
+            "name": "Pager", "channel": "EMAIL", "endpoint_reference": "SECOPS_EMAIL", "enabled": False}),
+    }
+    lists = {"security_export": "/security-exports", "incident": "/incident-integrations", "notification": "/notification-delivery"}
+    for kind, response in created.items():
+        assert response.status_code in (200, 201), (kind, response.text)
+        destination_id = response.json()["destination_id"]
+        archived = client.post(f"/integrations/{kind}/{destination_id}/archive", headers=h,
+                               json={"reason": "Retired in the archive-list test"}).json()
+        listed = {d["destination_id"]: d for d in client.get(lists[kind], headers=h).json()["destinations"]}
+        assert listed[destination_id]["archived_at"] == archived["archived_at"], kind
+        assert listed[destination_id]["enabled"] in (False, 0), kind
+
+
 def test_archiving_is_authorized_tenant_scoped_and_reasoned(org, install):
     agent(org, "guarded_agent")
     pager = destination(org, "Guarded pager").json()
