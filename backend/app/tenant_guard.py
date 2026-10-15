@@ -284,6 +284,14 @@ GLOBAL_TABLES: frozenset[str] = frozenset({
     "license_install",
     "license_leases",
     "license_events",
+    # P2.5 (org_lifecycle.py, audit_integrity.py): records about an org's lifecycle - its
+    # offboarding, its lifecycle log ending in a deletion certificate - must outlive the org
+    # itself, which deletion removes from every org-scoped table. They are install-level, like
+    # the organizations tombstone they describe. audit_integrity_erasures records which sealed
+    # audit events an authorized deletion removed, for the install-wide integrity chain.
+    "org_offboarding",
+    "org_lifecycle_events",
+    "audit_integrity_erasures",
     "administrators",
     "administrator_sessions",
     "administrator_refresh_tokens",

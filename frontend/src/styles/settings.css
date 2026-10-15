@@ -669,3 +669,46 @@
   color: #fbbf24;
   line-height: 1.5;
 }
+
+.lifecycle-checklist {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lifecycle-checklist li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.lifecycle-checklist li.is-done {
+  color: inherit;
+}
+
+.lifecycle-checklist li.is-done svg {
+  color: #34d399;
+}
+
+.lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.lifecycle-actions p {
+  margin: 0;
+}
+
+.lifecycle-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

@@ -33,6 +33,12 @@ def initialize_audit_integrity():
             hold_id TEXT PRIMARY KEY, name TEXT NOT NULL, reason TEXT NOT NULL,
             agent_name TEXT, starts_at TEXT, ends_at TEXT, active INTEGER NOT NULL,
             created_at TEXT NOT NULL, created_by TEXT NOT NULL, released_at TEXT, released_by TEXT)""")
+        # An authorized deletion (retention, organization deletion) is recorded here before the
+        # rows go, so verification can tell a recorded erasure from tampering. The chain keeps each
+        # erased row's payload hash, so the links around it still verify.
+        connection.execute("""CREATE TABLE IF NOT EXISTS audit_integrity_erasures (
+            source_table TEXT NOT NULL, source_id TEXT NOT NULL, erased_at TEXT NOT NULL,
+            erased_by TEXT NOT NULL, reason TEXT NOT NULL, PRIMARY KEY (source_table, source_id))""")
         connection.execute("""CREATE TABLE IF NOT EXISTS audit_integrity_checks (
             check_id TEXT PRIMARY KEY, checked_at TEXT NOT NULL, checked_by TEXT NOT NULL,
             valid INTEGER NOT NULL, records_checked INTEGER NOT NULL, first_invalid_sequence INTEGER)""")
@@ -63,22 +69,38 @@ def seal_audit_events():
     return sealed
 
 
+def record_erasures(connection, source_ids, actor, reason):
+    """Record that these sealed audit events are being deleted by an authorized action. Call in
+    the same transaction as the DELETE, after seal_audit_events()."""
+    now = utc_now()
+    for source_id in source_ids:
+        connection.execute(
+            "INSERT OR IGNORE INTO audit_integrity_erasures (source_table, source_id, erased_at, erased_by, reason) VALUES (?, ?, ?, ?, ?)",
+            ("audit_events", str(source_id), now, actor, reason))
+
+
 def verify_integrity(actor="system"):
-    seal_audit_events(); valid = True; first_invalid = None; checked = 0; expected_previous = GENESIS_HASH
+    seal_audit_events(); valid = True; first_invalid = None; checked = 0; erased_count = 0; expected_previous = GENESIS_HASH
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         chain = connection.execute("SELECT * FROM audit_integrity_chain ORDER BY sequence").fetchall()
+        erased = {(row[0], row[1]) for row in connection.execute("SELECT source_table, source_id FROM audit_integrity_erasures")}
         for item in chain:
             checked += 1
             source = connection.execute("-- install-wide integrity check across every org_id\nSELECT * FROM audit_events WHERE id=?", (item["source_id"],)).fetchone()
-            payload_hash = hashlib.sha256(_canonical(source).encode()).hexdigest() if source else "MISSING"
+            if source is None and (item["source_table"], item["source_id"]) in erased:
+                # A recorded, authorized erasure: the row is gone, but its sealed hash still links.
+                payload_hash = item["payload_hash"]; erased_count += 1
+            else:
+                payload_hash = hashlib.sha256(_canonical(source).encode()).hexdigest() if source else "MISSING"
             expected = hashlib.sha256(f"{expected_previous}:{payload_hash}:{item['source_table']}:{item['source_id']}".encode()).hexdigest()
             if payload_hash != item["payload_hash"] or item["previous_hash"] != expected_previous or item["record_hash"] != expected:
                 valid = False; first_invalid = item["sequence"]; break
             expected_previous = item["record_hash"]
         check_id = "chk_" + uuid.uuid4().hex
         connection.execute("INSERT INTO audit_integrity_checks VALUES(?,?,?,?,?,?)", (check_id, utc_now(), actor, int(valid), checked, first_invalid))
-    return {"check_id": check_id, "valid": valid, "records_checked": checked, "first_invalid_sequence": first_invalid}
+    return {"check_id": check_id, "valid": valid, "records_checked": checked, "records_erased": erased_count,
+            "first_invalid_sequence": first_invalid}
 
 
 def get_controls():
@@ -131,5 +153,8 @@ def apply_retention(actor, confirm=False):
         # Install-wide retention: one policy for the whole log, so it spans every org_id. Only an
         # install operator can configure or apply it (api.py) - any org's admin being able to
         # would let one tenant delete every other tenant's audit history.
+        expired = [row[0] for row in connection.execute(
+            "-- install-wide retention across every org_id\nSELECT id FROM audit_events WHERE timestamp<?", (cutoff,)).fetchall()]
+        record_erasures(connection, expired, actor, f"Retention: older than {config['retention_days']} days")
         deleted = connection.execute("-- install-wide retention across every org_id\nDELETE FROM audit_events WHERE timestamp<?", (cutoff,)).rowcount
     return {"deleted": deleted, "cutoff": cutoff, "actor": actor, "integrity_evidence_preserved": True}

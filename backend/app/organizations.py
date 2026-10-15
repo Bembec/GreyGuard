@@ -142,9 +142,11 @@ def initialize_organizations() -> None:
             )
 
 
-def create_organization(name: str, created_by_admin_id: str, slug: str | None = None) -> dict:
-    """Create a new organization and make the creator its OWNER. Any authenticated
-    administrator may create an org - this is how a real signup flow would start one."""
+def create_organization(name: str, created_by_admin_id: str, slug: str | None = None,
+                        creator_is_owner: bool = True) -> dict:
+    """Create a new organization and, by default, make the creator its OWNER. Onboarding
+    (org_lifecycle.py) passes creator_is_owner=False: the install operator creating a customer's
+    org invites the customer's owner instead of joining it."""
     _ensure_schema()
     normalized_name = str(name).strip()
     if not normalized_name:
@@ -160,12 +162,13 @@ def create_organization(name: str, created_by_admin_id: str, slug: str | None = 
             )
         except sqlite3.IntegrityError as error:
             raise ValueError("An organization with this slug already exists.") from error
-        connection.execute(
-            "INSERT INTO org_memberships "
-            "(membership_id,org_id,admin_id,operational_role,governance_role,status,created_at) "
-            "VALUES (?,?,?,'PLATFORM_ADMIN','OWNER','ACTIVE',?)",
-            ("mem_" + secrets.token_hex(12), org_id, created_by_admin_id, utc_now()),
-        )
+        if creator_is_owner:
+            connection.execute(
+                "INSERT INTO org_memberships "
+                "(membership_id,org_id,admin_id,operational_role,governance_role,status,created_at) "
+                "VALUES (?,?,?,'PLATFORM_ADMIN','OWNER','ACTIVE',?)",
+                ("mem_" + secrets.token_hex(12), org_id, created_by_admin_id, utc_now()),
+            )
     return get_organization(org_id)
 
 
@@ -179,6 +182,14 @@ def get_organization(org_id: str) -> dict:
     if not row:
         raise KeyError("Organization not found.")
     return dict(row)
+
+
+def org_status(org_id: str) -> str | None:
+    """ACTIVE, OFFBOARDING or DELETED (org_lifecycle.py); None for an unknown org."""
+    _ensure_schema()
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute("SELECT status FROM organizations WHERE org_id = ?", (org_id,)).fetchone()
+    return row[0] if row else None
 
 
 def list_memberships_for_admin(admin_id: str) -> list[dict]:
@@ -321,6 +332,13 @@ def _active_owner_count(connection, org_id: str) -> int:
 def create_invitation(org_id: str, email: str, operational_role: str, governance_role: str,
                        invited_by_admin_id: str) -> dict:
     _require_owner(org_id, invited_by_admin_id)
+    return issue_invitation(org_id, email, operational_role, governance_role, invited_by_admin_id)
+
+
+def issue_invitation(org_id: str, email: str, operational_role: str, governance_role: str,
+                     invited_by_admin_id: str) -> dict:
+    """Create an invitation without the owner check. Callers authorize first: create_invitation()
+    requires an org owner; onboarding requires an install operator."""
     if operational_role not in admin_auth.ROLES:
         raise ValueError("Unknown operational role.")
     if governance_role not in GOVERNANCE_ROLES:
@@ -367,6 +385,10 @@ def accept_invitation(token: str, admin_id: str, admin_email: str) -> dict:
             raise ValueError("This invitation has expired.")
         if row["email"] != str(admin_email).strip().lower():
             raise PermissionError("This invitation was issued to a different email address.")
+        org_status = connection.execute(
+            "SELECT status FROM organizations WHERE org_id = ?", (row["org_id"],)).fetchone()
+        if not org_status or org_status[0] != "ACTIVE":
+            raise ValueError("This organization is no longer accepting members.")
         connection.execute(
             "INSERT OR IGNORE INTO org_memberships "
             "(membership_id,org_id,admin_id,operational_role,governance_role,status,invited_by,created_at) "

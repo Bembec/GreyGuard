@@ -15,6 +15,7 @@ import binascii
 import hashlib
 import hmac
 import os
+import re
 from . import db_compat as sqlite3
 from typing import Literal
 
@@ -75,6 +76,7 @@ from . import organizations
 from . import entitlements
 from . import billing
 from . import licensing
+from . import org_lifecycle
 
 
 from .policy_control import (
@@ -340,6 +342,7 @@ async def lifespan(_app: FastAPI):
         entitlements.initialize_entitlements()
         billing.initialize_billing()
         licensing.initialize_licensing()
+        org_lifecycle.initialize_org_lifecycle()
         initialize_isolation_operations()
         initialize_outbound_delivery()
         initialize_enterprise_sso()
@@ -396,6 +399,15 @@ async def observe_request(request: Request, call_next):
     return response
 
 
+# What an offboarding org may still change: its own sessions, lifecycle and export, evidence
+# reports, alert handling, and every emergency or revocation control. Everything else is read-only.
+OFFBOARDING_ALLOWED = re.compile(
+    r"^/(auth/|organizations/|compliance-reports|alerts/|billing/contact$|policy-emergency-controls$"
+    r"|agents/[^/]+/credential/revoke$|secrets/(emergency-revoke|[^/]+/revoke)$|service-accounts/[^/]+/revoke$"
+    r"|execution-isolation/emergency-terminate$|capability-removals/actions/emergency-shutdown$"
+    r"|enterprise-identity/workloads/[^/]+/revoke$)")
+
+
 @app.middleware("http")
 async def enforce_administrator_rbac(request: Request, call_next):
     """Enforce the signed-in operator's role before protected API execution."""
@@ -427,6 +439,11 @@ async def enforce_administrator_rbac(request: Request, call_next):
         except ValueError as error:
             return JSONResponse(status_code=401, content={"detail": str(error)})
         request.state.administrator = administrator
+        if (request.method not in ("GET", "HEAD", "OPTIONS") and not OFFBOARDING_ALLOWED.match(path)
+                and organizations.org_status(organizations.resolve_org_id(administrator)) == "OFFBOARDING"):
+            return JSONResponse(status_code=403, content={
+                "detail": "This organization is offboarding: it is read-only apart from export, evidence and "
+                          "emergency and revocation controls.", "reason": "OFFBOARDING"})
         if request.url.path not in {"/auth/me", "/auth/logout"}:
             permission = required_permission(request.method, request.url.path)
             if not has_permission(administrator, permission):
@@ -1578,6 +1595,97 @@ def install_license_lease(payload: LicenseLeaseRequest, x_admin_pin: str | None 
         return licensing.install_lease(payload.token, policy_actor(administrator))
     except licensing.LicenseError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+class OrganizationOnboardRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    slug: str | None = Field(default=None, max_length=100)
+    owner_email: str = Field(min_length=3, max_length=254)
+    plan: Literal["FOUNDATION", "ENTERPRISE", "DEDICATED"] | None = None
+    trial_days: int | None = Field(default=None, ge=1, le=entitlements.MAX_TRIAL_DAYS)
+
+
+class OffboardingRequest(BaseModel):
+    reason: str = Field(min_length=10, max_length=1000)
+    retention_days: int = Field(default=org_lifecycle.DEFAULT_RETENTION_DAYS, ge=0, le=org_lifecycle.MAX_RETENTION_DAYS)
+
+
+class OrganizationDeletionRequest(BaseModel):
+    confirm_slug: str = Field(min_length=1, max_length=200)
+
+
+def require_org_owner(org_id, x_admin_pin):
+    """An owner of this org (its governance role, whatever the operational role), or an install
+    operator."""
+    administrator = require_admin(x_admin_pin)
+    if administrator.get("install_operator"):
+        _require_existing_org(org_id)
+        return administrator
+    membership = organizations.get_membership(org_id, administrator["admin_id"])
+    if not membership or membership["governance_role"] != "OWNER" or membership.get("status", "ACTIVE") != "ACTIVE":
+        raise HTTPException(status_code=403, detail="Organization owner access is required.")
+    return administrator
+
+
+def _lifecycle_call(function, *args):
+    try:
+        return function(*args)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except (org_lifecycle.LifecycleError, ValueError) as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/organizations/onboard", status_code=201)
+def onboard_organization(payload: OrganizationOnboardRequest, x_admin_pin: str | None = Header(default=None)):
+    """Create a customer org without joining it, invite its first owner, optionally assign a plan."""
+    administrator = require_install_operator(x_admin_pin)
+    return _lifecycle_call(org_lifecycle.onboard, payload.name, payload.slug, payload.owner_email,
+                           administrator["admin_id"], policy_actor(administrator), payload.plan, payload.trial_days)
+
+
+@app.get("/organizations/{org_id}/lifecycle")
+def organization_lifecycle(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_admin(x_admin_pin)
+    if not administrator.get("install_operator") and organizations.get_membership(org_id, administrator["admin_id"]) is None:
+        raise HTTPException(status_code=403, detail="You are not a member of that organization.")
+    return _lifecycle_call(org_lifecycle.lifecycle, org_id)
+
+
+@app.post("/organizations/{org_id}/export")
+def export_organization_data(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    """Everything the org owns, as one JSON bundle. Available in every state short of deletion -
+    evidence export is a mandatory protection."""
+    administrator = require_org_owner(org_id, x_admin_pin)
+    bundle = _lifecycle_call(org_lifecycle.export_organization, org_id, policy_actor(administrator))
+    return JSONResponse(bundle, headers={"Content-Disposition": f'attachment; filename="greyguard-{org_id}-export.json"'})
+
+
+@app.post("/organizations/{org_id}/offboarding")
+def start_organization_offboarding(org_id: str, payload: OffboardingRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_org_owner(org_id, x_admin_pin)
+    return _lifecycle_call(org_lifecycle.start_offboarding, org_id, policy_actor(administrator), payload.reason,
+                           payload.retention_days)
+
+
+@app.delete("/organizations/{org_id}/offboarding")
+def cancel_organization_offboarding(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    return _lifecycle_call(org_lifecycle.cancel_offboarding, org_id, policy_actor(administrator))
+
+
+@app.post("/organizations/{org_id}/deletion")
+def delete_organization_route(org_id: str, payload: OrganizationDeletionRequest, x_admin_pin: str | None = Header(default=None)):
+    administrator = require_install_operator(x_admin_pin)
+    _require_existing_org(org_id)
+    return _lifecycle_call(org_lifecycle.delete_organization, org_id, policy_actor(administrator), payload.confirm_slug)
+
+
+@app.get("/organizations/{org_id}/deletion-certificate")
+def organization_deletion_certificate(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    require_install_operator(x_admin_pin)
+    certificate = _lifecycle_call(org_lifecycle.deletion_certificate, org_id)
+    return {**certificate, "verified": org_lifecycle.verify_certificate(certificate)}
 
 
 def _require_existing_org(org_id):
