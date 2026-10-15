@@ -129,7 +129,10 @@ def redact(value):
     text=str(value)
     for key,val in os.environ.items():
         if val and len(val)>=8 and any(x in key.upper() for x in ("SECRET","TOKEN","PASSWORD","KEY","PIN")): text=text.replace(val,MASK)
-    text=re.sub(r"(?i)(password|token|secret|api[_-]?key)\s*[:=]\s*[^\s,;]+",r"\1="+MASK,text)
+    # The value stops at quotes, backslashes and brackets as well as whitespace: this runs over
+    # whole JSON response bodies, and a value that ran on through a closing quote corrupted the
+    # JSON (any evidence containing "password=..." made its page and export unreadable).
+    text=re.sub(r"(?i)(password|token|secret|api[_-]?key)\s*[:=]\s*(?:\\?[\"'])?[^\s,;\"'\\{}\[\]<>]+",r"\1="+MASK,text)
     return text
 
 class SecretRedactionMiddleware:
