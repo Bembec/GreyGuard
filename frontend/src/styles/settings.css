@@ -712,3 +712,76 @@
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.plan-assignment {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(100, 116, 139, 0.25);
+}
+
+.plan-assignment h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.plan-assignment p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.plan-assignment__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.plan-assignment__row legend {
+  margin-bottom: 6px;
+  color: #a8bdce;
+  font-size: 0.81rem;
+  font-weight: 650;
+}
+
+.plan-assignment label {
+  display: grid;
+  gap: 6px;
+  color: #a8bdce;
+  font-size: 0.81rem;
+  font-weight: 650;
+}
+
+.plan-assignment select,
+.plan-assignment input {
+  padding: 9px 10px;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  border-radius: 9px;
+  background: #020617;
+  color: #e2e8f0;
+  font: inherit;
+}
+
+.plan-assignment button {
+  justify-self: start;
+  padding: 10px 14px;
+  border: 1px solid rgba(34, 211, 238, 0.4);
+  border-radius: 9px;
+  background: rgba(34, 211, 238, 0.12);
+  color: #e2e8f0;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.plan-assignment button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.plan-assignment [role="alert"] {
+  color: #fb7185;
+}

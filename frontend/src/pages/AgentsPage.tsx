@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  Archive,
   Check,
   Copy,
   KeyRound,
@@ -45,6 +46,7 @@ type AgentIdentity = {
   created_at?: string | null;
   rotated_at?: string | null;
   revoked_at?: string | null;
+  archived_at?: string | null;
 };
 
 type Agent = {
@@ -72,7 +74,10 @@ type ApiError = {
   detail?: string;
 };
 
-type AgentConfirmation = "rotate" | "revoke" | "reset" | null;
+type AgentConfirmation = "rotate" | "revoke" | "reset" | "archive" | null;
+
+// The server requires an archive reason of at least this length (archival._reason).
+const ARCHIVE_REASON_MIN_LENGTH = 10;
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -180,6 +185,27 @@ async function revokeCredential(
   return readResponse<CredentialResponse>(response);
 }
 
+async function archiveAgent({
+  agentName,
+  reason,
+}: {
+  agentName: string;
+  reason: string;
+}): Promise<unknown> {
+  const response = await fetch(
+    `${API_BASE_URL}/agents/${encodeURIComponent(
+      agentName,
+    )}/archive`,
+    {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ reason }),
+    },
+  );
+
+  return readResponse<unknown>(response);
+}
+
 async function resetAgent(
   agentName: string,
 ): Promise<unknown> {
@@ -244,6 +270,8 @@ export default function AgentsPage() {
     useState<string | null>(null);
   const [confirmation, setConfirmation] =
     useState<AgentConfirmation>(null);
+  const [archiveReason, setArchiveReason] =
+    useState("");
   const credentialCloseRef = useRef<HTMLButtonElement>(null);
   const credentialDialogRef = useDismissableLayer<HTMLElement>({
     open: revealedCredential !== null,
@@ -351,6 +379,22 @@ export default function AgentsPage() {
       setNotice("Agent credential revoked.");
       await queryClient.invalidateQueries({
         queryKey: ["agents"],
+      });
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: archiveAgent,
+    ...mutationOptions,
+    onSuccess: async () => {
+      setNotice(
+        "Agent archived. Its record and evidence are kept, and it no longer counts toward plan capacity.",
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["agents"],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["entitlements"],
       });
     },
   });
@@ -919,7 +963,13 @@ export default function AgentsPage() {
                     </span>
                   </div>
 
-                  {canManageIdentity ? (
+                  {selectedAgent.identity.archived_at ? (
+                    <p className="gg-readonly-note">
+                      Archived {formatDate(selectedAgent.identity.archived_at)}.
+                      The record and its evidence are kept as history; the
+                      credential cannot be reissued.
+                    </p>
+                  ) : canManageIdentity ? (
                     <div className="detail-action-row">
                       <button
                         type="button"
@@ -946,6 +996,19 @@ export default function AgentsPage() {
                       >
                         <UserRoundX size={16} />
                         Revoke
+                      </button>
+
+                      <button
+                        type="button"
+                        className="detail-danger-button"
+                        disabled={archiveMutation.isPending}
+                        onClick={() => {
+                          setArchiveReason("");
+                          setConfirmation("archive");
+                        }}
+                      >
+                        <Archive size={16} />
+                        Archive
                       </button>
                     </div>
                   ) : (
@@ -1042,7 +1105,35 @@ export default function AgentsPage() {
       )}
 
       <ConfirmDialog
-        open={confirmation !== null}
+        open={confirmation === "archive"}
+        title="Archive this agent?"
+        description="Its credential is revoked for good and it stops counting toward plan capacity. The identity, credential history, requests and audit evidence are all kept. This cannot be undone."
+        confirmLabel="Archive agent"
+        busy={archiveMutation.isPending}
+        confirmDisabled={archiveReason.trim().length < ARCHIVE_REASON_MIN_LENGTH}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={() => {
+          if (!selectedAgent) return;
+          archiveMutation.mutate(
+            { agentName: selectedAgent.agent_name, reason: archiveReason.trim() },
+            { onSettled: () => setConfirmation(null) },
+          );
+        }}
+      >
+        <label className="gg-confirm__field">
+          Reason (recorded in the audit log)
+          <textarea
+            value={archiveReason}
+            minLength={ARCHIVE_REASON_MIN_LENGTH}
+            maxLength={1000}
+            rows={3}
+            onChange={(event) => setArchiveReason(event.target.value)}
+          />
+        </label>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirmation !== null && confirmation !== "archive"}
         title={confirmation === "rotate" ? "Rotate agent credential?" : confirmation === "revoke" ? "Revoke agent credential?" : "Reset agent security state?"}
         description={confirmation === "rotate" ? "The existing credential will stop working immediately." : confirmation === "revoke" ? "The agent will no longer be able to authenticate." : "Accumulated risk, blocked attempts, and suspension state will be cleared. This action is audited."}
         confirmLabel={confirmation === "rotate" ? "Rotate credential" : confirmation === "revoke" ? "Revoke credential" : "Reset security state"}

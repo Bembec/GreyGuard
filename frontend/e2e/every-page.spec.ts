@@ -55,6 +55,22 @@ test("settings shows the organization's plan and lifecycle from the real backend
  await expect(page.getByText(/\d+ of 9 complete/)).toBeVisible({timeout:15_000})
  await expect(page.getByRole("button",{name:/Export organization data/})).toBeVisible()
 })
+test("an install operator assigns a plan from settings, and Dedicated needs contract limits",async({page})=>{
+ await expectHealthyPage(page,"/settings")
+ const form=page.locator("form.plan-assignment")
+ await expect(form.getByRole("heading",{name:/assign plan/i})).toBeVisible({timeout:15_000})
+ await expect(form.getByRole("option",{name:/TRANSITIONAL/i})).toHaveCount(0)
+ await form.getByLabel("Plan").selectOption("DEDICATED")
+ await expect(form.getByRole("button",{name:"Assign plan"})).toBeDisabled()
+ await form.getByLabel("Plan").selectOption("FOUNDATION")
+ await form.getByLabel("Status").selectOption("ACTIVE")
+ const [assigned]=await Promise.all([
+  page.waitForResponse(response=>/\/entitlements\/[^/]+$/.test(response.url())&&response.request().method()==="PUT"),
+  form.getByRole("button",{name:"Assign plan"}).click(),
+ ])
+ expect(assigned.status(),await assigned.text()).toBe(200)
+ await expect(page.getByRole("status").filter({hasText:/Assigned .*\(ACTIVE\)/})).toBeVisible()
+})
 test("the public status page works without signing in",async({page})=>{
  await page.goto("/status")
  await expect(page.getByRole("heading",{level:1,name:/service status/i})).toBeVisible()

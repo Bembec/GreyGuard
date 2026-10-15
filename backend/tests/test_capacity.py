@@ -82,6 +82,10 @@ def test_archiving_an_agent_frees_capacity_and_keeps_its_evidence(org):
     history = org["client"].get("/agents/retiring_agent/credential-history", headers=org["h"]).json()
     assert "ARCHIVED" in str(history)
     assert "retiring_agent" in org["client"].get("/audit-events", headers=org["h"]).text
+    # The console sees the archive state (it hides the credential controls of an archived agent).
+    listed = {a["agent_name"]: a for a in org["client"].get("/agents", headers=org["h"]).json()}
+    assert listed["retiring_agent"]["identity"]["archived_at"] == archived.json()["archived_at"]
+    assert listed["replacement_agent"]["identity"]["archived_at"] is None
     assert org["client"].post("/agents/retiring_agent/credential/rotate", headers=org["h"]).status_code == 409
     assert org["client"].post("/agents/retiring_agent/archive", headers=org["h"],
                               json={"reason": "Archiving it a second time"}).status_code == 409
