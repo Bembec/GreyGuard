@@ -37,3 +37,37 @@ and test must exist. Claim text may not imply a partnership, certification or gu
 Approval is the project owner's decision. To approve a claim, set `status` to `approved` and fill
 in `approved_by` and `approved_on`. Withdraw a claim that is no longer true rather than deleting
 it, so the history of what was said stays visible.
+
+## Building
+
+```bash
+cd website
+npm ci
+npm run build    # preview build: unapproved claims shown and marked; every page noindex
+npm run check    # post-build checks (below)
+```
+
+| Variable | Purpose |
+|---|---|
+| `GREYGUARD_SITE_MODE` | `preview` (default) or `publish`. A publish build fails if any page uses an unapproved claim. |
+| `GREYGUARD_SITE_URL` | The site's address (decision W4). A publish build requires it; canonical URLs use it. |
+| `GREYGUARD_CONSOLE_URL` | The hosted console's address, for the Sign in link |
+| `GREYGUARD_DEMO_CONTACT` | The demo-request route (decision W5), for example a `mailto:` link |
+
+`npm run check` fails the build if any page:
+- ships a script, an inline style or a `<style>` block;
+- lacks a title, a description, a canonical URL, a skip link or exactly one `<h1>`;
+- is missing a required navigation item or footer link;
+- links to a page that doesn't exist;
+- is indexable in a preview build.
+
+It also fails if the security headers are missing.
+
+## Security headers
+
+`public/_headers` holds the response headers in the `_headers` format that several static hosts
+read. The site ships no JavaScript and no inline styles, so its Content-Security-Policy allows
+nothing but same-origin images, styles and fonts. If the chosen host (W4) doesn't read `_headers`,
+configure the same headers in that host's own settings.
+
+`public/robots.txt` disallows everything until publication (W11).

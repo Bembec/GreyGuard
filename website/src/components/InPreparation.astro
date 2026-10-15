@@ -1,0 +1,14 @@
+---
+interface Props { covers: string[]; phase: string }
+const { covers, phase } = Astro.props
+---
+<section class="section">
+  <div class="container">
+    <div class="notice">
+      <h2>This page is being written</h2>
+      <p>It will cover:</p>
+      <ul>{covers.map((item) => <li>{item}</li>)}</ul>
+      <p class="muted">Planned for {phase}. Every product statement on it will come from the approved claim register.</p>
+    </div>
+  </div>
+</section>

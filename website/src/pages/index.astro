@@ -1,0 +1,46 @@
+---
+import Base from "../layouts/Base.astro"
+import Claim from "../components/Claim.astro"
+import { demoContact } from "../lib/site"
+
+const groups = [
+  { name: "Gate", lead: "Identity, scopes, policy and human approval before an agent acts.", claims: ["GG-GATE-1", "GG-GATE-2", "GG-GATE-3"] },
+  { name: "Watch", lead: "Risk that accumulates, and live evidence of every decision.", claims: ["GG-WATCH-1", "GG-WATCH-2"] },
+  { name: "Respond", lead: "Recoverable containment when an agent misbehaves.", claims: ["GG-RESP-1", "GG-RESP-2"] },
+  { name: "Evidence", lead: "Tamper-evident records you can hand to a reviewer.", claims: ["GG-EVID-1", "GG-EVID-3"] },
+]
+---
+<Base title="GreyGuard" description="GreyGuard registers and authenticates AI agents, restricts their permissions, requires human approval where needed and preserves tamper-evident evidence.">
+  <section class="page-intro">
+    <div class="container">
+      <p class="eyebrow">Agent security control plane</p>
+      <h1>Every agent action passes through the guard.</h1>
+      <p class="lead">GreyGuard gives each AI agent its own identity, decides what it may do, asks a person when it matters, and keeps evidence of every decision.</p>
+      <p>
+        {demoContact
+          ? <a class="button" href={demoContact}>Request a demo</a>
+          : <span class="muted">Demo requests open when the contact route is chosen.</span>}
+      </p>
+    </div>
+  </section>
+  <section class="section" aria-labelledby="groups-heading">
+    <div class="container">
+      <h2 id="groups-heading">Four product groups</h2>
+      <div class="grid">
+        {groups.map((group) => (
+          <article class="card">
+            <h3>{group.name}</h3>
+            <p class="muted">{group.lead}</p>
+            {group.claims.map((id) => <Claim id={id} />)}
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+  <section class="section" aria-labelledby="boundary-heading">
+    <div class="container">
+      <h2 id="boundary-heading">Where coverage ends</h2>
+      <Claim id="GG-CONN-6" showScope />
+    </div>
+  </section>
+</Base>

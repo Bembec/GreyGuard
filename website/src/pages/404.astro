@@ -1,0 +1,9 @@
+---
+import Base from "../layouts/Base.astro"
+import PageIntro from "../components/PageIntro.astro"
+---
+<Base title="Page not found" description="This page does not exist." noindex>
+  <PageIntro eyebrow="404" title="Page not found" lead="The page you asked for does not exist or has moved." >
+    <a class="button button--ghost" href="/">Go to the home page</a>
+  </PageIntro>
+</Base>

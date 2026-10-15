@@ -1,0 +1,76 @@
+---
+import "@fontsource/inter/400.css"
+import "@fontsource/inter/600.css"
+import "@fontsource/saira/600.css"
+import "@fontsource/saira/700.css"
+import "../styles/site.css"
+import { consoleUrl, footerLinks, primaryNavigation, siteMode } from "../lib/site"
+
+interface Props {
+  title: string
+  description: string
+  /** Legal and other pages that must not be indexed until counsel has reviewed them. */
+  noindex?: boolean
+}
+
+const { title, description, noindex = false } = Astro.props
+const canonical = new URL(Astro.url.pathname, Astro.site).toString()
+const fullTitle = title === "GreyGuard" ? "GreyGuard — agent security control plane" : `${title} · GreyGuard`
+const indexable = siteMode === "publish" && !noindex
+const current = Astro.url.pathname
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="robots" content={indexable ? "index, follow" : "noindex, nofollow"} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#050a12" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon-180.png" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    {siteMode === "preview" && (
+      <p class="preview-banner" role="note">Preview build: not for publication. Claims not yet approved are marked.</p>
+    )}
+    <header class="site-header">
+      <div class="container site-header__inner">
+        <a class="site-logo" href="/" aria-label="GreyGuard home">
+          <picture>
+            <source srcset="/brand/greyguard-horizontal-dark.webp" type="image/webp" />
+            <img src="/brand/greyguard-horizontal-dark.png" alt="GreyGuard" width="180" height="45" />
+          </picture>
+        </a>
+        <nav class="site-nav" aria-label="Main">
+          <ul>
+            {primaryNavigation.map((item) => (
+              <li><a href={item.href} aria-current={current.startsWith(item.href) ? "page" : undefined}>{item.label}</a></li>
+            ))}
+          </ul>
+        </nav>
+        <a class="button button--ghost site-signin" href={consoleUrl}>Sign in</a>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="container site-footer__inner">
+        <p class="site-footer__brand">GreyGuard · SECURE • MONITOR • CONTROL</p>
+        <nav aria-label="Legal and support">
+          <ul>
+            {footerLinks.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
+          </ul>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -21,6 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22}
       - run: cd frontend && npm ci && npm audit --audit-level=high
+      - run: cd website && npm ci && npm audit --audit-level=high
       - run: python scripts/generate_sbom.py
       - uses: actions/upload-artifact@v4
         with: {name: greyguard-sbom, path: artifacts/greyguard-sbom.cdx.json}

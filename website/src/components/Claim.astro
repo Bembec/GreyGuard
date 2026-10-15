@@ -1,0 +1,17 @@
+---
+import { availabilityLabel, getClaim } from "../lib/claims"
+import { siteMode } from "../lib/site"
+
+interface Props { id: string; showScope?: boolean }
+const { id, showScope = false } = Astro.props
+const claim = getClaim(id)
+---
+<div class:list={["claim", `claim--${claim.availability}`, { "claim--unapproved": claim.status !== "approved" }]} data-claim={claim.id}>
+  <p class="claim__text">{claim.claim}</p>
+  <p class="claim__meta">
+    <span class="badge" data-availability={claim.availability}>{availabilityLabel[claim.availability]}</span>
+    {claim.kind === "limitation" && <span class="badge badge--limit">Limitation</span>}
+    {siteMode === "preview" && claim.status !== "approved" && <span class="badge badge--draft">Proposed, not approved · {claim.id}</span>}
+  </p>
+  {showScope && <p class="claim__scope">{claim.scope}</p>}
+</div>

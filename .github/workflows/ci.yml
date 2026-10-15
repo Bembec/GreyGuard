@@ -25,6 +25,18 @@ jobs:
       - run: npm ci
       - run: npm test -- --run
       - run: npm run build
+  website:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: website}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm, cache-dependency-path: website/package-lock.json}
+      - run: npm ci
+      # A preview build: unapproved claims are shown marked, and every page is noindex.
+      - run: npm run build
+      - run: npm run check
+      - run: python3 ../scripts/check_claims.py
   containers:
     runs-on: ubuntu-latest
     needs: [backend, frontend]
