@@ -78,6 +78,7 @@ Measured with `scripts/benchmark_load.py` on 2026-10-15. The benchmark ran a rea
 ### What the numbers show
 
 - **Without a pool, PostgreSQL was 4–11× slower than SQLite.** `db_compat` opened a new connection, with authentication, for every database call, and one request makes many. A small connection pool (`GREYGUARD_DB_POOL_SIZE`, default 10) took PostgreSQL to SQLite's level or better on every path, and every live stream connected (`artifacts/benchmarks/p3-postgresql-pooled.json`).
+- **Database-backed agent state costs nothing measurable.** A re-run after moving agent runtime state into the database (`p3-postgresql-db-state.json`) was within noise of the pooled run on every path: agent tool requests went from 16.0 to 15.8 req/s, and every other path was flat or slightly up.
 - **Per-request bookkeeping is still heavy.** Even pooled, a simple request does several database writes (rate-limit counters and observability), and the agent hot path writes its evidence. These figures are one process on 4 vCPUs.
 
 ### Follow-up work, in priority order
