@@ -95,7 +95,7 @@ These were part of the original engineering task's "Operations and structural co
 | P1.4.2 | Shared page kit (header, stats, panels, filters, sortable and paged tables, guidance, offline state) and a Command Center that shows only real data | **Verified** (below) |
 | P1.4.3 | Gate pages: Agents & Identity, Requests & Approvals, Policies & Controls | **Verified** (below) |
 | P1.4.4 | Watch pages: Live Monitoring, Risk & Threats, Telemetry & Sensors | **Verified** (below) |
-| P1.4.5 | Respond and Evidence pages | Planned |
+| P1.4.5 | Respond and Evidence pages | **Verified** (below) |
 | P1.4.6 | Administration pages and the two investigation pages | Planned |
 | P1.4.7 | Acceptance: every criterion above, checked in a real browser at desktop and phone widths | Planned |
 
@@ -172,6 +172,23 @@ A screenshot review found that Live Operations' fixed, full-viewport background 
 - `npm run check`: lint clean; 158 unit tests pass.
 - Full Playwright suite: 59 passed, 1 skipped (no agents registered), including the 390 px horizontal-scroll check on every page.
 - Reviewed by screenshot at 1440 px and 390 px: all nine Watch pages.
+
+**P1.4.5 (commit `2f23ee6`).** All nine Respond and Evidence pages now share the page structure.
+- **Rebuilt on the kit:** Incident Integrations, Communications, Execution Isolation, Isolation Operations, Audit Integrity and Security Exports. Native `confirm()` dialogs became confirmation dialogs.
+- **Destination pages** (incident, notification and SIEM) now show every destination by default. A screenshot review had found that defaulting to "current" hid an archived destination straight after it was archived. The P4 D6 rule is that an archived destination stays listed as history, and the existing archive e2e test enforces it.
+- **Data newly shown:** Communications shows each destination's critical bypass, and Security Exports shows its recent export queue. Both were already returned by the API.
+- **Header and guidance added:** Incident Center, Audit Trail and Compliance Reports.
+
+A phone-width review found content being cut off, not scrolled. The shell's content area clips its overflow, so the earlier page-level scroll check couldn't see it.
+- **Isolation Operations** was widened by a long environment variable name in its guidance.
+- **Settings** was widened to 843 px by a no-wrap API URL in a grid; this predates P1.4.
+
+Long identifiers now wrap, the Settings value is constrained, and every-page also checks that nothing inside the content area is wider than it. That check fails on both pages without the fixes and passes with them.
+
+**Verification run for P1.4.5:**
+- `npm run check`: lint clean; 158 unit tests pass.
+- Full Playwright suite: 59 passed, 1 skipped (no agents registered), including the archive test and the strengthened 390 px check on every page.
+- Reviewed by screenshot at 1440 px and 390 px: all nine Respond and Evidence pages.
 
 ---
 
