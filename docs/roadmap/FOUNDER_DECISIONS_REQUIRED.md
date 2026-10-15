@@ -62,6 +62,7 @@ publication, with how to resolve each item. Development and preview builds never
 | LEG-09 | Will SOC 2 or ISO 27001 be pursued, and when? | The Trust page says "Not currently claimed"; no certification is implied. | `config/decisions.json` | No | Auditor | Project owner | Open | — | — |
 | LEG-10 | Has legal counsel approved the site for publication? | Publication is blocked. | `config/decisions.json` | Yes — blocks production | Legal counsel | Project owner | Open | — | — |
 | LEG-11 | Is the accessibility statement approved (after the P7.5 audit)? | The accessibility page says the statement follows the audit. | `website/src/pages/accessibility.astro + LEG-11` | Yes — before public launch | — | Project owner | Open | — | — |
+| LEG-12 | When will an independent penetration test be commissioned, and may its summary be published (P6 decision T5: before the first paid pilot)? | The Trust page says "Not independently verified"; no test result is implied. | `config/decisions.json` | No | Independent penetration-testing firm | Project owner | Open | — | — |
 
 ## Operations
 

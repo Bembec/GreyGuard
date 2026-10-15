@@ -674,6 +674,22 @@
       "evidence": null,
       "remediation": "Set each listed variable in the production environment's secret store (never in this repository).",
       "env": "GREYGUARD_BOOTSTRAP_EMAIL,GREYGUARD_BOOTSTRAP_PASSWORD,GREYGUARD_ALLOWED_ORIGINS,GREYGUARD_TRUSTED_HOSTS,GREYGUARD_DATABASE_URL"
+    },
+    {
+      "id": "LEG-12",
+      "category": "legal",
+      "question": "When will an independent penetration test be commissioned, and may its summary be published (P6 decision T5: before the first paid pilot)?",
+      "status": "open",
+      "launch_impact": "OPTIONAL_POST_LAUNCH",
+      "value_type": "text",
+      "value": null,
+      "temporary_behaviour": "The Trust page says \"Not independently verified\"; no test result is implied.",
+      "configured_in": "config/decisions.json",
+      "professional_review": "Independent penetration-testing firm",
+      "owner": "Project owner",
+      "decided_on": null,
+      "evidence": null,
+      "remediation": "Commission the test before the first paid pilot; record the date and the published summary reference here."
     }
   ]
 }
