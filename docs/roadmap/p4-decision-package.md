@@ -1,6 +1,31 @@
 # P4 decision package: buyer, pilot, packaging and pricing
 
-**Status: proposal awaiting decision.** Nothing here is validated with buyers yet. Every number below is either a measured technical fact (labelled *measured*) or a working value already in code that this package proposes to keep or change (labelled *working value*). **No price appears anywhere, in this document or in code**, and none will until interviews and the cost model support one.
+## Decision record
+
+| # | Decision | Status | As recorded |
+|---|---|---|---|
+| D1 | Target buyer | **Approved (provisional)** | Organizations of 500–5,000 employees, regulated or audit-heavy, moving agents with real tool access into production. Economic buyer: the CISO. |
+| D2 | Pilot model | **Approved (provisional)** | Paid, 90 days, Enterprise TRIAL, hosted, fixed scope as in section 2. |
+| D3 | Pilot fee | **Undecided** | To be set after preliminary buyer interviews and cost modelling. No amount appears in code or documents. |
+| D4 | SSO | **Approved (provisional)** | Included in every edition; not gated. |
+| D5 | Editions | **Approved (provisional)** | Foundation, Enterprise and Dedicated remain working labels for interviews. |
+| D6 | Provisional limits | **Partly decided** | Request and delivery volumes are **monitored soft limits that can never interrupt security operations**, and this is now enforced in code (`MONITORED_ONLY_METERS`). Agent and integration limits are **neither changed nor confirmed**; their values and basis are shown in [section 4](#4-provisional-limits) for your review. |
+| D7 | Pricing metric | **Approved (provisional)** | An annual subscription banded by governed agents. No figures until interviews and the cost model. |
+| D8 | Trials | **Approved (provisional)** | No self-serve trial at launch; sales-assisted pilots only. |
+| D9 | Deployment lead | **Approved as the working direction, with conditions** | Hosted-first, **subject to verified** infrastructure cost, capacity, backup, recovery and support readiness. Customer-hosted gateways stay **pilot-only until packaged**. Dedicated and self-hosted come later. |
+| D10 | Design partners | **Objective approved** | Recruit 2–4 under written terms. Candidates will be selected later. |
+| D11 | Proceed to P5 | **Approved** | Build the product onboarding experience and its documentation. No prices, payment credentials or live billing. |
+
+### Conditions D9 still needs evidence for
+
+| Condition | Evidence so far | Still needed |
+|---|---|---|
+| Capacity | Measured throughput on one 4-vCPU process (`docs/reliability.md`); multiple processes safe. | Measurement on the intended hosting size; a multi-replica test. |
+| Backup and recovery | Verified PostgreSQL backup and restore tooling (`postgres_backup_ops.py`); a disaster-recovery drill script. | A timed restore drill on the hosting platform; recovery objectives agreed. |
+| Infrastructure cost | None. | A cost model from real hosting quotes and accounts. |
+| Support readiness | Severity definitions, the status page, the incident workflow. | Named people, hours and an on-call arrangement. |
+
+**Status: provisional decisions recorded on 2026-10-15** (see [Decision record](#decision-record)). Every decision is provisional and evidence-driven: it stands until buyer interviews, the cost model or operating data contradict it. Nothing here is validated with buyers yet. Every number below is either a measured technical fact (labelled *measured*) or a working value already in code that this package proposes to keep or change (labelled *working value*). **No price appears anywhere, in this document or in code**, and none will until interviews and the cost model support one.
 
 Once you decide, the code side is a data change, not a rewrite. Plans and limits live only in `PLANS` in `backend/app/entitlements.py`, and onboarding defaults live in `org_lifecycle.onboard()`.
 
@@ -82,17 +107,33 @@ One of the following:
 
 ## 4. Provisional limits
 
-These are the working values already in code. I propose keeping them **only as provisional placeholders for pilots**, unchanged, until interviews and the cost model replace them.
+### The current values and their basis (for D6)
 
-| Meter | Foundation (soft / hard) | Enterprise (soft / hard) | Dedicated | Recommendation |
+These are the values in `PLANS` today, unchanged since the entitlements engine was built (P2.3, commit `0317feb`):
+
+| Meter | Foundation (soft / hard) | Enterprise (soft / hard) | Dedicated | Enforced where |
 |---|---|---|---|---|
-| Agents | 20 / 25 | 200 / 250 | Unlimited | Keep a hard limit (protects capacity). |
-| Integrations | 3 / 5 | 50 / 100 | Unlimited | Keep a hard limit. |
-| Controlled requests per month | 50,000 / none | 1,000,000 / none | Unlimited | **Soft only.** Refusing an agent's request because of a quota is a security outage by another name. |
-| Deliveries per month | 10,000 / none | 250,000 / none | Unlimited | Soft only. |
-| Members | Never metered | Never metered | Never metered | Keep. Never discourage oversight. |
+| Agents | 20 / 25 | 200 / 250 | Unlimited | Agent registration only. Existing agents are never affected. |
+| Integrations (SIEM, incident system and notification destinations) | 3 / 5 | 50 / 100 | Unlimited | Creating a *new* destination only. Updating one is not growth. |
+| Controlled requests per month | 50,000 / none | 1,000,000 / none | Unlimited | **Never.** Reported only. |
+| Deliveries per month | 10,000 / none | 250,000 / none | Unlimited | **Never.** Reported only. |
+| Members | — | — | — | Never metered, so oversight is never discouraged. |
 
-**Capacity reference (measured, not a commitment).** One backend process on 4 vCPUs with pooled PostgreSQL handled about 16 controlled requests per second (`docs/reliability.md`). That is roughly 41 million a month at full load, far above any provisional soft limit. Limits are therefore commercial, not technical.
+Every org starts **Unassigned**, which enforces nothing, until an install operator assigns a plan.
+
+**The operational basis, stated plainly.** These numbers were chosen as round placeholders that separate a small team from a production estate. They were **not** derived from customer data, cost or measured capacity, because none of those existed when they were set. What can be said about them now:
+
+- **They are far below technical capacity.** One process measured about 16 controlled requests per second, about 41 million a month at full load. No placeholder is close to a technical limit, so the limits are a commercial choice, not a safety one.
+- **The hard limits protect only growth.** A plan reaching its agent or integration hard limit refuses *new* agents or *new* destinations, nothing else. In restricted mode (expired trial, overdue payment, lapsed licence or offboarding), growth pauses, while enforcement, evidence, export, emergency controls and offboarding continue.
+- **Operators can override per org.** Overrides need a reason, can expire and are audited.
+
+**What would give them a basis:**
+
+- the number of agents and integrations pilot organizations actually run (adoption analytics, P5);
+- interview answers on agent counts;
+- the per-org hosting cost from the cost model.
+
+Until then I recommend leaving them as they are and labelling them provisional, which is what the code and the docs already do. **No change is made without your decision.**
 
 ## 5. Pricing structure (no figures)
 

@@ -224,7 +224,15 @@ Frontend `npm run check` is clean: lint, 118 unit tests including 3 new restrict
 
 ## P4 — Buyer validation, packaging and pricing
 
-**Status: Not applicable to engineering work in this repository.** This is customer-discovery and pricing-strategy work for Michael and any commercial team, not something resolved by writing code. No action taken, none planned by me.
+**Status: provisional decisions recorded.** Every decision is evidence-driven: it stands until interviews, the cost model or operating data contradict it. The full record is in `docs/roadmap/p4-decision-package.md`.
+
+- **Approved (provisional):** D1 (buyer), D2 (90-day paid pilot, Enterprise TRIAL, hosted), D4 (SSO in every edition), D5 (working edition labels), D7 (annual subscription banded by governed agents, no figures), D8 (no self-serve trial), D11 (proceed to P5).
+- **D9:** hosted-first as the working direction, subject to verified cost, capacity, backup, recovery and support readiness. Customer-hosted gateways stay pilot-only until packaged.
+- **D10:** the objective of 2–4 design partners is approved; candidates are to be chosen.
+- **D3 undecided:** no pilot fee in code or documents.
+- **D6 partly decided:** request and delivery volumes are now **enforced in code as monitor-only**. They cannot be hard-limited by plans or overrides, and a test proves an org past its soft limit keeps receiving security decisions. Agent and integration limits are unchanged and await review.
+
+No prices, payment credentials or live billing exist anywhere. Interviews, design-partner recruitment and the cost model are business work outside this repository.
 
 ---
 
