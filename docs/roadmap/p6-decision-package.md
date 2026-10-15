@@ -15,6 +15,17 @@
 | T7 | Legal documents | **Qualified counsel**, tracked in a legal-document register (owner, reviewer, status). | Terms, Privacy Notice, DPA, AUP, support terms, pilot agreement, order form, licensing and incident-notification terms are explicitly outside engineering in the addendum. |
 | T8 | Customer evidence requests | **Owner to define** who approves a request and when an NDA is required. Engineering documents the process and what evidence exists. | It is a commercial and legal process, not a product feature. |
 
+## Owner decisions on the pending items (2026-10-15)
+
+- **T3:** the security contact is the repository's private GitHub Security Advisories reporting page (`https://github.com/Bembec/GreyGuard/security/advisories/new`) for now. A monitored security mailbox can be added before public launch.
+- **T6:** hosting, transactional email, support and payment providers remain explicitly "not selected/TBD". No subprocessor is invented, and no vendor is claimed until contracted.
+- **T8:**
+  - Public Trust Center evidence may be provided without an NDA.
+  - Non-public or sensitive evidence requires approval from a Platform Administrator or the designated security owner.
+  - An NDA is required when the evidence exposes detailed architecture, penetration-test findings, sensitive controls or customer-related information.
+  - All requests, approvals and disclosures are audited.
+- **Licence:** GreyGuard remains proprietary, and no open-source licence is added. Commercial licence terms require qualified legal counsel before distribution.
+
 ## 1. Trust Center items against the evidence that exists
 
 | Addendum item | Evidence today | Status |
