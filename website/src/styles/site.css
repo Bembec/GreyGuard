@@ -1939,3 +1939,68 @@ div[id] {
   color: var(--text-3);
   font-size: 0.82rem;
 }
+
+/* ---------- Use cases ---------- */
+.case-list {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.case {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  padding: 2rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, rgba(17, 32, 58, 0.65), rgba(8, 17, 30, 0.65));
+}
+
+.case__intro .icon-tile {
+  margin-bottom: 1.25rem;
+}
+
+.case__intro .eyebrow {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.case__intro h3 {
+  font-size: 1.5rem;
+}
+
+.case__body p {
+  color: var(--text-2);
+}
+
+.case__label {
+  margin: 0 0 0.3rem;
+  color: var(--text) !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.plain-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text-2);
+}
+
+@media (max-width: 900px) {
+  .case {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+}
+
+.resource-card {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+}
+
+.resource-card h3 {
+  margin: 0.5rem 0 0;
+}

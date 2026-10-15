@@ -1,9 +1,133 @@
 ---
 import Base from "../layouts/Base.astro"
-import PageIntro from "../components/PageIntro.astro"
-import InPreparation from "../components/InPreparation.astro"
+import ClaimList from "../components/ClaimList.astro"
+import Icon from "../components/Icon.astro"
+import { demoContact } from "../lib/site"
+
+const demoHref = demoContact ?? "/company/#contact"
+
+const cases = [
+  {
+    id: "approval", icon: "approval", role: "For security leaders",
+    title: "Put a person in front of consequential agent actions",
+    problem: "An agent can delete data, send messages or run programs on the strength of a model's output. Some of those actions should never happen without a person's decision.",
+    outcome: "Risky actions pause for approval. Every decision is recorded with the reviewer, the time and a note.",
+    claims: ["GG-GATE-3", "GG-GATE-2"],
+  },
+  {
+    id: "least-privilege", icon: "key", role: "For AI platform owners",
+    title: "Give every agent only the access its job needs",
+    problem: "Agents are often handed one broad credential, so a single misstep reaches far beyond the task.",
+    outcome: "Each agent has its own identity and scopes, and its credential can be rotated or revoked without touching others.",
+    claims: ["GG-GATE-1", "GG-GATE-6"],
+  },
+  {
+    id: "containment", icon: "respond", role: "For security operations",
+    title: "Contain a misbehaving agent, then recover safely",
+    problem: "When an agent starts attempting refused actions, responders need it stopped at once, and need a safe way back.",
+    outcome: "Risk builds with each blocked attempt and the agent is suspended at its threshold. A reset restores it after investigation.",
+    claims: ["GG-WATCH-1", "GG-RESP-1"],
+  },
+  {
+    id: "audit", icon: "evidence", role: "For audit and compliance",
+    title: "Prove what an agent did, and under which rule",
+    problem: "Auditors and incident reviewers ask who acted, why, and whether the record can be trusted.",
+    outcome: "Hash-chained evidence, per-request bundles with secrets redacted, and sealed compliance reports.",
+    claims: ["GG-EVID-1", "GG-EVID-3", "GG-EVID-4"],
+  },
+  {
+    id: "frameworks", icon: "plug", role: "For engineering teams",
+    title: "Govern agents built on popular frameworks",
+    problem: "Teams build agents with different frameworks, and rewriting them to add controls is not realistic.",
+    outcome: "Adapters accept the tool-request formats those frameworks already use, so controls arrive without a rewrite.",
+    claims: ["GG-CONN-3", "GG-CONN-1"],
+  },
+  {
+    id: "emergency", icon: "alert", role: "For incident commanders",
+    title: "Stop everything at once in an emergency",
+    problem: "In a live incident there is no time to switch agents off one by one.",
+    outcome: "Emergency global deny refuses every agent action in the organization until it is lifted.",
+    claims: ["GG-GATE-5"],
+  },
+]
+
+const fit = [
+  "Your agents call tools or APIs that change data, send messages or spend money.",
+  "You need a person to approve some agent actions.",
+  "Auditors or customers will ask what your agents did.",
+  "You can route agent actions through an SDK, the API, a framework adapter or a gateway.",
+]
+const notFit = [
+  "You need an inventory of every AI model in use. GreyGuard governs agent actions, not models.",
+  "You want to monitor agents that cannot be connected to GreyGuard.",
+  "You are looking for a SIEM or a cloud posture tool. GreyGuard feeds those; it does not replace them.",
+]
 ---
-<Base title="Use cases" description="The agent risks GreyGuard addresses: overprivileged agents, approval bypass, unsafe tool calls and untraceable decisions.">
-  <PageIntro eyebrow="Use cases" title="Use cases" lead="The agent risks GreyGuard addresses: overprivileged agents, approval bypass, unsafe tool calls and untraceable decisions." />
-  <InPreparation phase="P7.3" covers={['One page per buyer problem', 'How the control works and the evidence it creates', 'Limits of each control']} />
+<Base title="Use cases" description="How teams use GreyGuard: human approval for consequential agent actions, least privilege, containment, audit evidence, framework adoption and emergency stop.">
+  <section class="hero hero--compact">
+    <div class="hero__glow" aria-hidden="true"></div>
+    <div class="container">
+      <p class="eyebrow">Use cases</p>
+      <h1 class="hero__title">Built for the moment an agent acts</h1>
+      <p class="hero__lead">Each use case starts from a problem a real team has, and shows what changes once GreyGuard is in the path.</p>
+      <nav class="subnav" aria-label="Use cases">
+        {cases.map((item) => <a href={`#${item.id}`}><Icon name={item.icon as never} size={16} />{item.role.replace("For ", "").replace(/^./, (letter) => letter.toUpperCase())}</a>)}
+        <a href="#fit"><Icon name="check" size={16} />Is it right for you?</a>
+      </nav>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cases-title">
+    <div class="container">
+      <h2 id="cases-title" class="visually-hidden">Use cases</h2>
+      <div class="case-list">
+        {cases.map((item) => (
+          <article class="case" id={item.id}>
+            <div class="case__intro">
+              <span class="icon-tile icon-tile--accent"><Icon name={item.icon as never} size={22} /></span>
+              <p class="eyebrow">{item.role}</p>
+              <h3>{item.title}</h3>
+            </div>
+            <div class="case__body">
+              <p class="case__label">The problem</p>
+              <p>{item.problem}</p>
+              <p class="case__label">With GreyGuard</p>
+              <p>{item.outcome}</p>
+              <ClaimList ids={item.claims} />
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--band" id="fit" aria-labelledby="fit-title">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Is GreyGuard right for you?</p>
+        <h2 id="fit-title">A quick, honest check</h2>
+      </div>
+      <div class="coverage__grid">
+        <div class="coverage__col">
+          <h3><Icon name="check" size={18} /> A good fit when</h3>
+          <ul class="plain-list">{fit.map((line) => <li>{line}</li>)}</ul>
+        </div>
+        <div class="coverage__col coverage__col--limits">
+          <h3><Icon name="alert" size={18} /> Not the right tool when</h3>
+          <ul class="plain-list">{notFit.map((line) => <li>{line}</li>)}</ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta" aria-labelledby="cta-title">
+    <div class="container cta__inner">
+      <h2 id="cta-title">See your use case running</h2>
+      <p>Bring an agent scenario. We'll walk it through GreyGuard on synthetic data.</p>
+      <div class="hero__actions">
+        <a class="button button--large" href={demoHref}>Request a demo</a>
+        <a class="button button--large button--ghost" href="/platform/">Explore the platform</a>
+      </div>
+    </div>
+  </section>
 </Base>
