@@ -592,7 +592,8 @@ def get_agent_identity(agent_name):
                 credential_status,
                 created_at,
                 rotated_at,
-                revoked_at
+                revoked_at,
+                archived_at
             FROM agent_identities
             WHERE agent_name = ?
             """,
@@ -641,7 +642,8 @@ def get_agent_identities(org_id):
                 credential_status,
                 created_at,
                 rotated_at,
-                revoked_at
+                revoked_at,
+                archived_at
             FROM agent_identities
             WHERE org_id = ?
             ORDER BY agent_name

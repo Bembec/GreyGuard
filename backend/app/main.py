@@ -527,6 +527,7 @@ def public_identity(identity):
         "created_at": identity["created_at"],
         "rotated_at": identity["rotated_at"],
         "revoked_at": identity["revoked_at"],
+        "archived_at": identity.get("archived_at"),
     }
 
 

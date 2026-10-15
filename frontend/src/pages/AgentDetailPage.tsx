@@ -15,7 +15,7 @@ type Investigation = {
 }
 
 type CredentialHistory = {
-  events: Array<{ id: number; agent_name: string; timestamp: string; event_type: "ISSUED" | "ROTATED" | "REVOKED"; actor: string }>
+  events: Array<{ id: number; agent_name: string; timestamp: string; event_type: "ISSUED" | "ROTATED" | "REVOKED" | "ARCHIVED"; actor: string }>
   total: number
 }
 
@@ -102,7 +102,7 @@ export default function AgentDetailPage() {
                 <div className="evidence-table__head"><span>Time</span><span>Event</span><span>Actor</span></div>
                 {credentialHistory.data.events.map((event) => <div key={event.id}>
                   <span>{formatAgentEvidenceDate(event.timestamp)}</span>
-                  <strong className={`evidence-outcome evidence-outcome--${event.event_type === "REVOKED" ? "block" : event.event_type === "ROTATED" ? "ask" : "allow"}`}>{event.event_type}</strong>
+                  <strong className={`evidence-outcome evidence-outcome--${event.event_type === "REVOKED" || event.event_type === "ARCHIVED" ? "block" : event.event_type === "ROTATED" ? "ask" : "allow"}`}>{event.event_type}</strong>
                   <span>{event.actor}</span>
                 </div>)}
               </div>
