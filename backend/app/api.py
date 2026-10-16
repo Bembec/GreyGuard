@@ -72,7 +72,7 @@ from .enterprise_sso import (
     initialize_enterprise_sso,
     list_enabled_providers_for_login,
 )
-from . import organizations
+from . import control_graph, organizations
 from .time_range import parse_time_range
 from . import entitlements
 from . import billing
@@ -3349,6 +3349,49 @@ def agent_investigation(
         return build_agent_investigation(agent_name, limit, org_id=main.agent_org_id(agent_name))
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Agent not found.") from error
+
+
+@app.get("/agents/{agent_name}/graph")
+def agent_control_graph(
+    agent_name: str,
+    depth: int = Query(default=2, ge=1, le=2),
+    limit: int = Query(default=control_graph.DEFAULT_LIMIT, ge=1, le=control_graph.MAX_LIMIT),
+    x_admin_pin: str | None = Header(default=None),
+    since: RangeBound = None,
+    until: RangeBound = None,
+):
+    """One agent's relationships, read-only (P7.5 Control Graph).
+
+    Ownership is checked first: another org's agent is a 404, like a missing one. Every query in
+    control_graph then passes this org, so no node from another org can appear. Any role with
+    read access may see it, because it shows only records they could already open one by one."""
+    administrator = require_admin(x_admin_pin)
+    agent_name = require_agent_in_org(agent_name, administrator)
+    org_id = organizations.resolve_org_id(administrator)
+    window = parse_time_range(since, until, org_id=org_id)
+    return control_graph.build_control_graph(
+        agent_name, org_id=org_id, include_install_level=bool(administrator.get("install_operator")),
+        window=window, depth=depth, limit=limit,
+    )
+
+
+@app.get("/agents/{agent_name}/impact-preview")
+def agent_impact_preview(
+    agent_name: str,
+    change: str = Query(max_length=32),
+    target: Annotated[str | None, Query(max_length=100)] = None,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """What revoking a scope or credential, or disabling a tool, would affect. Reads only.
+
+    A GET, so an AUDITOR may use it (owner decision 3); it can change nothing, and the change
+    itself stays on the Agents or Policies page under that page's own permission checks."""
+    administrator = require_admin(x_admin_pin)
+    agent_name = require_agent_in_org(agent_name, administrator)
+    try:
+        return control_graph.impact_preview(agent_name, change, target, org_id=organizations.resolve_org_id(administrator))
+    except control_graph.PreviewError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @app.post(

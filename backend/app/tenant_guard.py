@@ -212,6 +212,10 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     "tool_requests",
     "approval_events",
     "execution_events",
+    # P7.5 Control Graph: the exact provenance of each tool request's decision, written once at
+    # decision time under the request's org (decision_provenance.py). Append-only: a trigger
+    # refuses UPDATE; DELETE stays possible for organization deletion and retention.
+    "decision_records",
     # P2.2 agent scoping, batch C (alerts.py/notifications.py): an alert belongs to the org of
     # the evidence it was derived from (each timeline event carries its org_id since batch B),
     # its notes and notifications to the alert's org - never to the caller's. org_id is

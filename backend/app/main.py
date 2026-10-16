@@ -53,6 +53,7 @@ from .tool_gateway import (
     initialize_sandbox,
 )
 from .policy_control import get_emergency_controls, get_published_policy
+from . import decision_provenance
 from .policy_integrations import effective_rollout_policy
 from .paths import data_directory
 from .organizations import DEFAULT_ORG_ID
@@ -374,6 +375,7 @@ def initialize_greyguard():
     global active_agent_name
 
     initialize_database()
+    decision_provenance.initialize_decision_provenance()
     initialize_agent_runtime_states()
     initialize_sandbox()
 
@@ -1200,8 +1202,17 @@ def evaluate_action(
     agent_name,
     action,
     approval=None,
+    decided=None,
 ):
-    """Evaluate one action for an agent."""
+    """Evaluate one action for an agent.
+
+    `decided`, when given, is filled with what decided: the rule, its type, and the policy version
+    with its fingerprint (decision_provenance.provenance). It is kept out of the result itself,
+    which agents receive, so policy internals are never disclosed to them."""
+
+    def note(**fields):
+        if decided is not None:
+            decided.update(decision_provenance.provenance(**fields))
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -1230,6 +1241,16 @@ def evaluate_action(
         emergency_reason = "this tool is emergency-disabled"
 
     if emergency_reason:
+        if emergency["global_deny"]:
+            rule_id, rule_name = "emergency:global_deny", "Emergency global deny"
+        elif normalized_name in emergency["disabled_agents"]:
+            rule_id, rule_name = f"emergency:disabled_agent:{normalized_name}", "Emergency: agent disabled"
+        else:
+            rule_id, rule_name = f"emergency:disabled_tool:{normalized_action}", f"Emergency: {normalized_action} disabled"
+        note(outcome="REFUSED", rule_type="EMERGENCY_CONTROL", matched_rule_id=rule_id, rule_name=rule_name,
+             rule_snapshot={"global_deny": bool(emergency["global_deny"]),
+                            "agent_disabled": normalized_name in emergency["disabled_agents"],
+                            "tool_disabled": normalized_action in emergency["disabled_tools"]})
         write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED", approval="NOT_REQUIRED", risk_added=0)
         return action_result(
             agent_name=normalized_name, action=normalized_action,
@@ -1238,6 +1259,8 @@ def evaluate_action(
         )
 
     if state["agent_status"] == "SUSPENDED":
+        note(outcome="REFUSED", rule_type="AGENT_STATE", matched_rule_id="agent_state:suspended",
+             rule_name="Agent suspended", rule_snapshot={"agent_status": "SUSPENDED"})
         write_log(
             agent_name=normalized_name,
             action=normalized_action,
@@ -1274,6 +1297,7 @@ def evaluate_action(
         "max_blocked_attempts": max_blocked_attempts,
         "max_risk_score": max_risk_score,
     }
+    policy_source = "ROLLOUT" if staged_policy else "PUBLISHED" if published_policy else "BUILTIN"
     active_permissions = active_policy["permissions"]
     active_weights = active_policy["risk_weights"]
     active_block_limit = active_policy["max_blocked_attempts"]
@@ -1286,6 +1310,15 @@ def evaluate_action(
     risk_added = active_weights.get(
         normalized_action,
         50,
+    )
+    listed = normalized_action in active_permissions
+    rule_note = dict(
+        rule_type="PERMISSION" if listed else "DEFAULT_RULE",
+        matched_rule_id=f"permission:{normalized_action}" if listed else "default:unlisted_action",
+        rule_name=f"{normalized_action}: {policy_decision}" if listed else "Unlisted action: BLOCK",
+        rule_snapshot={"action": normalized_action, "decision": policy_decision, "risk_weight": risk_added,
+                       "listed": listed, "max_blocked_attempts": active_block_limit, "max_risk_score": active_risk_limit},
+        policy=active_policy, policy_source=policy_source,
     )
 
     if policy_decision == "ASK":
@@ -1308,6 +1341,8 @@ def evaluate_action(
     )
     if updated is None:
         # Suspended by a concurrent request after the check above.
+        note(outcome="REFUSED", rule_type="AGENT_STATE", matched_rule_id="agent_state:suspended",
+             rule_name="Agent suspended", rule_snapshot={"agent_status": "SUSPENDED", "concurrent": True})
         write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED",
                   approval="NOT_REQUIRED", risk_added=0)
         return action_result(
@@ -1316,6 +1351,7 @@ def evaluate_action(
             message="Action refused because the agent is suspended.",
         )
 
+    note(outcome=policy_decision, **rule_note)
     write_log(
         agent_name=normalized_name,
         action=normalized_action,
@@ -1502,9 +1538,11 @@ def submit_tool_request(
             "Dry-run must be true or false."
         )
 
+    decided = {}
     policy_result = evaluate_action(
         agent_name=normalized_name,
         action=normalized_action,
+        decided=decided,
     )
 
     policy_decision = policy_result[
@@ -1532,11 +1570,12 @@ def submit_tool_request(
         execution_status = "BLOCKED"
 
     request_id = str(request_id or uuid.uuid4())
+    decided_at = current_timestamp()
 
     save_tool_request(
         request_id=request_id,
         agent_name=normalized_name,
-        timestamp=current_timestamp(),
+        timestamp=decided_at,
         action=normalized_action,
         target=target.strip(),
         payload=payload,
@@ -1551,6 +1590,11 @@ def submit_tool_request(
             "risk_score"
         ],
         org_id=org_id,
+    )
+    # The exact provenance of this decision: append-only, never updated (decision_provenance).
+    decision_provenance.record_decision(
+        request_id, org_id=org_id, agent_name=normalized_name, action=normalized_action,
+        decided_at=decided_at, decided=decided,
     )
 
     if execution_status == "BLOCKED":

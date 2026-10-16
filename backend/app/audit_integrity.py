@@ -116,19 +116,17 @@ def get_controls():
     return {"config": config, "legal_holds": holds, "chain_records": chain_count, "last_check": dict(last_check) if last_check else None}
 
 
-_retention_ready = set()
-
-
 def retention_days():
-    """The configured audit retention in days.
+    """The configured audit retention in days, or None before audit integrity is initialized.
 
-    The evidence lists call this on every ranged request, so it initializes the tables once per
-    database rather than each time, and never counts the chain."""
-    if str(database_path) not in _retention_ready:
-        initialize_audit_integrity()
-        _retention_ready.add(str(database_path))
-    with sqlite3.connect(database_path) as connection:
-        row = connection.execute("SELECT retention_days FROM audit_retention_config WHERE config_id=1").fetchone()
+    A pure read: the evidence lists and the Control Graph call it on every ranged request, and a
+    read path must never write - not even the default row initialize_audit_integrity() seeds at
+    startup. Without the table nothing is configured yet, so the caller's ceiling applies."""
+    try:
+        with sqlite3.connect(database_path) as connection:
+            row = connection.execute("SELECT retention_days FROM audit_retention_config WHERE config_id=1").fetchone()
+    except Exception:  # the table does not exist yet: SQLite and PostgreSQL raise different types
+        return None
     return int(row[0]) if row else None
 
 
