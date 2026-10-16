@@ -580,6 +580,28 @@ Remaining before publication: the owner's claim approvals, W4 (domain and host),
 
 Nothing was pushed, published or deployed.
 
+**P7.5 batch 1: seven-domain navigation (V1), 2026-10-16, commit `385c32a`.** The console now uses v3's seven task domains everywhere: the sidebar, the collapsed mega-menu, the breadcrumb trail, page eyebrows and Ctrl+K. The domains are Command Center (pinned), Agents & Access, Policies & Approvals, Operations & Incidents, Evidence & Reports, Integrations, and Organization & Administration. Gate, Watch, Respond and Evidence remain the website's buyer-facing names.
+
+- **Regrouping.** There are now 16 workspaces. New ones: Operators & Access, Agent Connections, Alerting & Ticketing and Platform Health. Authentication moved to Agents & Identity. Telemetry & Sensors moved to Integrations. Every route and page title is unchanged.
+- **Derived eyebrows.** `PageHeader` takes its eyebrow from the page's workspace, so a future regrouping cannot leave a stale label. Detail pages add "Investigation".
+- **Favourites and recent pages** (v3: "recent pages, favourites"). A star beside the top-bar title adds or removes the open page. It is not shown on detail pages or the Command Center.
+  - Favourites appear above the sidebar's domains. Ctrl+K lists Favourites and Recent pages before any query. A favourite is listed once, and the open page is left out of recent pages.
+  - Both lists are per-device conveniences in localStorage. Only known console page paths are stored; detail URLs are recorded as their list page, so no agent or request identifier is kept. Each list is permission-filtered when shown.
+- **Fix found by the new layout.** The collapsed mega-menu assumed a panel at most 420 px tall. Operations & Incidents is taller, so its last items fell below the window. The panel now measures itself after opening and moves up to fit; a panel taller than the window scrolls.
+
+**Verification run:**
+- Frontend `npm run check` passes: lint, 169 unit tests, and the build.
+- Mutations caught: the permission filter removed from `visiblePages`; the known-path filter removed from stored reads; a detail URL stored verbatim; a favourite accepting any path.
+- Playwright: 65 passed with no retries. The navigation spec also passed 3 times in a row.
+- Screenshots reviewed: the sidebar with favourites, Ctrl+K with favourites and recent pages, and the collapsed Operations & Incidents mega-menu.
+- No backend change, so the backend suite and migration rehearsal do not apply.
+
+**Observed, not changed:** when resuming a session fails for any reason, including a 429 from the rate limit, `AuthContext` tries a refresh and then signs the operator out. A rate-limited operator is therefore signed out rather than asked to retry. This showed up as a sign-out in an e2e test that made several full page loads. The test now navigates within the app. The underlying behaviour needs its own security-reviewed change.
+
+The P7.5 gap matrix (v3 ordering, step 2) has not been written yet. This batch went first because V1 was already decided. Next: the gap matrix, then the role-preset Command Center.
+
+Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
