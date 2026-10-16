@@ -928,3 +928,41 @@
 .gg-cell-stack {
   overflow-wrap: anywhere;
 }
+
+.gg-access-denied {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  max-width: 560px;
+  margin: 1.5rem auto 0;
+  padding: 2.2rem 1.6rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-md);
+  background: var(--gg-panel);
+  text-align: center;
+}
+
+.gg-access-denied__icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--gg-amber);
+}
+
+.gg-access-denied h2 {
+  margin: 0.4rem 0 0;
+  font-size: 1.1rem;
+}
+
+.gg-access-denied p {
+  margin: 0;
+  color: var(--gg-text-secondary);
+  line-height: 1.55;
+}
+
+.gg-access-denied .gg-button {
+  margin-top: 0.6rem;
+}

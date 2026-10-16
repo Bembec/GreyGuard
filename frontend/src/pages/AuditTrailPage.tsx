@@ -355,13 +355,24 @@ export default function AuditTrailPage() {
         </div>
 
         <div className="audit-timeline">
-          {filteredEvents.length === 0 ? (
+          {filteredEvents.length === 0 && events.length === 0 ? (
+            <div className="audit-empty">
+              <Activity />
+              <h3>No evidence yet</h3>
+              <p>
+                Policy decisions, sign-ins, approvals and executions are recorded here as they happen.
+              </p>
+            </div>
+          ) : filteredEvents.length === 0 ? (
             <div className="audit-empty">
               <Activity />
               <h3>No matching evidence</h3>
               <p>
-                Adjust the search or filter controls.
+                No evidence matches the current search and filters.
               </p>
+              <button type="button" className="gg-button" onClick={() => { setSearch(""); setTypeFilter("ALL"); setOutcomeFilter("ALL"); }}>
+                Clear filters
+              </button>
             </div>
           ) : (
             filteredEvents.map((event) => {

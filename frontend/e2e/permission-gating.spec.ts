@@ -66,12 +66,18 @@ test("AUDITOR does not see service account mutation controls", async ({ page }) 
   await expect(page.getByRole("button", { name: /New service account/i })).toHaveCount(0)
 })
 
-test("AUDITOR is redirected away from abuse protection (install-operator-only resource)", async ({ page }) => {
+test("AUDITOR gets the shared access-denied state on abuse protection (install-operator-only resource)", async ({ page }) => {
   // GET /abuse-protection itself calls require_install_operator() server-side - this is not a
-  // mutation-only restriction, so the frontend redirects instead of rendering a read-only view.
+  // mutation-only restriction, so the console explains the requirement instead of rendering the page.
   await signInAsAuditor(page)
+  const pageRequests: string[] = []
+  page.on("request", (request) => { if (request.url().includes("/api/abuse-protection")) pageRequests.push(request.url()) })
   await page.goto("/abuse-protection")
-  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 })
+  await expect(page.getByRole("heading", { name: "Install operator access required" })).toBeVisible({ timeout: 15_000 })
+  await expect(page).toHaveURL(/\/abuse-protection$/)
+  await page.getByRole("link", { name: "Go to the Command Center" }).click()
+  await expect(page).toHaveURL(/\/dashboard$/)
+  expect(pageRequests, "the denied page must not request its data").toEqual([])
 })
 
 test("AUDITOR sees agent scope/credential controls as read-only", async ({ page }) => {
@@ -99,7 +105,7 @@ test("an org PLATFORM_ADMIN who is not an install operator cannot reach install-
     await expect(page.locator(`a[href="${hiddenPath}"]`)).toHaveCount(0)
   }
   await page.goto("/observability")
-  await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 })
+  await expect(page.getByRole("heading", { name: "Install operator access required" })).toBeVisible({ timeout: 15_000 })
   await page.goto("/team")
   await expect(page.getByRole("heading", { name: /Install operator access required/i })).toBeVisible({ timeout: 15_000 })
   // The server enforces it too, not just the UI.

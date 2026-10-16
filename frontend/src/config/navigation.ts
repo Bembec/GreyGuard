@@ -47,6 +47,11 @@ export interface NavigationItem {
   requiredRole?: string
   /** Install-wide pages: visible only to install operators, whatever their role in the active org. */
   requiresInstallOperator?: boolean
+  /**
+   * The page opens read-only for roles that fail the check above: it is left out of their
+   * navigation, but a direct link still shows it rather than the access-denied state.
+   */
+  readOnlyForOtherRoles?: boolean
   /** Undefined for the one pinned item (Command Center), which renders above all groups. */
   group?: NavigationGroupId
   icon: LucideIcon
@@ -170,6 +175,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/secrets",
     description: "References, rotation and emergency revocation",
     requiredRole: "PLATFORM_ADMIN",
+    readOnlyForOtherRoles: true,
     group: "integrations",
     icon: KeySquare,
   },
@@ -178,6 +184,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/service-accounts",
     description: "Scoped machine identities and API keys",
     requiredRole: "PLATFORM_ADMIN",
+    readOnlyForOtherRoles: true,
     group: "agents",
     icon: KeyRound,
   },
@@ -318,6 +325,11 @@ export const navigationItems: NavigationItem[] = [
 ]
 
 /** The permission check that decides whether a navigation item is shown. */
+/** Whether this role is refused the page outright (shown the access-denied state). */
+export function pageRefused(item: NavigationItem, allowed: (check?: PermissionCheck) => boolean): boolean {
+  return !item.readOnlyForOtherRoles && !allowed(navigationPermission(item))
+}
+
 export function navigationPermission(item: NavigationItem): PermissionCheck | undefined {
   if (item.requiresInstallOperator) return { installOperator: true }
   return item.requiredRole ? { role: item.requiredRole as "PLATFORM_ADMIN" } : undefined

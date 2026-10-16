@@ -100,6 +100,37 @@
   animation: shell-pulse 2s infinite;
 }
 
+.sidebar__environment--warning {
+  border-color: rgba(251, 191, 36, 0.2);
+  background: rgba(251, 191, 36, 0.06);
+}
+
+.sidebar__environment--warning .sidebar__pulse {
+  background: var(--gg-amber);
+  box-shadow: 0 0 14px var(--gg-amber);
+}
+
+.sidebar__environment--danger {
+  border-color: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.07);
+}
+
+.sidebar__environment--danger .sidebar__pulse {
+  background: var(--gg-red);
+  box-shadow: 0 0 14px var(--gg-red);
+}
+
+.sidebar__environment--unknown {
+  border-color: var(--gg-border);
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.sidebar__environment--unknown .sidebar__pulse {
+  background: var(--gg-text-muted);
+  box-shadow: none;
+  animation: none;
+}
+
 .sidebar__environment div {
   display: grid;
   gap: 0.2rem;
@@ -359,6 +390,7 @@
 
 .nav-flyout__panel {
   position: fixed;
+  z-index: 195;
   width: 320px;
   max-height: calc(100vh - 1rem);
   overflow-y: auto;

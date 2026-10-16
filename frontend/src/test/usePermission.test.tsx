@@ -13,9 +13,9 @@ function wrapperFor(administrator: Administrator | null) {
         value={{
           sessionToken: administrator ? "gga_test" : null,
           administrator,
-          agents: [],
           isAuthenticated: Boolean(administrator),
           isResumingSession: false,
+          isWaitingForControlPlane: false,
           login: async () => {},
           completeSso: async () => {},
           completeSetup: async () => {},

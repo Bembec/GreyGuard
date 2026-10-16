@@ -638,17 +638,30 @@ export default function ToolRequestsPage() {
                   </tbody>
                 </table>
 
-                {filteredRequests.length === 0 && (
+                {filteredRequests.length === 0 && (requests.length > 0 ? (
                   <div className="requests-empty">
                     <Search size={25} />
                     <strong>
                       No matching requests
                     </strong>
                     <span>
-                      Change your search or filters.
+                      No request matches the current search and filters.
+                    </span>
+                    <button type="button" className="gg-button" onClick={() => { setSearchText(""); setDecisionFilter("ALL"); setExecutionFilter("ALL"); }}>
+                      Clear filters
+                    </button>
+                  </div>
+                ) : (
+                  <div className="requests-empty">
+                    <Search size={25} />
+                    <strong>
+                      No tool requests yet
+                    </strong>
+                    <span>
+                      Requests appear here once a registered agent asks GreyGuard to run a tool.
                     </span>
                   </div>
-                )}
+                ))}
               </div>
             )}
         </div>

@@ -9,6 +9,7 @@ import {
 } from "react"
 
 import {
+  ApiError,
   administratorLogin,
   completeSSOLogin,
   refreshAdministrator,
@@ -19,7 +20,6 @@ import {
   type AdministratorLoginResponse,
   type OrganizationMembership,
 } from "../api/client"
-import type { Agent } from "../types/api"
 
 const SESSION_KEY = "greyguard_admin_pin"
 const REFRESH_KEY = "greyguard_admin_refresh"
@@ -47,9 +47,10 @@ export interface Administrator {
 interface AuthContextValue {
   sessionToken: string | null
   administrator: Administrator | null
-  agents: Agent[]
   isAuthenticated: boolean
   isResumingSession: boolean
+  /** True while resuming waits out a rate limit, an outage or a network failure. */
+  isWaitingForControlPlane: boolean
   login: (
     email: string,
     password: string,
@@ -59,6 +60,16 @@ interface AuthContextValue {
   completeSetup: (result: AdministratorLoginResponse) => Promise<void>
   switchActiveOrg: (orgId: string) => Promise<void>
   logout: () => Promise<void>
+}
+
+/** Whether an error means the server refused the session itself, rather than failing to answer. */
+export function isSessionRejected(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403)
+}
+
+/** Backoff for resuming a session: 2, 4, 8 and 16 seconds, then every 30 seconds. */
+export function resumeRetryDelay(attempt: number): number {
+  return Math.min(30_000, 2_000 * 2 ** attempt)
 }
 
 // Exported for test wrappers that need to provide a crafted context value directly
@@ -77,17 +88,18 @@ export function AuthProvider({
     )
   const [administrator, setAdministrator] =
     useState<Administrator | null>(null)
-  const [agents, setAgents] = useState<Agent[]>([])
   const [isResumingSession, setIsResumingSession] = useState(() =>
     Boolean(sessionStorage.getItem(SESSION_KEY)),
   )
+
+  const [resumeAttempt, setResumeAttempt] = useState(0)
+  const [isWaitingForControlPlane, setIsWaitingForControlPlane] = useState(false)
 
   const clearSession = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY)
     sessionStorage.removeItem(REFRESH_KEY)
     setSessionToken(null)
     setAdministrator(null)
-    setAgents([])
     setIsResumingSession(false)
   }, [])
 
@@ -97,34 +109,54 @@ export function AuthProvider({
     }
 
     let active = true
+    let retryTimer: number | undefined
 
-    Promise.all([
-      getCurrentAdministrator(sessionToken),
-      verifyAdministrator(sessionToken),
-    ])
-      .then(([currentAdministrator, agentList]) => {
+    // Only the server rejecting the session ends it. A rate limit, an outage or a lost connection
+    // says nothing about the session, so resuming waits and tries again; the server still checks
+    // the token on every request, so keeping it grants nothing.
+    const waitAndRetry = () => {
+      setIsWaitingForControlPlane(true)
+      retryTimer = window.setTimeout(() => setResumeAttempt((attempt) => attempt + 1), resumeRetryDelay(resumeAttempt))
+    }
+
+    // /auth/me alone proves the session: every full page load pays for this request.
+    getCurrentAdministrator(sessionToken)
+      .then((currentAdministrator) => {
         if (active) {
           setAdministrator(currentAdministrator)
-          setAgents(agentList)
           setIsResumingSession(false)
+          setIsWaitingForControlPlane(false)
         }
       })
-      .catch(async () => {
-        const refreshToken=sessionStorage.getItem(REFRESH_KEY)
-        if(!active||!refreshToken){if(active)clearSession();return}
-        try{const refreshed=await refreshAdministrator(refreshToken);sessionStorage.setItem(SESSION_KEY,refreshed.access_token);sessionStorage.setItem(REFRESH_KEY,refreshed.refresh_token);setSessionToken(refreshed.access_token);setAdministrator(refreshed.administrator);if(active)setIsResumingSession(false)}catch{if(active)clearSession()}
+      .catch(async (error: unknown) => {
+        if (!active) return
+        if (!isSessionRejected(error)) { waitAndRetry(); return }
+        const refreshToken = sessionStorage.getItem(REFRESH_KEY)
+        if (!refreshToken) { clearSession(); return }
+        try {
+          const refreshed = await refreshAdministrator(refreshToken)
+          sessionStorage.setItem(SESSION_KEY, refreshed.access_token)
+          sessionStorage.setItem(REFRESH_KEY, refreshed.refresh_token)
+          setSessionToken(refreshed.access_token)
+          setAdministrator(refreshed.administrator)
+          if (active) { setIsResumingSession(false); setIsWaitingForControlPlane(false) }
+        } catch (refreshError) {
+          if (!active) return
+          if (isSessionRejected(refreshError)) clearSession()
+          else waitAndRetry()
+        }
       })
 
     return () => {
       active = false
+      window.clearTimeout(retryTimer)
     }
-  }, [administrator, clearSession, sessionToken])
+  }, [administrator, clearSession, sessionToken, resumeAttempt])
 
   const applySession = useCallback(
     async (result: AdministratorLoginResponse) => {
-      const agentList = await verifyAdministrator(
-        result.access_token,
-      )
+      // Confirm the newly issued token works before keeping it.
+      await verifyAdministrator(result.access_token)
 
       sessionStorage.setItem(
         SESSION_KEY,
@@ -133,7 +165,6 @@ export function AuthProvider({
       sessionStorage.setItem(REFRESH_KEY,result.refresh_token)
       setSessionToken(result.access_token)
       setAdministrator(result.administrator)
-      setAgents(agentList)
     },
     [],
   )
@@ -195,11 +226,11 @@ export function AuthProvider({
     () => ({
       sessionToken,
       administrator,
-      agents,
       isAuthenticated: Boolean(
         sessionToken && administrator,
       ),
       isResumingSession,
+      isWaitingForControlPlane,
       login,
       completeSso,
       completeSetup,
@@ -209,8 +240,8 @@ export function AuthProvider({
     [
       sessionToken,
       administrator,
-      agents,
       isResumingSession,
+      isWaitingForControlPlane,
       login,
       completeSso,
       completeSetup,

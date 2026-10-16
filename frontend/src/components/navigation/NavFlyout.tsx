@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react"
+import { createPortal } from "react-dom"
 import { Link, useLocation } from "react-router-dom"
 
 import type { NavigationGroup } from "../../config/navigationGroups"
@@ -58,7 +59,9 @@ export function NavFlyout({ group, workspaces }: NavFlyoutProps) {
       >
         <GroupIcon size={19} />
       </button>
-      {open && (
+      {/* On <body>: the sidebar is its own stacking context, which would keep the open menu
+          beneath fixed banners such as the offline prompt. */}
+      {open && createPortal(
         <div
           id={`nav-flyout-${group.id}`}
           ref={panelRef}
@@ -91,7 +94,8 @@ export function NavFlyout({ group, workspaces }: NavFlyoutProps) {
               ))}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

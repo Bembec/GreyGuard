@@ -6,6 +6,7 @@ import {
   Check,
   Copy,
   KeyRound,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
@@ -28,7 +29,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useDismissableLayer } from "../hooks/useDismissableLayer";
@@ -156,6 +157,29 @@ async function updateAgentScopes(
   return readResponse<ScopeResponse>(response);
 }
 
+type RegistrationResponse = CredentialResponse & {
+  agent_name: string;
+};
+
+async function registerAgent({
+  agentName,
+  scopes,
+}: {
+  agentName: string;
+  scopes: string[];
+}): Promise<RegistrationResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/agents`,
+    {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ agent_name: agentName, scopes }),
+    },
+  );
+
+  return readResponse<RegistrationResponse>(response);
+}
+
 async function rotateCredential(
   agentName: string,
 ): Promise<CredentialResponse> {
@@ -275,6 +299,16 @@ export default function AgentsPage() {
     useState<AgentConfirmation>(null);
   const [archiveReason, setArchiveReason] =
     useState("");
+  // Getting Started links here with ?register=1 to open registration straight away.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [registering, setRegistering] =
+    useState(() => searchParams.get("register") === "1");
+  const [newAgentName, setNewAgentName] =
+    useState("");
+  const [newAgentScopes, setNewAgentScopes] =
+    useState<string[]>([]);
+  const [registerError, setRegisterError] =
+    useState<string | null>(null);
   const credentialCloseRef = useRef<HTMLButtonElement>(null);
   const credentialDialogRef = useDismissableLayer<HTMLElement>({
     open: revealedCredential !== null,
@@ -355,6 +389,37 @@ export default function AgentsPage() {
       });
     },
   });
+
+  // Registration issues a credential, shown once in the same dialog as a rotation. The server
+  // checks identity:manage, plan capacity and that the name is unused in every organization.
+  const registerMutation = useMutation({
+    mutationFn: registerAgent,
+    onSuccess: async (result) => {
+      closeRegistration();
+      setSelectedName(result.agent_name);
+      setRevealedCredential(result.credential ?? null);
+      setCredentialCopied(false);
+      setNotice(
+        result.credential_notice
+        ?? `Agent ${result.agent_name} registered.`,
+      );
+
+      await queryClient.invalidateQueries({
+        queryKey: ["agents"],
+      });
+    },
+    onError: (error: Error) => {
+      setRegisterError(error.message);
+    },
+  });
+
+  function closeRegistration() {
+    setRegistering(false);
+    if (searchParams.has("register")) setSearchParams({}, { replace: true });
+    setNewAgentName("");
+    setNewAgentScopes([]);
+    setRegisterError(null);
+  }
 
   const rotateMutation = useMutation({
     mutationFn: rotateCredential,
@@ -474,7 +539,10 @@ export default function AgentsPage() {
         title="Agents"
         icon={<Bot size={22} />}
         description="Every registered agent with its identity, scopes, credential and risk. An identity is not a permission: restrict scopes, rotate or revoke credentials, and contain a risky agent from here."
-        actions={<button type="button" className="gg-button" onClick={() => void agentsQuery.refetch()} disabled={agentsQuery.isFetching}><RefreshCw size={16} aria-hidden="true" className={agentsQuery.isFetching ? "spin" : undefined} />Refresh</button>}
+        actions={<>
+          <button type="button" className="gg-button" onClick={() => void agentsQuery.refetch()} disabled={agentsQuery.isFetching}><RefreshCw size={16} aria-hidden="true" className={agentsQuery.isFetching ? "spin" : undefined} />Refresh</button>
+          {canManageIdentity && <button type="button" className="gg-button gg-button--primary" onClick={() => setRegistering(true)}><Plus size={16} aria-hidden="true" />Register agent</button>}
+        </>}
       />
 
       <Guidance id="agents" title="How agent governance works">
@@ -1087,6 +1155,44 @@ export default function AgentsPage() {
           </section>
         </div>
       )}
+
+      <ConfirmDialog
+        open={registering && canManageIdentity}
+        title="Register an agent"
+        description="GreyGuard creates the agent's identity and issues its credential, shown once. The agent may only use the scopes you give it here, and every request is still checked against policy."
+        confirmLabel="Register and issue credential"
+        tone="warning"
+        busy={registerMutation.isPending}
+        confirmDisabled={!newAgentName.trim() || newAgentScopes.length === 0}
+        onCancel={closeRegistration}
+        onConfirm={() => registerMutation.mutate({ agentName: newAgentName.trim(), scopes: newAgentScopes })}
+      >
+        <label className="gg-field">
+          Agent name
+          <input
+            value={newAgentName}
+            onChange={(event) => setNewAgentName(event.target.value)}
+            maxLength={100}
+            placeholder="research_agent"
+            autoComplete="off"
+          />
+          <small>Lower case, with spaces turned into underscores. The agent uses this name with its credential.</small>
+        </label>
+        <fieldset className="agent-register-scopes">
+          <legend>Scopes: only what its tools need</legend>
+          {availableScopes.map((scope) => (
+            <label className="gg-check" key={scope}>
+              <input
+                type="checkbox"
+                checked={newAgentScopes.includes(scope)}
+                onChange={(event) => setNewAgentScopes((current) => event.target.checked ? [...current, scope] : current.filter((item) => item !== scope))}
+              />
+              {scope}
+            </label>
+          ))}
+        </fieldset>
+        {registerError && <p className="agent-register-error" role="alert">{registerError}</p>}
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmation === "archive"}

@@ -7,11 +7,13 @@ import "../../styles/splash.css"
  * briefly rendering LoginPage during that window on every hard reload with a live
  * session.
  */
-export function SplashScreen() {
+export function SplashScreen({ waiting = false }: { waiting?: boolean }) {
   return (
     <div className="gg-splash" role="status" aria-live="polite">
       <Logo variant="primary" className="gg-splash__logo" />
-      <span className="gg-splash__status">Verifying your session…</span>
+      <span className="gg-splash__status">
+        {waiting ? "Waiting for the control plane to respond. Your session is kept and will resume automatically…" : "Verifying your session…"}
+      </span>
     </div>
   )
 }

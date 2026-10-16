@@ -21,17 +21,21 @@ import {
 } from "react-router-dom"
 
 import { Logo } from "../components/brand/Logo"
+import { AccessDenied } from "../components/page/AccessDenied"
 import { GlobalSearchDialog } from "../components/GlobalSearchDialog"
 import { NavFlyout } from "../components/navigation/NavFlyout"
 import { SidebarFavourites } from "../components/navigation/SidebarFavourites"
 import { SidebarNavGroup } from "../components/navigation/SidebarNavGroup"
 import { UserMenu } from "../components/navigation/UserMenu"
 import { WorkspaceTabs } from "../components/navigation/WorkspaceTabs"
+import { pageRefused } from "../config/navigation"
 import { navigationGroups } from "../config/navigationGroups"
 import { commandCenter, pageForPath, workspaceForPath, workspaces } from "../config/workspaces"
 import { useAuth } from "../context/AuthContext"
+import { matchesPermission } from "../hooks/usePermission"
 import { recordRecentPage, toggleFavourite, usePageShortcuts } from "../lib/pageShortcuts"
 import { recordPageView } from "../lib/pageViewAnalytics"
+import { useShellSignals } from "../lib/shellSignals"
 import { CapacityBanner } from "../components/CapacityBanner"
 import { OfflineBanner } from "../components/page/OfflineBanner"
 import "../styles/shell.css"
@@ -78,7 +82,8 @@ export function AppShell() {
   useEffect(() => recordPageView(location.pathname), [location.pathname])
   useEffect(() => recordRecentPage(location.pathname), [location.pathname])
   const navigate = useNavigate()
-  const { logout } = useAuth()
+  const { logout, administrator } = useAuth()
+  const { unread, posture } = useShellSignals()
 
   const [collapsed, setCollapsed] =
     useState(false)
@@ -86,6 +91,11 @@ export function AppShell() {
     useState(false)
   const [searchOpen, setSearchOpen] =
     useState(false)
+
+  // One check for every route, so a bookmark or typed URL to a page this role may not use gets
+  // the same explanation everywhere. Pages keep their own checks as a second layer.
+  const routePage = pageForPath(location.pathname)
+  const deniedPage = routePage && pageRefused(routePage, (check) => matchesPermission(administrator, check)) ? routePage : null
 
   const currentPage = useMemo(
     () => getPageInformation(location.pathname),
@@ -155,12 +165,12 @@ export function AppShell() {
           </button>
         </div>
 
-        <div className="sidebar__environment">
+        <div className={`sidebar__environment sidebar__environment--${posture.tone}`} role="status" title={posture.title}>
           <span className="sidebar__pulse" />
 
           <div>
-            <strong>Protected environment</strong>
-            <span>Local control plane online</span>
+            <strong>{posture.title}</strong>
+            <span>{posture.detail}</span>
           </div>
         </div>
 
@@ -283,11 +293,11 @@ export function AppShell() {
             <button
               type="button"
               className="topbar__icon-button"
-              aria-label="Notifications"
+              aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
               onClick={() => navigate("/notifications")}
             >
               <Bell size={18} />
-              <span className="topbar__notification" />
+              {unread ? <span className="topbar__notification" /> : null}
             </button>
 
             <UserMenu />
@@ -314,7 +324,7 @@ export function AppShell() {
           <WorkspaceTabs />
           <OfflineBanner />
           <CapacityBanner />
-          <Outlet />
+          {deniedPage ? <AccessDenied item={deniedPage} /> : <Outlet />}
         </main>
       </section>
       <GlobalSearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />

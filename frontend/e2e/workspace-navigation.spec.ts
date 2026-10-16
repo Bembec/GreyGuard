@@ -139,3 +139,19 @@ test("the console is dark-only until the light theme is production quality", asy
   await expect(page.getByRole("button", { name: "Change appearance" })).toHaveCount(0)
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark")
 })
+
+test("the bell and the sidebar status show measured state, not fixed claims", async ({ page }) => {
+  await openWithSession(page, session, "/getting-started")
+  const unread = await page.evaluate(async () => {
+    const response = await fetch("/api/notifications/summary", { headers: { "X-Admin-Pin": sessionStorage.getItem("greyguard_admin_pin") ?? "" } })
+    return (await response.json()).unread as number
+  })
+  const bell = page.getByRole("button", { name: /^Notifications/ })
+  await expect(bell).toHaveAccessibleName(unread ? `Notifications, ${unread} unread` : "Notifications", { timeout: 15_000 })
+  await expect(bell.locator(".topbar__notification")).toHaveCount(unread ? 1 : 0)
+  const status = page.locator(".sidebar__environment")
+  await expect(status).not.toContainText("Checking status", { timeout: 15_000 })
+  const reported = await page.evaluate(async () => (await (await fetch("/api/status")).json()).status as string)
+  if (reported === "OPERATIONAL") await expect(status).toContainText("Control plane operational")
+  else await expect(status).not.toContainText("operational")
+})

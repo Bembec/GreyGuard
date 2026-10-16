@@ -24,9 +24,9 @@ function renderWithAuth(administrator: Administrator, switchActiveOrg = vi.fn())
         value={{
           sessionToken: "gga_test",
           administrator,
-          agents: [],
           isAuthenticated: true,
           isResumingSession: false,
+          isWaitingForControlPlane: false,
           login: async () => {},
           completeSso: async () => {},
           completeSetup: async () => {},

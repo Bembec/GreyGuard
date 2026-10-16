@@ -23,7 +23,7 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { ErrorState, LoadingState } from "../components/AsyncState";
+import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState";
 import "../styles/sandbox.css";
 
 
@@ -393,6 +393,13 @@ export default function SandboxPage() {
             </div>
 
             <div className="sandbox-request-list">
+              {requests.length === 0 && (
+                <EmptyState
+                  icon={<TerminalSquare size={28} />}
+                  title="No executions yet"
+                  description="Each allowed or approved request that runs here is listed with its result and evidence."
+                />
+              )}
               {requests.map((request) => {
                 const expanded =
                   expandedRequest

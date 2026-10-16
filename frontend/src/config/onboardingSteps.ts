@@ -9,7 +9,7 @@ export const onboardingSteps: Record<string, OnboardingStep> = {
   mfa_everyone: { why: "A stolen password alone cannot approve or change anything.", who: "Every member", href: "/account-security", action: "Turn on MFA" },
   plan_assigned: { why: "Your plan sets which integrations and how many agents you can add.", who: "Your GreyGuard operator", action: "Ask your GreyGuard contact" },
   policy_baseline: { why: "Agents are enforced against a reviewed, published policy.", who: "Administrator, with a second approver", href: "/policies", action: "Review and publish the policy" },
-  first_agent: { why: "Nothing is governed until an agent sends its actions through GreyGuard.", who: "Administrator or platform engineer", href: "/agents", action: "Register your first agent" },
+  first_agent: { why: "Nothing is governed until an agent sends its actions through GreyGuard.", who: "Administrator or platform engineer", href: "/agents?register=1", action: "Register your first agent" },
   integration: { why: "Evidence and alerts reach the tools your team already watches.", who: "Administrator", href: "/security-exports", action: "Connect your SIEM or notifications" },
   export_tested: { why: "You can take your evidence out at any time - prove it once.", who: "Owner", href: "/settings", action: "Export your organization's data" },
 }

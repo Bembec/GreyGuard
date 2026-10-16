@@ -250,7 +250,9 @@ export default function IncidentCenterPage() {
 
         {alerts.isLoading && <LoadingState label="Loading incident evidence" rows={4}/>}
         {alerts.isError && <ErrorState message={alerts.error.message} onRetry={() => void alerts.refetch()}/>}
-        {!alerts.isLoading && !alerts.isError && visibleAlerts.length === 0 && <EmptyState title="No matching incidents" description="No alerts match the current filters."/>}
+        {!alerts.isLoading && !alerts.isError && visibleAlerts.length === 0 && (search.trim() || status !== "ALL" || severity !== "ALL"
+          ? <EmptyState title="No matching incidents" description="No incidents match the current search and filters." action={<button type="button" className="gg-button" onClick={() => { setSearch(""); setStatus("ALL"); setSeverity("ALL") }}>Clear filters</button>}/>
+          : <EmptyState title="No incidents yet" description="GreyGuard opens an incident when high-risk evidence needs an owner. Nothing has needed one so far."/>)}
 
         <div className="incident-list">
           {visibleAlerts.map((alert) => <button type="button" className="incident-row" key={alert.alert_id} onClick={() => openDetails(alert)}>

@@ -13,7 +13,7 @@ describe("getting started", () => {
   it("every step links only to real navigation pages", () => {
     const paths = new Set(navigationItems.map((item) => item.path))
     for (const step of Object.values(onboardingSteps)) {
-      if (step.href) expect(paths.has(step.href)).toBe(true)
+      if (step.href) expect(paths.has(step.href.split("?")[0])).toBe(true)
     }
   })
   it("covers every readiness item the backend computes", () => {

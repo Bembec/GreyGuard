@@ -1081,3 +1081,24 @@ button:disabled {
     width: auto;
   }
 }
+.agent-register-scopes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.45rem 1rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.agent-register-scopes legend {
+  margin-bottom: 0.5rem;
+  color: var(--gg-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.gg-confirm .agent-register-error {
+  margin: 0.8rem 0 0;
+  color: var(--gg-red);
+  font-size: 0.8rem;
+}

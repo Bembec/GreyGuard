@@ -68,10 +68,10 @@ function UnauthenticatedRoutes() {
 }
 
 export function AppRoutes() {
-  const { isAuthenticated, isResumingSession } = useAuth()
+  const { isAuthenticated, isResumingSession, isWaitingForControlPlane } = useAuth()
 
   if (isResumingSession) {
-    return <SplashScreen />
+    return <SplashScreen waiting={isWaitingForControlPlane} />
   }
 
   if (!isAuthenticated) {
