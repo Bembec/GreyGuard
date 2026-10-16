@@ -790,6 +790,8 @@ Nothing was pushed, published or deployed.
 
 The Control Graph is complete apart from DEV-001, the 15-second cache (FU-CG-01). Nothing was pushed, published or deployed.
 
+**FU-CG-01, the Control Graph's 15-second cache (`d3104e5`).** DEV-001 is closed, with the evidence in `docs/roadmap/deviations.md`: full backend suite 850 passed; 23 cache tests and 26 graph tests passed on SQLite and PostgreSQL; 10 of 11 mutations caught (the survivor is a redundant stamp); frontend check passed; Playwright 74 passed, 0 flaky. One real stale-data gap was found and fixed while building it: a retention change was not in the key. Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
