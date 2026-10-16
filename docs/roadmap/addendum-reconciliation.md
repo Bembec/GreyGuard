@@ -617,6 +617,34 @@ Nothing was pushed, published or deployed.
 
 No code changed.
 
+**P7.5 batch 2: corrections from the gap matrix, 2026-10-16, commit `4f4e8f7`.** All four first findings are fixed.
+- **Agent registration.** A "Register agent" button on Agents opens a dialog: the agent name, at least one scope, and the credential shown once. Getting Started's step opens it directly (`/agents?register=1`). No server capability was added: it calls the existing `POST /agents`, which already checks `identity:manage`, plan capacity and that the name is unused in every organization, and which records an `ISSUED` credential event. The server's refusal reason is shown in the dialog.
+- **Shell signals.**
+  - The bell's dot appears only when `/notifications/summary` reports unread items.
+  - The sidebar's status line reports `/status`: operational, degraded, maintenance or major outage. When there is no answer it reads "Status unavailable", never "online".
+  - Both load 3 seconds after the page's own data.
+- **Empty versus no match.** Incident Center, Tool Requests and Audit Trail say "No … yet" when nothing exists, and "No matching …" with a Clear filters button only when a filter hides results. Sandbox's executions list gained an empty state.
+- **One access-denied state.** A single check around the shell's outlet replaces ten silent redirects to the Command Center and Team's own denied heading. It names only the role required: "Install operator access required" or "Platform Administrator access required". It loads none of the page's data, and the pages keep their own checks as a second layer. Secrets and Service Accounts are marked `readOnlyForOtherRoles` and still open read-only.
+- **Session resume (the issue observed in batch 1).** Only a 401 or 403 from the server ends a session. A rate limit, a 5xx or a network failure keeps it and retries after 2, 4, 8 and 16 seconds, then every 30 seconds. The splash screen explains the wait, and the refresh token is not spent on a transient failure. The server still checks the token on every request, so keeping it grants nothing. The unused `GET /agents` on every page load was removed; sign-in still makes it once to confirm the new token works.
+- **Mega-menu.** It now renders on `<body>`, because the sidebar's stacking context let the offline banner cover it.
+
+**Verification run:**
+- Frontend `npm run check` passes: lint, 177 unit tests, and the build.
+- Mutations caught:
+  - a 429 treated as a rejected session;
+  - read-only pages refused;
+  - a failed `/status` shown as operational;
+  - an unanswered `/status` shown as operational.
+- Playwright: 69 passed, 1 skipped (the existing light-theme skip), no retries.
+- New e2e tests:
+  - registration, including the one-time credential and a duplicate-name refusal;
+  - a stubbed 429 keeping the session without a refresh, and a 401 still ending it;
+  - the bell and status line matching the API;
+  - the shared denied state for an auditor, which loads none of the page's data.
+- No backend change.
+
+Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
