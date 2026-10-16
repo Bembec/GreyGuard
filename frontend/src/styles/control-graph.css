@@ -1,0 +1,373 @@
+/* Control Graph (P7.5 item 4): five columns read left to right, a side panel for details. */
+.control-graph {
+  position: relative;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.control-graph__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-panel);
+}
+
+.control-graph__bar .gg-time-range__select select {
+  min-height: 32px;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-primary);
+  background: var(--gg-navy-950);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.control-graph__summary {
+  flex: 1 1 20rem;
+  margin: 0;
+  color: var(--gg-text-muted);
+  font-size: 0.78rem;
+}
+
+.control-graph__summary strong {
+  color: var(--gg-text-secondary);
+  font-weight: 600;
+}
+
+.control-graph__notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: var(--gg-radius-md);
+  color: var(--gg-text-secondary);
+  background: rgba(251, 191, 36, 0.06);
+  font-size: 0.78rem;
+}
+
+.control-graph__notice a {
+  color: var(--gg-cyan);
+}
+
+.control-graph__columns {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.control-graph__column {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-panel);
+}
+
+.control-graph__column h3 {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0 0 0.2rem;
+  color: var(--gg-text-primary);
+  font-size: 0.82rem;
+}
+
+.control-graph__column h3 small {
+  color: var(--gg-text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.control-graph__column ul,
+.control-graph__list ul {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.control-graph__empty {
+  margin: 0;
+  color: var(--gg-text-muted);
+  font-size: 0.76rem;
+}
+
+.control-graph__node {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.4rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--gg-border);
+  border-left: 3px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-md);
+  color: var(--gg-text-primary);
+  background: var(--gg-surface-850);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.control-graph__node:hover {
+  background: var(--gg-surface-800);
+}
+
+.control-graph__node:focus-visible {
+  outline: 2px solid var(--gg-cyan);
+  outline-offset: 2px;
+}
+
+.control-graph__node[aria-pressed="true"] {
+  border-color: var(--gg-cyan);
+  background: var(--gg-selected);
+}
+
+.control-graph__columns.has-selection .control-graph__node:not(.is-on-path) {
+  opacity: 0.38;
+}
+
+.control-graph__columns.has-selection .control-graph__node.is-on-path {
+  border-left-color: var(--gg-cyan);
+}
+
+.control-graph__node--agent,
+.control-graph__node--credential { border-left-color: var(--gg-cyan); }
+.control-graph__node--scope { border-left-color: var(--gg-violet); }
+.control-graph__node--tool,
+.control-graph__node--policy_version { border-left-color: var(--gg-blue); }
+.control-graph__node--control { border-left-color: var(--gg-amber); }
+.control-graph__node--incident { border-left-color: var(--gg-red); }
+.control-graph__node--approval { border-left-color: var(--gg-green); }
+
+.control-graph__type {
+  grid-column: 1 / -1;
+  color: var(--gg-text-muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.control-graph__label {
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.control-graph__status,
+.control-graph__basis,
+.control-graph__readonly {
+  align-self: start;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  color: var(--gg-text-secondary);
+  background: rgba(148, 163, 184, 0.12);
+  font-size: 0.64rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status--allow, .status--active, .status--published, .status--approved, .status--resolved { color: var(--gg-green); background: rgba(74, 222, 128, 0.1); }
+.status--ask, .status--pending, .status--investigating, .status--acknowledged { color: var(--gg-amber); background: rgba(251, 191, 36, 0.1); }
+.status--block, .status--refused, .status--denied, .status--revoked, .status--disabled, .status--suspended, .status--open { color: var(--gg-red); background: rgba(248, 113, 113, 0.1); }
+
+.control-graph__basis { grid-column: 2; }
+.basis--recorded { color: var(--gg-cyan); background: rgba(72, 200, 248, 0.1); }
+.basis--inferred { color: var(--gg-amber); background: rgba(251, 191, 36, 0.1); }
+
+.control-graph__list {
+  padding: 0.75rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-panel);
+}
+
+.control-graph__list button {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.control-graph__list button:hover {
+  color: var(--gg-text-primary);
+  background: var(--gg-hover);
+}
+
+.control-graph__panel {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  align-content: start;
+  width: min(26rem, 100vw);
+  gap: 0.8rem;
+  padding: 1.1rem;
+  overflow-y: auto;
+  border-left: 1px solid var(--gg-border-strong);
+  background: var(--gg-surface-900);
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.45);
+  font-size: 0.82rem;
+}
+
+.control-graph__panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.control-graph__panel header small {
+  color: var(--gg-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.control-graph__panel h3 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.control-graph__panel h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.84rem;
+}
+
+.control-graph__panel p {
+  margin: 0;
+  color: var(--gg-text-secondary);
+}
+
+.control-graph__panel dl {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.control-graph__panel dl div {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.5rem;
+}
+
+.control-graph__panel dt {
+  color: var(--gg-text-muted);
+}
+
+.control-graph__panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.control-graph__panel code {
+  color: var(--gg-text-muted);
+  font-size: 0.72rem;
+}
+
+.control-graph__close {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-secondary);
+  background: transparent;
+  cursor: pointer;
+}
+
+.control-graph__evidence,
+.control-graph__preview {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-md);
+  background: var(--gg-surface-850);
+}
+
+.evidence--recorded { border-color: rgba(72, 200, 248, 0.3); }
+.evidence--inferred { border-color: rgba(251, 191, 36, 0.3); }
+
+.control-graph__panel .is-ok { color: var(--gg-green); }
+.control-graph__panel .is-warn { color: var(--gg-amber); }
+.control-graph__panel .is-bad { color: var(--gg-red); }
+
+.control-graph__preview ul {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.control-graph__preview a,
+.control-graph__panel > a {
+  color: var(--gg-cyan);
+}
+
+.control-graph__howto {
+  color: var(--gg-text-muted) !important;
+  font-size: 0.76rem;
+}
+
+/* Tabs on the agent page */
+.agent-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--gg-border);
+}
+
+.agent-tabs button {
+  margin-bottom: -1px;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--gg-text-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.agent-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--gg-cyan);
+  color: var(--gg-text-primary);
+}
+
+@media (max-width: 1180px) {
+  .control-graph__columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .control-graph__columns { grid-template-columns: 1fr; }
+  .control-graph__panel dl div { grid-template-columns: 1fr; gap: 0.1rem; }
+}

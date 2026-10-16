@@ -5,6 +5,8 @@ import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { ControlGraphView } from "../components/controlGraph/ControlGraphView"
+import { useUrlParam } from "../hooks/useUrlState"
 import "../styles/agent-detail.css"
 
 type Investigation = {
@@ -22,6 +24,11 @@ type CredentialHistory = {
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api"
 const CREDENTIAL_HISTORY_PAGE_SIZE = 10
+const TABS = [
+  { id: "overview", label: "Evidence" },
+  { id: "relationships", label: "Relationships" },
+] as const
+const TAB_IDS = TABS.map((tab) => tab.id)
 
 export function formatAgentEvidenceDate(value?: string | null) {
   if (!value) return "Not recorded"
@@ -58,6 +65,17 @@ export default function AgentDetailPage() {
   })
 
   const agent = investigation.data?.agent
+  // The tab lives in the URL, so a link can open the Relationships view directly. The graph loads
+  // only when its tab is open.
+  const [tab, setTab] = useUrlParam("tab", "overview", TAB_IDS)
+
+  function onTabKey(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return
+    const index = TAB_IDS.indexOf(tab as (typeof TAB_IDS)[number])
+    const next = TABS[(index + (event.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length]
+    setTab(next.id)
+    document.getElementById(`agent-tab-${next.id}`)?.focus()
+  }
 
   return <main className="agent-investigation gg-page-pad">
     <PageHeader
@@ -74,9 +92,18 @@ export default function AgentDetailPage() {
     {investigation.isLoading && <LoadingState label="Loading agent investigation" rows={6}/>}
     {investigation.isError && <ErrorState message={investigation.error.message} onRetry={() => void investigation.refetch()}/>}
 
-    {investigation.data && agent && (() => {
+    {investigation.data && agent && <div className="agent-tabs" role="tablist" aria-label="Agent views">
+      {TABS.map((item) => <button key={item.id} id={`agent-tab-${item.id}`} type="button" role="tab" aria-selected={tab === item.id}
+        aria-controls={`agent-panel-${item.id}`} tabIndex={tab === item.id ? 0 : -1} onClick={() => setTab(item.id)} onKeyDown={onTabKey}>{item.label}</button>)}
+    </div>}
+
+    {investigation.data && agent && tab === "relationships" && <div id="agent-panel-relationships" role="tabpanel" aria-labelledby="agent-tab-relationships">
+      <ControlGraphView agentName={agent.agent_name}/>
+    </div>}
+
+    {investigation.data && agent && tab === "overview" && (() => {
       const { summary, risk_history: risk, authentication_history: authentication, requests } = investigation.data
-      return <>
+      return <div id="agent-panel-overview" role="tabpanel" aria-labelledby="agent-tab-overview" className="agent-investigation__panel">
         <section className="agent-investigation__posture">
           <article><ShieldCheck/><span>Status</span><strong>{agent.agent_status}</strong></article>
           <article><ShieldAlert/><span>Current risk</span><strong>{agent.risk_score} · {agent.risk_level}</strong></article>
@@ -121,7 +148,7 @@ export default function AgentDetailPage() {
               </div>
             </>)}
         </section>
-      </>
+      </div>
     })()}
   </main>
 }
