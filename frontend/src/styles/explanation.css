@@ -1,6 +1,7 @@
 /* Decision explanation card (P7.5 item 6). */
 .explanation {
   display: grid;
+  min-width: 0;
   gap: 0.8rem;
   padding: 1rem 1.1rem;
   border: 1px solid var(--gg-border);
@@ -36,6 +37,7 @@
 
 .explanation__reason {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--gg-text-primary);
   font-size: 0.98rem;
   font-weight: 600;

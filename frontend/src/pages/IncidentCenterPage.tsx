@@ -16,16 +16,12 @@ import {
   RefreshCw,
   Search,
   ShieldAlert,
-  UserRound,
-  X,
 } from "lucide-react"
-import { useMemo, useRef, useState } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMemo } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
-import { useToast } from "../context/ToastContext"
-import { useDismissableLayer } from "../hooks/useDismissableLayer"
-import { usePermission } from "../hooks/usePermission"
 import "../styles/incidents.css"
 
 export type AlertStatus =
@@ -132,11 +128,8 @@ function formatDate(value: string | null) {
 
 export default function IncidentCenterPage() {
   const queryClient = useQueryClient()
-  const { pushToast } = useToast()
-  // PUT /alerts/{id} requires incident:manage server-side (admin_auth.py's
-  // required_permission) - PLATFORM_ADMIN and SECURITY_ANALYST hold it, AUDITOR does not.
-  // This page had no useAuth import at all - status/assignment updates were fully unguarded.
-  const canManageIncidents = usePermission({ permission: "incident:manage" })
+  // Changing an incident happens on its investigation page, where each action shows whether the
+  // viewer may take it (PUT /alerts/{id} still requires incident:manage server-side).
   // Filters live in the URL (P7.5 batch 4d). The range bounds resolved history only: the server
   // returns every unresolved incident whatever the range.
   const [search, setSearch] = useUrlParam("q", "")
@@ -145,12 +138,8 @@ export default function IncidentCenterPage() {
   const [range, setRange] = useTimeRangeParam("7d")
   const clearFilters = useClearUrlParams(FILTER_KEYS)
   const wider = widerPreset(range)
-  const [selected, setSelected] = useState<SecurityAlert | null>(null)
-  const [nextStatus, setNextStatus] = useState<AlertStatus>("INVESTIGATING")
-  const [assignee, setAssignee] = useState("")
-  const [note, setNote] = useState("")
-  const closeRef = useRef<HTMLButtonElement>(null)
-  const dialogRef = useDismissableLayer<HTMLDivElement>({ open: !!selected, onClose: () => setSelected(null), trapFocus: true, initialFocusRef: closeRef, lockBodyScroll: true })
+  // An incident opens on its own investigation page (P7.5 item 5), which has a shareable link.
+  const navigate = useNavigate()
 
   const summary = useQuery({
     queryKey: ["alert-summary"],
@@ -175,24 +164,6 @@ export default function IncidentCenterPage() {
     ])
   }
 
-  const update = useMutation({
-    mutationFn: () => request<SecurityAlert>(`/alerts/${selected?.alert_id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        status: nextStatus,
-        assigned_to: assignee.trim() || null,
-        note: note.trim() || null,
-      }),
-    }),
-    onSuccess: async (updated) => {
-      setSelected(updated)
-      setNote("")
-      pushToast({ tone: "success", title: "Incident updated", message: "The change was recorded in the evidence trail." })
-      await refresh()
-    },
-    onError: (error: Error) => pushToast({ tone: "error", title: "Could not update incident", message: error.message }),
-  })
-
   const visibleAlerts = useMemo(() => {
     const needle = search.trim().toLowerCase()
     const entries = alerts.data?.alerts ?? []
@@ -209,12 +180,8 @@ export default function IncidentCenterPage() {
   }, [alerts.data, search])
   const more = useShowMore(visibleAlerts, `${search}|${status}|${severity}`);
 
-  const openDetails = (alert: SecurityAlert) => {
-    setSelected(alert)
-    setNextStatus(alert.status)
-    setAssignee(alert.assigned_to ?? "")
-    setNote("")
-  }
+  const openDetails = (alert: SecurityAlert) => navigate(`/incidents/${encodeURIComponent(alert.alert_id)}`)
+
 
   return (
     <main className="incident-page gg-page-pad">
@@ -285,28 +252,6 @@ export default function IncidentCenterPage() {
         </div>
       </section>
 
-      {selected && <div ref={dialogRef} className="incident-modal" role="dialog" aria-modal="true" aria-label="Incident details">
-        <button className="incident-modal__backdrop" type="button" onClick={() => setSelected(null)} aria-label="Close incident" />
-        <section className="incident-drawer">
-          <header><div><span className={`incident-severity incident-severity--${selected.severity.toLowerCase()}`}>{selected.severity}</span><h2>{selected.title}</h2><p>{selected.alert_id}</p></div><button ref={closeRef} type="button" onClick={() => setSelected(null)} aria-label="Close"><X size={20} /></button></header>
-          <div className="incident-drawer__body">
-            <article className="incident-evidence"><h3>Evidence summary</h3><p>{selected.summary}</p><dl>
-              <div><dt>Agent</dt><dd>{selected.agent_name ?? "System"}</dd></div><div><dt>Action</dt><dd>{selected.action ?? "—"}</dd></div><div><dt>Outcome</dt><dd>{selected.outcome ?? "—"}</dd></div><div><dt>Source event</dt><dd>{selected.source_event_id}</dd></div>
-            </dl></article>
-            <article className="incident-workflow"><h3>Response workflow</h3>
-              <label>Status<select value={nextStatus} disabled={!canManageIncidents} onChange={(event) => setNextStatus(event.target.value as AlertStatus)}>{incidentStatuses.map((item) => <option key={item} value={item}>{formatIncidentStatus(item)}</option>)}</select></label>
-              <label>Assigned investigator<div className="incident-input"><UserRound size={16} /><input value={assignee} disabled={!canManageIncidents} onChange={(event) => setAssignee(event.target.value)} placeholder="e.g. security-team" /></div></label>
-              <label>Investigation note<textarea value={note} disabled={!canManageIncidents} onChange={(event) => setNote(event.target.value)} placeholder="Record the reason, findings or response decision." rows={4} /></label>
-              {canManageIncidents ? (
-                <button type="button" disabled={update.isPending} onClick={() => update.mutate()}>{update.isPending ? "Saving…" : "Save incident update"}</button>
-              ) : (
-                <p className="gg-readonly-note">Your role has read-only access to incidents. Security Analyst or Platform Administrator access is required to update status or assignment.</p>
-              )}
-            </article>
-            <article className="incident-notes"><h3>Investigation history</h3>{selected.notes.length === 0 ? <p>No notes recorded yet.</p> : selected.notes.map((entry) => <div key={entry.id}><span>{entry.actor} · {formatDate(entry.timestamp)}</span><p>{entry.note}</p></div>)}</article>
-          </div>
-        </section>
-      </div>}
     </main>
   )
 }

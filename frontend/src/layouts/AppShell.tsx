@@ -57,6 +57,9 @@ function getPageInformation(pathname: string) {
   if (pathname.startsWith("/requests/")) {
     return { label: "Request Investigation", path: "/requests", trail: [...trail, "Tool Requests"] }
   }
+  if (pathname.startsWith("/incidents/")) {
+    return { label: "Incident Investigation", path: "/incidents", trail: [...trail, "Incident Center"] }
+  }
   const page = pageForPath(pathname) ?? commandCenter
   return { label: page.label, path: page.path, trail }
 }

@@ -1,0 +1,224 @@
+/* Investigation workspace (P7.5 item 5): timeline in the main column, context on the rail. */
+.incident-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.incident-workspace__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 1rem;
+  color: var(--gg-text-secondary);
+  font-size: 0.8rem;
+}
+
+.incident-workspace__meta > span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.incident-workspace__meta small { color: var(--gg-text-muted); }
+
+.incident-workspace__badge {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  color: var(--gg-text-secondary);
+  background: rgba(148, 163, 184, 0.12);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.severity--critical, .severity--high { color: var(--gg-red); background: rgba(248, 113, 113, 0.12); }
+.status--open { color: var(--gg-amber); background: rgba(251, 191, 36, 0.12); }
+.status--acknowledged, .status--investigating { color: var(--gg-cyan); background: rgba(72, 200, 248, 0.12); }
+.status--resolved, .status--dismissed { color: var(--gg-green); background: rgba(74, 222, 128, 0.12); }
+
+.incident-workspace__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(20rem, 1fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.incident-workspace__timeline,
+.incident-workspace__rail > section {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-panel);
+}
+
+.incident-workspace__rail {
+  display: grid;
+  gap: 1rem;
+}
+
+.incident-workspace h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.incident-workspace__timeline > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.incident-workspace__filters { display: flex; gap: 0.3rem; }
+
+.incident-workspace__filters button {
+  min-height: 30px;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-secondary);
+  background: transparent;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.incident-workspace__filters button[aria-pressed="true"] {
+  border-color: var(--gg-border-strong);
+  color: var(--gg-text-primary);
+  background: var(--gg-selected);
+}
+
+.incident-workspace__hint {
+  margin: 0;
+  color: var(--gg-text-muted);
+  font-size: 0.78rem;
+}
+
+.incident-workspace__entries {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.incident-workspace__entries li {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.75rem;
+  padding: 0.6rem 0.2rem;
+  border-bottom: 1px solid var(--gg-border);
+}
+
+.incident-workspace__entries li.is-trigger { border-left: 3px solid var(--gg-red); padding-left: 0.5rem; }
+.incident-workspace__entries li.is-record { border-left: 3px solid var(--gg-cyan); padding-left: 0.5rem; }
+
+.incident-workspace__type {
+  color: var(--gg-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.incident-workspace__entries p { margin: 0; color: var(--gg-text-primary); font-size: 0.82rem; overflow-wrap: anywhere; }
+.incident-workspace__entries small { color: var(--gg-text-muted); font-size: 0.72rem; }
+.incident-workspace a { color: var(--gg-cyan); }
+
+.incident-workspace__facts { display: grid; gap: 0.35rem; margin: 0; font-size: 0.82rem; }
+.incident-workspace__facts div { display: grid; grid-template-columns: 7rem 1fr; gap: 0.5rem; }
+.incident-workspace__facts dt { color: var(--gg-text-muted); }
+.incident-workspace__facts dd { margin: 0; color: var(--gg-text-secondary); overflow-wrap: anywhere; }
+
+.incident-workspace__related,
+.incident-workspace__integrity,
+.incident-workspace__actions {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--gg-text-secondary);
+}
+
+.incident-workspace__related li { display: grid; gap: 0.1rem; }
+.incident-workspace__related small { color: var(--gg-text-muted); font-size: 0.72rem; }
+
+.incident-workspace__unavailable,
+.incident-workspace__why {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.3rem 0 0;
+  color: var(--gg-text-muted);
+  font-size: 0.76rem;
+}
+
+.incident-workspace__note-form,
+.incident-workspace__add-note form {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-md);
+  background: var(--gg-surface-850);
+}
+
+.incident-workspace__note-form label,
+.incident-workspace__add-note label { color: var(--gg-text-secondary); font-size: 0.8rem; font-weight: 600; }
+
+.incident-workspace textarea {
+  min-height: 5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-primary);
+  background: var(--gg-navy-950);
+  font: inherit;
+  font-size: 0.82rem;
+  resize: vertical;
+}
+
+.incident-workspace__note-form > div,
+.incident-workspace__add-note form > div { display: flex; gap: 0.5rem; }
+
+.incident-workspace__mobile-bar { display: none; }
+
+@media (max-width: 980px) {
+  /* minmax(0, 1fr): long unbreakable text (agent names, code) must wrap, not widen the column. */
+  .incident-workspace__grid { grid-template-columns: minmax(0, 1fr); }
+  .incident-workspace__grid > *, .incident-workspace__rail > section { min-width: 0; }
+  /* On a phone: what happened first, then the timeline, then the rest of the rail. */
+  .incident-workspace__rail { display: contents; }
+  .incident-workspace__rail > section:first-child { order: -1; }
+  .incident-workspace { padding-bottom: 4.5rem; }
+  .incident-workspace__mobile-bar {
+    position: fixed;
+    z-index: 30;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--gg-border-strong);
+    background: var(--gg-surface-900);
+  }
+  .incident-workspace__mobile-bar button { flex: 1; justify-content: center; }
+  .incident-workspace__entries li { grid-template-columns: 1fr; gap: 0.2rem; }
+}
+
+.incident-workspace__owner { display: flex; gap: 0.5rem; }
+.incident-workspace__owner select {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-primary);
+  background: var(--gg-navy-950);
+  font: inherit;
+  font-size: 0.8rem;
+}

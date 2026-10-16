@@ -140,8 +140,10 @@ def sync_alerts_from_events(events: list[dict[str, Any]] | None = None, database
 
     created = 0
     with sqlite3.connect(database or database_path) as connection:
-        has_records = connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decision_records'").fetchone() is not None
+        # The plain table listing is the form db_compat translates for PostgreSQL (a filter on
+        # "name" is not: pg_tables has no such column for a WHERE clause).
+        has_records = any(row[0] == "decision_records" for row in
+                          connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall())
         for event in events:
             severity = str(event.get("severity", "INFO")).upper()
             event_id = str(event.get("event_id", "")).strip()

@@ -23,6 +23,7 @@ import PoliciesPage from "../pages/PoliciesPage"
 import RiskCenterPage from "../pages/RiskCenterPage"
 import AuditTrailPage from "../pages/AuditTrailPage"
 import IncidentCenterPage from "../pages/IncidentCenterPage"
+import IncidentWorkspacePage from "../pages/IncidentWorkspacePage"
 import AuthenticationPage from "../pages/AuthenticationPage"
 import SandboxPage from "../pages/SandboxPage"
 
@@ -114,6 +115,7 @@ export function AppRoutes() {
           element={<ToolRequestsPage />}
         />
         <Route path="/requests/:requestId" element={<RequestDetailPage />} />
+        <Route path="/incidents/:alertId" element={<IncidentWorkspacePage />} />
 
         <Route
           path="/approvals"

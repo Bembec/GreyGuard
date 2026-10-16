@@ -98,20 +98,22 @@ def test_a_failing_section_does_not_take_the_workspace_down(world, monkeypatch):
 def test_every_status_change_assignment_and_note_is_recorded(world):
     alert, _ = blocked_incident(world["ours"])
     api.administrator_update_alert(alert["alert_id"], api.AlertUpdateRequest(status="ACKNOWLEDGED"), world["ours"])
-    api.administrator_update_alert(alert["alert_id"], api.AlertUpdateRequest(status="INVESTIGATING", assigned_to="Ada"), world["ours"])
+    api.administrator_update_alert(alert["alert_id"], api.AlertUpdateRequest(status="INVESTIGATING", assigned_to="ours@greyguard.local"), world["ours"])
     api.administrator_add_alert_note(alert["alert_id"], api.AlertNoteRequest(note="checking the agent"), world["ours"])
-    api.administrator_update_alert(alert["alert_id"], api.AlertUpdateRequest(status="RESOLVED", assigned_to="Ada", note="false alarm"), world["ours"])
+    api.administrator_update_alert(alert["alert_id"], api.AlertUpdateRequest(status="RESOLVED", assigned_to="ours@greyguard.local", note="false alarm"), world["ours"])
     recorded = [(event["event_type"], event["detail"]) for event in events(alert["alert_id"])]
     assert recorded == [
         ("STATUS_CHANGED", {"from": "OPEN", "to": "ACKNOWLEDGED", "with_note": False}),  # before, unrecorded without a note
         ("STATUS_CHANGED", {"from": "ACKNOWLEDGED", "to": "INVESTIGATING", "with_note": False}),
-        ("ASSIGNED", {"from": None, "to": "Ada"}),
+        ("ASSIGNED", {"from": None, "to": "ours@greyguard.local"}),
         ("NOTE_ADDED", {"note": "checking the agent"}),
         ("STATUS_CHANGED", {"from": "INVESTIGATING", "to": "RESOLVED", "with_note": True}),
         ("NOTE_ADDED", {"note": "false alarm"}),
     ]
     timeline = [entry for entry in workspace(world["ours"], alert["alert_id"])["timeline"]["entries"] if entry.get("action_record")]
     assert len(timeline) == 6 and timeline[0]["text"] == "Note: false alarm"
+    # The record names the person, not just "administrator".
+    assert {event["actor"] for event in events(alert["alert_id"])} == {"ours@greyguard.local"}
 
 
 def test_the_action_record_is_append_only_but_deletable_with_its_org(world):
@@ -232,3 +234,32 @@ def test_another_orgs_decision_record_can_never_supply_the_link(world):
             (world["other_org"], row[0]))
     alert = next(item for item in derive(world["ours"]) if item["event_type"] == "POLICY")
     assert alert["request_id"] is None
+
+
+# --- Owner: a member of the incident's org, never free text ----------------------------------------
+
+def test_an_owner_must_be_an_active_member_of_the_incidents_org(world):
+    alert, _ = blocked_incident(world["ours"])
+    for owner in ("Ada", "theirs@greyguard.local"):  # free text, and a member of another org
+        with pytest.raises(HTTPException) as error:
+            api.administrator_update_alert(alert["alert_id"], api.AlertUpdateRequest(status="ACKNOWLEDGED", assigned_to=owner), world["ours"])
+        assert error.value.status_code == 400
+    assert events(alert["alert_id"]) == []
+    owner = workspace(world["ours"], alert["alert_id"])["owner"]
+    assert owner["kind"] is None and [c["email"] for c in owner["candidates"]] == ["ours@greyguard.local"]
+
+
+def test_a_legacy_free_text_owner_is_kept_and_labelled_but_never_newly_typed(world):
+    alert, _ = blocked_incident(world["ours"])
+    with db_compat.connect(database.database_path) as connection:
+        connection.execute("UPDATE security_alerts SET assigned_to = 'night shift' WHERE alert_id = ? AND org_id = ?",
+                           (alert["alert_id"], organizations.DEFAULT_ORG_ID))
+    assert workspace(world["ours"], alert["alert_id"])["owner"] == {
+        "name": "night shift", "email": None, "kind": "free_text", "candidates": [{"email": "ours@greyguard.local", "display_name": "Ours"}]}
+    # A status change that keeps the legacy owner is allowed.
+    api.administrator_update_alert(alert["alert_id"], api.AlertUpdateRequest(status="ACKNOWLEDGED", assigned_to="night shift"), world["ours"])
+
+
+def test_auditors_get_no_owner_candidates(world):
+    alert, _ = blocked_incident(world["ours"])
+    assert "candidates" not in workspace(make_auditor(), alert["alert_id"])["owner"]

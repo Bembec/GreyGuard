@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from . import db_compat as sqlite3
+from . import organizations
 from .alerts import get_alert, get_alerts
 from .control_graph import _identity, _instant, _runtime, _short
 from .database import database_path, get_administrator_audit_events, get_tool_request_details
@@ -153,6 +154,19 @@ def _integrity(explanation: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _owner(alert: dict[str, Any], org_id: str | None, viewer: dict[str, Any]) -> dict[str, Any]:
+    """The owner: a member of the incident's org. A free-text owner from before is "legacy".
+    Candidates are listed only for people who may assign, and only from the incident's own org."""
+    members = [member for member in organizations.list_members(org_id) if member["status"] == "ACTIVE"] if org_id else []
+    by_email = {member["email"]: member for member in members}
+    name = alert.get("assigned_to")
+    kind = None if not name else "member" if name in by_email else "free_text"
+    owner = {"name": by_email[name]["display_name"] if kind == "member" else name, "email": name if kind == "member" else None, "kind": kind}
+    if _has(viewer, "incident:manage"):
+        owner["candidates"] = [{"email": member["email"], "display_name": member["display_name"]} for member in members]
+    return owner
+
+
 def _has(viewer: dict[str, Any], permission: str) -> bool:
     return permission in set(viewer.get("permissions") or [])
 
@@ -193,7 +207,7 @@ def build_workspace(alert_id: str, *, caller_org: str, include_install_level: bo
             "event_type": alert["event_type"], "agent_name": alert.get("agent_name"), "request_id": alert.get("request_id"),
             "resolution_note": alert.get("resolution_note"), "install_level": org_id is None,
         },
-        "owner": {"name": alert.get("assigned_to"), "kind": "free_text" if alert.get("assigned_to") else None},
+        "owner": _owner(alert, org_id, viewer),
         "sla": {"configured": False, "text": "No SLA set"},
         "explanation": explanation,
         "timeline": _section("timeline", lambda: _timeline(alert, org_id, window)),

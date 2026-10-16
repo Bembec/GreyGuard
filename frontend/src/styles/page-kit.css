@@ -1257,3 +1257,9 @@
   color: var(--gg-text-muted);
   font-size: 0.78rem;
 }
+
+/* Long unbreakable titles (agent names, ids) wrap instead of being clipped on narrow screens. */
+.gg-page-header__copy { min-width: 0; }
+.gg-page-header h1,
+.gg-page-header__description { overflow-wrap: anywhere; }
+.gg-page-header__meta { min-width: 0; }

@@ -4323,11 +4323,24 @@ def administrator_update_alert(
     update: AlertUpdateRequest,
     x_admin_pin: str | None = Header(default=None),
 ):
-    """Update alert workflow state."""
-    scope = alert_scope(require_admin(x_admin_pin))
+    """Update alert workflow state.
+
+    The action record names the person (their email), not just "administrator". A new owner must
+    be an active member of the incident's organization, never free text; an owner set before this
+    rule (free text) may be kept or replaced, never newly typed."""
+    administrator = require_admin(x_admin_pin)
+    scope = alert_scope(administrator)
+    current = get_alert(alert_id, **scope)
+    if current is None:
+        raise HTTPException(status_code=404, detail="Alert not found.")
+    owner = (update.assigned_to or "").strip() or None
+    if owner and owner != current.get("assigned_to"):
+        members = organizations.list_members(current["org_id"]) if current.get("org_id") else []
+        if owner not in {member["email"] for member in members if member["status"] == "ACTIVE"}:
+            raise HTTPException(status_code=400, detail="The owner must be an active member of this incident's organization.")
     try:
         return update_alert(
-            alert_id, update.status, "administrator", update.assigned_to, update.note, **scope
+            alert_id, update.status, administrator["email"], owner, update.note, **scope
         )
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Alert not found.") from error
@@ -4342,9 +4355,10 @@ def administrator_add_alert_note(
     x_admin_pin: str | None = Header(default=None),
 ):
     """Append investigation evidence."""
-    scope = alert_scope(require_admin(x_admin_pin))
+    administrator = require_admin(x_admin_pin)
+    scope = alert_scope(administrator)
     try:
-        return add_alert_note(alert_id, "administrator", request.note, **scope)
+        return add_alert_note(alert_id, administrator["email"], request.note, **scope)
     except KeyError as error:
         raise HTTPException(status_code=404, detail="Alert not found.") from error
     except ValueError as error:
