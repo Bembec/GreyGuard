@@ -2,6 +2,9 @@ import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
+import { RangeBar } from "../components/page/TimeRangeControl"
+import { useClearUrlParams, useTimeRangeParam, useUrlParam } from "../hooks/useUrlState"
+import { describeRange, rangeKey, rangeQuery, widerPreset } from "../lib/timeRange"
 import {
   AlertTriangle,
   BellRing,
@@ -62,8 +65,12 @@ export type SecurityAlert = {
 type AlertListResponse = {
   alerts: SecurityAlert[]
   count: number
+  truncated?: boolean
   filters: Record<string, unknown>
 }
+
+const SEVERITIES = ["ALL", "CRITICAL", "HIGH"] as const
+const FILTER_KEYS = ["q", "status", "severity"] as const
 
 type AlertSummary = {
   total: number
@@ -130,9 +137,14 @@ export default function IncidentCenterPage() {
   // required_permission) - PLATFORM_ADMIN and SECURITY_ANALYST hold it, AUDITOR does not.
   // This page had no useAuth import at all - status/assignment updates were fully unguarded.
   const canManageIncidents = usePermission({ permission: "incident:manage" })
-  const [search, setSearch] = useState("")
-  const [status, setStatus] = useState("ALL")
-  const [severity, setSeverity] = useState("ALL")
+  // Filters live in the URL (P7.5 batch 4d). The range bounds resolved history only: the server
+  // returns every unresolved incident whatever the range.
+  const [search, setSearch] = useUrlParam("q", "")
+  const [status, setStatus] = useUrlParam("status", "ALL", ["ALL", ...incidentStatuses])
+  const [severity, setSeverity] = useUrlParam("severity", "ALL", SEVERITIES)
+  const [range, setRange] = useTimeRangeParam("7d")
+  const clearFilters = useClearUrlParams(FILTER_KEYS)
+  const wider = widerPreset(range)
   const [selected, setSelected] = useState<SecurityAlert | null>(null)
   const [nextStatus, setNextStatus] = useState<AlertStatus>("INVESTIGATING")
   const [assignee, setAssignee] = useState("")
@@ -146,12 +158,12 @@ export default function IncidentCenterPage() {
     refetchInterval: 15_000,
   })
   const alerts = useQuery({
-    queryKey: ["alerts", status, severity],
+    queryKey: ["alerts", status, severity, rangeKey(range)],
     queryFn: () => {
       const parameters = new URLSearchParams({ limit: "200" })
       if (status !== "ALL") parameters.set("status", status)
       if (severity !== "ALL") parameters.set("severity", severity)
-      return request<AlertListResponse>(`/alerts?${parameters}`)
+      return request<AlertListResponse>(`/alerts?${parameters}&${rangeQuery(range)}`)
     },
     refetchInterval: 15_000,
   })
@@ -232,7 +244,7 @@ export default function IncidentCenterPage() {
         <header className="incident-toolbar">
           <label className="incident-search">
             <Search size={17} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search alerts, agents or actions" />
+            <input value={search} onChange={(event) => setSearch(event.target.value, { replace: true })} placeholder="Search alerts, agents or actions" />
           </label>
           <label><Filter size={16} /><select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="ALL">All statuses</option>
@@ -243,11 +255,23 @@ export default function IncidentCenterPage() {
           </select></label>
         </header>
 
+        <RangeBar
+          value={range}
+          onChange={setRange}
+          label="Resolved history range"
+          notice={alerts.data ? {
+            shown: alerts.data.alerts.length,
+            truncated: alerts.data.truncated,
+            noun: "incidents",
+            openNote: "Unresolved incidents are always shown, however old.",
+          } : null}
+        />
+
         {alerts.isLoading && <LoadingState label="Loading incident evidence" rows={4}/>}
         {alerts.isError && <ErrorState message={alerts.error.message} onRetry={() => void alerts.refetch()}/>}
         {!alerts.isLoading && !alerts.isError && visibleAlerts.length === 0 && (search.trim() || status !== "ALL" || severity !== "ALL"
-          ? <EmptyState title="No matching incidents" description="No incidents match the current search and filters." action={<button type="button" className="gg-button" onClick={() => { setSearch(""); setStatus("ALL"); setSeverity("ALL") }}>Clear filters</button>}/>
-          : <EmptyState title="No incidents yet" description="GreyGuard opens an incident when high-risk evidence needs an owner. Nothing has needed one so far."/>)}
+          ? <EmptyState title="No matching incidents" description="No incidents match the current search and filters." action={<button type="button" className="gg-button" onClick={clearFilters}>Clear filters</button>}/>
+          : <EmptyState title={`No incidents ${describeRange(range)}`} description="GreyGuard opens an incident when high-risk evidence needs an owner. No incident is open, and none was resolved in this range." action={wider ? <button type="button" className="gg-button" onClick={() => setRange({ kind: "preset", preset: wider.id })}>Widen to {wider.label.toLowerCase()}</button> : undefined}/>)}
 
         <div className="incident-list">
           {more.visible.map((alert) => <button type="button" className="incident-row" key={alert.alert_id} onClick={() => openDetails(alert)}>

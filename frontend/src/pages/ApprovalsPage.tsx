@@ -2,6 +2,9 @@ import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
+import { RangeBar } from "../components/page/TimeRangeControl"
+import { useTimeRangeParam, useUrlParam } from "../hooks/useUrlState"
+import { describeRange, rangeKey, rangeQuery, type TimeRangeValue } from "../lib/timeRange"
 import {
   AlertTriangle,
   Check,
@@ -57,6 +60,7 @@ type ToolRequest = {
 type ToolRequestResponse = {
   requests: ToolRequest[];
   count: number;
+  truncated?: boolean;
 };
 
 type ApprovalDecision = {
@@ -73,6 +77,8 @@ type ViewMode =
   | "PENDING"
   | "RESOLVED"
   | "ALL";
+
+const VIEW_MODES = ["PENDING", "RESOLVED", "ALL"] as const;
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -110,10 +116,12 @@ function adminHeaders() {
   };
 }
 
-async function fetchApprovalRequests():
+// The range bounds decided history only: the server returns every pending request whatever the
+// range, and sorts them first, so the queue can never lose an old one (P7.5 batch 4d).
+async function fetchApprovalRequests(range: TimeRangeValue):
 Promise<ToolRequestResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/tool-requests?limit=200`,
+    `${API_BASE_URL}/tool-requests?limit=200&policy_decision=ASK&${rangeQuery(range)}`,
     {
       headers: adminHeaders(),
     },
@@ -197,10 +205,12 @@ export default function ApprovalsPage() {
   // AUDITOR (read-only) does not.
   const canDecide = usePermission({ permission: "approval:manage" });
 
-  const [viewMode, setViewMode] =
-    useState<ViewMode>("PENDING");
+  const [viewParam, setViewMode] =
+    useUrlParam("view", "PENDING", VIEW_MODES);
+  const viewMode = viewParam as ViewMode;
   const [searchText, setSearchText] =
-    useState("");
+    useUrlParam("q", "");
+  const [range, setRange] = useTimeRangeParam("7d");
   const [selectedRequestId, setSelectedRequestId] =
     useState<string | null>(null);
   const [reviewDecision, setReviewDecision] =
@@ -213,8 +223,8 @@ export default function ApprovalsPage() {
     useState<string | null>(null);
 
   const requestsQuery = useQuery({
-    queryKey: ["approval-requests"],
-    queryFn: fetchApprovalRequests,
+    queryKey: ["approval-requests", rangeKey(range)],
+    queryFn: () => fetchApprovalRequests(range),
     refetchInterval: 15_000,
   });
 
@@ -480,7 +490,7 @@ export default function ApprovalsPage() {
                 type="search"
                 value={searchText}
                 onChange={(event) =>
-                  setSearchText(event.target.value)
+                  setSearchText(event.target.value, { replace: true })
                 }
                 placeholder={
                   "Search approval queue..."
@@ -488,6 +498,18 @@ export default function ApprovalsPage() {
               />
             </label>
           </div>
+
+          <RangeBar
+            value={range}
+            onChange={setRange}
+            label="Decided history range"
+            notice={requestsQuery.data ? {
+              shown: approvedRequests.length + deniedRequests.length,
+              truncated: requestsQuery.data.truncated,
+              noun: "decided reviews",
+              openNote: "Pending approvals are always shown, however old.",
+            } : null}
+          />
 
           {requestsQuery.isLoading && (
             <LoadingState label="Loading approval queue" rows={4} />
@@ -666,7 +688,9 @@ export default function ApprovalsPage() {
                     <strong>
                       {viewMode === "PENDING"
                         ? "Approval queue is clear"
-                        : "No matching reviews"}
+                        : searchText
+                          ? "No matching reviews"
+                          : `No decided reviews ${describeRange(range)}`}
                     </strong>
 
                     <span>
@@ -675,10 +699,9 @@ export default function ApprovalsPage() {
                           "No sensitive action is "
                           + "waiting for authorization."
                         )
-                        : (
-                          "Change the current view "
-                          + "or search."
-                        )}
+                        : searchText
+                          ? "Change the current view or search."
+                          : "Choose a wider range to see older decisions."}
                     </span>
                   </div>
                 )}

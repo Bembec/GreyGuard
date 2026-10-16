@@ -1,6 +1,8 @@
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
+import { useTimeRangeParam, useUrlParam } from "../hooks/useUrlState"
+import { RANGE_PRESETS, describeRange, rangeBounds, type RangePreset, type TimeRangeValue } from "../lib/timeRange"
 import {
   Activity,
   AlertTriangle,
@@ -67,7 +69,10 @@ type StreamEnvelope = {
   application?: string;
   stream?: string;
   recovered_events?: number;
+  history_truncated?: boolean;
 };
+
+const SEVERITY_LEVELS = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -189,10 +194,16 @@ export default function LiveOperationsPage() {
   const [connectionError, setConnectionError] =
     useState("");
   const [paused, setPaused] = useState(false);
+  // Filters live in the URL (P7.5 batch 4d). The range bounds only the history loaded on connect;
+  // the stream that follows is live, so only the relative presets apply.
   const [eventType, setEventType] =
-    useState("ALL");
+    useUrlParam("type", "ALL", eventTypes);
   const [minimumSeverity, setMinimumSeverity] =
-    useState("INFO");
+    useUrlParam("severity", "INFO", SEVERITY_LEVELS);
+  const [rangeParam, setRange] = useTimeRangeParam("24h");
+  const range: TimeRangeValue = rangeParam.kind === "preset" ? rangeParam : { kind: "preset", preset: "24h" };
+  const rangePreset = range.kind === "preset" ? range.preset : "24h";
+  const [historyTruncated, setHistoryTruncated] = useState(false);
   const [agentFilter, setAgentFilter] =
     useState("");
   const [searchText, setSearchText] =
@@ -266,6 +277,7 @@ export default function LiveOperationsPage() {
       if (lastEventId.current) {
         parameters.set("last_event_id", lastEventId.current);
       }
+      parameters.set("since", rangeBounds({ kind: "preset", preset: rangePreset }).since);
 
       try {
         const response = await fetch(
@@ -341,6 +353,7 @@ export default function LiveOperationsPage() {
                 lastSignalAt.current = Date.now();
                 setConnectionStatus("CONNECTED");
                 setRecoveredCount(envelope.recovered_events ?? 0);
+                setHistoryTruncated(Boolean(envelope.history_truncated));
               }
 
               continue;
@@ -435,6 +448,7 @@ export default function LiveOperationsPage() {
     agentFilter,
     connectionAttempt,
     bufferLimit,
+    rangePreset,
   ]);
 
   useEffect(() => {
@@ -696,13 +710,7 @@ export default function LiveOperationsPage() {
                 )
               }
             >
-              {[
-                "INFO",
-                "LOW",
-                "MEDIUM",
-                "HIGH",
-                "CRITICAL",
-              ].map((severity) => (
+              {SEVERITY_LEVELS.map((severity) => (
                 <option
                   key={severity}
                   value={severity}
@@ -750,7 +758,19 @@ export default function LiveOperationsPage() {
               {liveBufferOptions.map((size) => <option value={size} key={size}>{size} events</option>)}
             </select>
           </label>
+          <label>
+            <span>History on connect</span>
+            <select value={rangePreset} data-testid="time-range" onChange={(event) => setRange({ kind: "preset", preset: event.target.value as RangePreset })}>
+              {RANGE_PRESETS.map((preset) => <option value={preset.id} key={preset.id}>{preset.label}</option>)}
+            </select>
+          </label>
         </div>
+        <p className="gg-range-notice" data-testid="range-notice">
+          {historyTruncated
+            ? <><strong>History shows the newest 100 events {describeRange(range)}.</strong> More exist; the Audit Trail has the full record.</>
+            : <>History covers {describeRange(range).replace(/^in /, "")}.</>}
+          {" "}New events stream live.
+        </p>
       </section>
 
       <section className="live-feed">

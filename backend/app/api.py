@@ -3690,6 +3690,7 @@ def list_tool_requests(
         ge=1,
         le=200,
     ),
+    policy_decision: Annotated[str | None, Query(max_length=20)] = None,
     x_admin_pin: str | None = Header(
         default=None,
     ),
@@ -3708,6 +3709,7 @@ def list_tool_requests(
         agent_name=agent_name,
         approval_status=approval_status,
         execution_status=execution_status,
+        policy_decision=policy_decision,
         # One row past the limit tells the page whether more exist than are shown.
         limit=limit + 1,
         org_id=org_id,
@@ -3725,6 +3727,7 @@ def list_tool_requests(
             "agent_name": agent_name,
             "approval_status": approval_status,
             "execution_status": execution_status,
+            "policy_decision": policy_decision,
             "limit": limit,
         },
     }

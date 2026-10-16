@@ -4,6 +4,9 @@ import { relativeTime } from "../components/page/timeFormat";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
+import { RangeBar } from "../components/page/TimeRangeControl"
+import { useClearUrlParams, useTimeRangeParam, useUrlParam } from "../hooks/useUrlState"
+import { describeRange, rangeKey, rangeQuery, widerPreset, type TimeRangeValue } from "../lib/timeRange"
 import {
   Activity,
   Check,
@@ -27,6 +30,10 @@ import {
   useMemo,
   useState,
 } from "react";
+
+const DECISIONS = ["ALL", "ALLOW", "ASK", "BLOCK", "REFUSED"] as const;
+const EXECUTIONS = ["ALL", "SUCCEEDED", "FAILED", "DRY_RUN", "DENIED", "NOT_STARTED", "RUNNING", "PENDING", "AWAITING_APPROVAL"] as const;
+const FILTER_KEYS = ["q", "decision", "execution"] as const;
 import {
   useQuery,
 } from "@tanstack/react-query";
@@ -57,6 +64,8 @@ type ToolRequest = {
 type ToolRequestResponse = {
   requests: ToolRequest[];
   count: number;
+  truncated?: boolean;
+  range?: { since: string; until: string | null } | null;
   filters: {
     agent_name: string | null;
     approval_status: string | null;
@@ -104,10 +113,10 @@ function adminHeaders() {
   };
 }
 
-async function fetchToolRequests():
+async function fetchToolRequests(range: TimeRangeValue):
 Promise<ToolRequestResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/tool-requests?limit=200`,
+    `${API_BASE_URL}/tool-requests?limit=200&${rangeQuery(range)}`,
     {
       headers: adminHeaders(),
     },
@@ -183,20 +192,24 @@ function executionDescription(
 
 export default function ToolRequestsPage() {
   const navigate = useNavigate();
+  // Filters live in the URL, so Back works and a link opens the same view (P7.5 batch 4d).
   const [searchText, setSearchText] =
-    useState("");
+    useUrlParam("q", "");
   const [decisionFilter, setDecisionFilter] =
-    useState("ALL");
+    useUrlParam("decision", "ALL", DECISIONS);
   const [executionFilter, setExecutionFilter] =
-    useState("ALL");
+    useUrlParam("execution", "ALL", EXECUTIONS);
+  const [range, setRange] = useTimeRangeParam("24h");
+  const clearFilters = useClearUrlParams(FILTER_KEYS);
+  const wider = widerPreset(range);
   const [selectedRequestId, setSelectedRequestId] =
     useState<string | null>(null);
   const [copied, setCopied] =
     useState(false);
 
   const requestsQuery = useQuery({
-    queryKey: ["tool-requests"],
-    queryFn: fetchToolRequests,
+    queryKey: ["tool-requests", rangeKey(range)],
+    queryFn: () => fetchToolRequests(range),
     refetchInterval: 15_000,
   });
 
@@ -426,7 +439,7 @@ export default function ToolRequestsPage() {
       </section>
 
       <StatGrid label="Request summary">
-        <StatCard label="Total requests" value={requests.length} hint="Recorded controlled operations" tone="info" icon={<Activity size={16} />} />
+        <StatCard label="Requests" value={requests.length} hint={`Recorded ${describeRange(range)}, plus any pending`} tone="info" icon={<Activity size={16} />} />
         <StatCard label="Succeeded" value={succeededCount} hint="Completed inside the gateway" tone="success" icon={<Check size={16} />} />
         <StatCard label="Needs review" value={reviewCount} hint="Pending human authorization" tone="warning" icon={<Clock3 size={16} />} />
         <StatCard label="Contained" value={containedCount} hint="Failed safely or denied" tone="danger" icon={<ShieldAlert size={16} />} />
@@ -443,7 +456,7 @@ export default function ToolRequestsPage() {
                 type="search"
                 value={searchText}
                 onChange={(event) =>
-                  setSearchText(event.target.value)
+                  setSearchText(event.target.value, { replace: true })
                 }
                 placeholder={
                   "Search agent, action, target or ID..."
@@ -522,6 +535,17 @@ export default function ToolRequestsPage() {
             </label>
           </div>
 
+          <RangeBar
+            value={range}
+            onChange={setRange}
+            notice={requestsQuery.data ? {
+              shown: requests.length,
+              truncated: requestsQuery.data.truncated,
+              noun: "requests",
+              openNote: "Pending requests are always shown, however old.",
+            } : null}
+          />
+
           {requestsQuery.isLoading && (
             <LoadingState label="Loading request evidence" rows={5} />
           )}
@@ -546,13 +570,14 @@ export default function ToolRequestsPage() {
                     icon={<Search size={28} />}
                     title="No matching requests"
                     description="No request matches the current search and filters."
-                    action={<button type="button" className="gg-button" onClick={() => { setSearchText(""); setDecisionFilter("ALL"); setExecutionFilter("ALL"); }}>Clear filters</button>}
+                    action={<button type="button" className="gg-button" onClick={clearFilters}>Clear filters</button>}
                   />
                 ) : (
                   <EmptyState
                     icon={<Search size={28} />}
-                    title="No tool requests yet"
-                    description="Requests appear here once a registered agent asks GreyGuard to run a tool."
+                    title={`No tool requests ${describeRange(range)}`}
+                    description="Requests appear here once a registered agent asks GreyGuard to run a tool. Pending requests would show whatever the range."
+                    action={wider ? <button type="button" className="gg-button" onClick={() => setRange({ kind: "preset", preset: wider.id })}>Widen to {wider.label.toLowerCase()}</button> : undefined}
                   />
                 )}
               />

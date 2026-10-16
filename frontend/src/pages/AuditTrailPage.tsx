@@ -2,6 +2,9 @@ import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
+import { RangeBar } from "../components/page/TimeRangeControl"
+import { useClearUrlParams, useTimeRangeParam, useUrlParam } from "../hooks/useUrlState"
+import { describeRange, rangeKey, rangeQuery, widerPreset, type TimeRangeValue } from "../lib/timeRange"
 import {
   Activity,
   AlertTriangle,
@@ -43,7 +46,11 @@ type AuditEvent = {
 type AuditResponse = {
   events: AuditEvent[];
   count: number;
+  truncated?: boolean;
 };
+
+const EVENT_TYPES = ["ALL", "POLICY", "AUTHENTICATION", "APPROVAL", "EXECUTION"] as const;
+const FILTER_KEYS = ["q", "type", "outcome"] as const;
 
 type ApiError = {
   detail?: string;
@@ -86,9 +93,11 @@ async function readResponse<T>(
   return data;
 }
 
-async function fetchAuditEvents() {
+// The type filter and the range are applied by the server, so "newest N" is exact (P7.5 batch 4d).
+async function fetchAuditEvents(range: TimeRangeValue, eventType: string) {
+  const type = eventType === "ALL" ? "" : `&event_type=${encodeURIComponent(eventType)}`;
   const response = await fetch(
-    `${API_BASE_URL}/audit-events?limit=250`,
+    `${API_BASE_URL}/audit-events?limit=250${type}&${rangeQuery(range)}`,
     {
       headers: adminHeaders(),
     },
@@ -127,17 +136,20 @@ function eventIcon(type: string) {
 }
 
 export default function AuditTrailPage() {
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useUrlParam("q", "");
   const [typeFilter, setTypeFilter] =
-    useState("ALL");
+    useUrlParam("type", "ALL", EVENT_TYPES);
   const [outcomeFilter, setOutcomeFilter] =
-    useState("ALL");
+    useUrlParam("outcome", "ALL");
+  const [range, setRange] = useTimeRangeParam("7d");
+  const clearFilters = useClearUrlParams(FILTER_KEYS);
+  const wider = widerPreset(range);
   const [expandedId, setExpandedId] =
     useState<string | null>(null);
 
   const auditQuery = useQuery({
-    queryKey: ["administrator-audit-events"],
-    queryFn: fetchAuditEvents,
+    queryKey: ["administrator-audit-events", rangeKey(range), typeFilter],
+    queryFn: () => fetchAuditEvents(range, typeFilter),
     refetchInterval: 15000,
   });
 
@@ -272,7 +284,7 @@ export default function AuditTrailPage() {
             <input
               value={search}
               onChange={(event) =>
-                setSearch(event.target.value)
+                setSearch(event.target.value, { replace: true })
               }
               placeholder="Search agent, action, outcome…"
             />
@@ -321,6 +333,12 @@ export default function AuditTrailPage() {
           </select>
         </div>
 
+        <RangeBar
+          value={range}
+          onChange={setRange}
+          notice={auditQuery.data ? { shown: events.length, truncated: auditQuery.data.truncated, noun: "evidence records" } : null}
+        />
+
         <div className="audit-results-heading">
           <span>
             {filteredEvents.length} evidence records
@@ -332,10 +350,15 @@ export default function AuditTrailPage() {
           {filteredEvents.length === 0 && events.length === 0 ? (
             <div className="audit-empty">
               <Activity />
-              <h3>No evidence yet</h3>
+              <h3>No evidence {describeRange(range)}</h3>
               <p>
                 Policy decisions, sign-ins, approvals and executions are recorded here as they happen.
               </p>
+              {wider && (
+                <button type="button" className="gg-button" onClick={() => setRange({ kind: "preset", preset: wider.id })}>
+                  Widen to {wider.label.toLowerCase()}
+                </button>
+              )}
             </div>
           ) : filteredEvents.length === 0 ? (
             <div className="audit-empty">
@@ -344,7 +367,7 @@ export default function AuditTrailPage() {
               <p>
                 No evidence matches the current search and filters.
               </p>
-              <button type="button" className="gg-button" onClick={() => { setSearch(""); setTypeFilter("ALL"); setOutcomeFilter("ALL"); }}>
+              <button type="button" className="gg-button" onClick={clearFilters}>
                 Clear filters
               </button>
             </div>

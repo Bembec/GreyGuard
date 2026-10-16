@@ -145,6 +145,17 @@ def test_pending_requests_sort_first_so_the_limit_cannot_crowd_them_out(retentio
     assert listed["truncated"] is True and listed["count"] == 2
 
 
+def test_the_approval_queue_filters_by_decision_on_the_server_so_truncation_is_exact(retention):
+    register(retention["ours"], "ours_agent")
+    asked = submit("ours_agent")  # ASK
+    for _ in range(3):
+        submit("ours_agent", "read_file")  # ALLOW
+    listed = api.list_tool_requests(agent_name=None, approval_status=None, execution_status=None, limit=1,
+                                    x_admin_pin=retention["ours"], since=ago(days=1), until=None, policy_decision="ASK")
+    assert [r["request_id"] for r in listed["requests"]] == [asked["request_id"]]
+    assert listed["truncated"] is False
+
+
 def test_a_list_that_fits_is_not_marked_truncated(retention):
     register(retention["ours"], "ours_agent")
     submit("ours_agent", "read_file")

@@ -1075,6 +1075,7 @@ def get_tool_requests(
     *,
     org_id,
     time_range=None,
+    policy_decision=None,
 ):
     """Return filtered tool requests.
 
@@ -1101,6 +1102,10 @@ def get_tool_requests(
             "execution_status = ?"
         )
         parameters.append(execution_status)
+
+    if policy_decision is not None:
+        conditions.append("policy_decision = ?")
+        parameters.append(policy_decision)
 
     order_clause = "ORDER BY timestamp DESC"
     if time_range is not None:

@@ -377,6 +377,95 @@
   font-size: 0.74rem;
 }
 
+/* Time range (P7.5 batch 4d) */
+.gg-range-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--gg-border);
+}
+
+.gg-time-range {
+  display: contents;
+}
+
+.gg-time-range__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--gg-text-muted);
+}
+
+.gg-time-range__select select {
+  min-height: 32px;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-primary);
+  background: var(--gg-navy-950);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* The custom range opens as its own full-width row below the bar. */
+.gg-time-range__custom {
+  display: flex;
+  order: 1;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-sm);
+  background: var(--gg-navy-950);
+  font-size: 0.78rem;
+}
+
+.gg-time-range__custom label {
+  color: var(--gg-text-secondary);
+  font-weight: 600;
+}
+
+.gg-time-range__custom input {
+  min-height: 32px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-primary);
+  background: transparent;
+  color-scheme: dark;
+  font: inherit;
+}
+
+.gg-time-range__hint {
+  flex: 1 1 12rem;
+  color: var(--gg-text-muted);
+}
+
+.gg-range-notice {
+  flex: 1 1 16rem;
+  margin: 0;
+  color: var(--gg-text-muted);
+  font-size: 0.76rem;
+}
+
+.gg-range-notice strong {
+  color: var(--gg-text-secondary);
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .gg-time-range__select,
+  .gg-time-range__select select {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
 /* Tables */
 .gg-table {
   display: grid;

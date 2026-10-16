@@ -2,6 +2,9 @@ import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
+import { RangeBar } from "../components/page/TimeRangeControl"
+import { useTimeRangeParam, useUrlParam } from "../hooks/useUrlState"
+import { describeRange, rangeKey, rangeQuery, widerPreset, type TimeRangeValue } from "../lib/timeRange"
 import {
   CheckCircle2,
   ChevronDown,
@@ -47,7 +50,10 @@ type AuthenticationEvent = {
 type AuditResponse = {
   events: AuthenticationEvent[];
   count: number;
+  truncated?: boolean;
 };
+
+const OUTCOMES = ["ALL", "SUCCESS", "DENIED", "SCOPE_DENIED"] as const;
 
 type AgentIdentity = {
   agent_name?: string;
@@ -114,9 +120,9 @@ async function readResponse<T>(
   return data;
 }
 
-async function fetchAuthenticationEvents() {
+async function fetchAuthenticationEvents(range: TimeRangeValue) {
   const response = await fetch(
-    `${API_BASE_URL}/audit-events?event_type=AUTHENTICATION&limit=500`,
+    `${API_BASE_URL}/audit-events?event_type=AUTHENTICATION&limit=500&${rangeQuery(range)}`,
     {
       headers: adminHeaders(),
     },
@@ -175,17 +181,20 @@ function isScopeDenial(event: AuthenticationEvent) {
 }
 
 export default function AuthenticationPage() {
-  const [search, setSearch] = useState("");
+  // Filters live in the URL (P7.5 batch 4d).
+  const [search, setSearch] = useUrlParam("q", "");
   const [outcomeFilter, setOutcomeFilter] =
-    useState("ALL");
+    useUrlParam("outcome", "ALL", OUTCOMES);
   const [agentFilter, setAgentFilter] =
-    useState("ALL");
+    useUrlParam("agent", "ALL");
+  const [range, setRange] = useTimeRangeParam("7d");
+  const wider = widerPreset(range);
   const [expandedId, setExpandedId] =
     useState<string | null>(null);
 
   const authenticationQuery = useQuery({
-    queryKey: ["authentication-intelligence"],
-    queryFn: fetchAuthenticationEvents,
+    queryKey: ["authentication-intelligence", rangeKey(range)],
+    queryFn: () => fetchAuthenticationEvents(range),
     refetchInterval: 15000,
   });
 
@@ -373,7 +382,7 @@ export default function AuthenticationPage() {
               <input
                 value={search}
                 onChange={(event) =>
-                  setSearch(event.target.value)
+                  setSearch(event.target.value, { replace: true })
                 }
                 placeholder="Search identity, action or reason…"
               />
@@ -421,6 +430,12 @@ export default function AuthenticationPage() {
             </select>
           </div>
 
+          <RangeBar
+            value={range}
+            onChange={setRange}
+            notice={authenticationQuery.data ? { shown: events.length, truncated: authenticationQuery.data.truncated, noun: "identity events" } : null}
+          />
+
           <div className="auth-result-count">
             <span>
               {filteredEvents.length} matching events
@@ -432,10 +447,24 @@ export default function AuthenticationPage() {
             {filteredEvents.length === 0 ? (
               <div className="auth-empty">
                 <Fingerprint />
-                <h3>No matching identity evidence</h3>
-                <p>
-                  Adjust the current filters or search.
-                </p>
+                {events.length === 0 ? (
+                  <>
+                    <h3>No identity evidence {describeRange(range)}</h3>
+                    <p>Agent sign-ins and scope checks are recorded here as they happen.</p>
+                    {wider && (
+                      <button type="button" className="gg-button" onClick={() => setRange({ kind: "preset", preset: wider.id })}>
+                        Widen to {wider.label.toLowerCase()}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <h3>No matching identity evidence</h3>
+                    <p>
+                      Adjust the current filters or search.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <>{more.visible.map((event) => {
