@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures"
 
 // Confirms Phase 2's permission-gating actually changes what renders for a non-PLATFORM_ADMIN
 // role, not just that pages don't crash (every-page.spec.ts already covers that, always as

@@ -1,4 +1,4 @@
-import {expect,test} from "@playwright/test"
+import {expect,test} from "./fixtures"
 
 // Confirms the production build actually wires up the web app manifest and service worker
 // (see vite.config.ts's VitePWA config) rather than just trusting the build log's own report.

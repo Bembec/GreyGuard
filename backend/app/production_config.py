@@ -16,6 +16,10 @@ class ProductionConfig:
 def load_production_config(environ=None):
     env = environ if environ is not None else os.environ
     environment = env.get("GREYGUARD_ENV", "development").strip().lower()
+    # The browser test suite's raised rate limits: refused outright unless this is the explicit
+    # test environment with the exact sentinel (abuse_protection.e2e_override_active).
+    from .abuse_protection import e2e_override_active
+    e2e_override_active(env)
     origins = tuple(item.strip() for item in env.get("GREYGUARD_ALLOWED_ORIGINS", "http://localhost:5173").split(",") if item.strip())
     hosts = tuple(item.strip() for item in env.get("GREYGUARD_TRUSTED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if item.strip())
     data_directory = env.get("GREYGUARD_DATA_DIR", "backend/data").strip()

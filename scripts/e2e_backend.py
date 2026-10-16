@@ -27,6 +27,10 @@ def main() -> None:
         "GREYGUARD_BOOTSTRAP_NAME": "E2E Administrator",
         "GREYGUARD_ALLOWED_ORIGINS": "http://127.0.0.1:4173",
         "GREYGUARD_TRUSTED_HOSTS": "127.0.0.1,localhost",
+        # Test-only: the whole suite drives one browser from one address, so the read-heavy rate
+        # limits are raised for this throwaway backend only. Refused anywhere but GREYGUARD_ENV=test
+        # (see abuse_protection.e2e_override_active and docs/testing/e2e-rate-limits.md).
+        "GREYGUARD_E2E_RATE_LIMIT_OVERRIDE": "e2e-test-environment-only",
     })
     os.chdir(ROOT)
     sys.path.insert(0, str(ROOT))

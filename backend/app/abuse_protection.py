@@ -1,6 +1,7 @@
 """Persistent request throttling, authentication lockouts, and burst evidence."""
 
 import hashlib
+import os
 from . import db_compat as sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -15,6 +16,62 @@ DEFAULT_POLICIES = {
     "AGENT_ACTION": {"request_limit": 120, "window_seconds": 60, "block_seconds": 300, "max_failed_attempts": 10},
     "GENERAL": {"request_limit": 300, "window_seconds": 60, "block_seconds": 60, "max_failed_attempts": 10},
 }
+
+# --- Test-only override for the browser end-to-end suite (owner decision, 2026-10-16) -----------
+# The full Playwright suite drives one browser from one client address, so it runs at the GENERAL
+# limit and fails at random. It may raise the read-heavy limits, and only when BOTH hold:
+#   GREYGUARD_ENV=test, and GREYGUARD_E2E_RATE_LIMIT_OVERRIDE is exactly the sentinel below.
+# Anything else is refused at startup (production_config): the variable present outside the test
+# environment, or any other value. Seeded rows are marked E2E_OVERRIDE_ACTOR, and a production
+# start refuses a database that holds one, so a test database can never carry it into production.
+# ADMIN_AUTH and SERVICE_ACCOUNT are never raised: sign-in protection is tested as it ships.
+E2E_OVERRIDE_VARIABLE = "GREYGUARD_E2E_RATE_LIMIT_OVERRIDE"
+E2E_OVERRIDE_SENTINEL = "e2e-test-environment-only"
+E2E_OVERRIDE_ACTOR = "e2e-test-override"
+E2E_OVERRIDE_LIMITS = {"GENERAL": 3000, "AGENT_ACTION": 1200}
+
+
+class RateLimitOverrideError(RuntimeError):
+    pass
+
+
+def e2e_override_active(environ=None) -> bool:
+    """Whether the test-only override applies. Raises on any configuration that is not exactly
+    the explicit end-to-end test setup, rather than silently ignoring it."""
+    env = environ if environ is not None else os.environ
+    if E2E_OVERRIDE_VARIABLE not in env:
+        return False
+    environment = env.get("GREYGUARD_ENV", "development").strip().lower()
+    if environment != "test":
+        raise RateLimitOverrideError(
+            f"{E2E_OVERRIDE_VARIABLE} is only allowed when GREYGUARD_ENV=test (found {environment!r}). "
+            "Remove it: production keeps its rate limits.")
+    if env[E2E_OVERRIDE_VARIABLE] != E2E_OVERRIDE_SENTINEL:
+        raise RateLimitOverrideError(f"{E2E_OVERRIDE_VARIABLE} has an unexpected value; it is for the browser test suite only.")
+    return True
+
+
+def default_policies(environ=None) -> dict[str, dict[str, int]]:
+    """The policies a fresh install seeds: DEFAULT_POLICIES, or raised read limits under the
+    explicit end-to-end test override."""
+    policies = {category: dict(policy) for category, policy in DEFAULT_POLICIES.items()}
+    if e2e_override_active(environ):
+        for category, limit in E2E_OVERRIDE_LIMITS.items():
+            policies[category]["request_limit"] = limit
+    return policies
+
+
+def assert_no_test_override_in_production(environment: str) -> None:
+    """Fail closed if a production start finds a limit seeded by the test-only override."""
+    if environment != "production":
+        return
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute(
+            "SELECT category FROM rate_limit_policies WHERE updated_by = ? LIMIT 1", (E2E_OVERRIDE_ACTOR,)
+        ).fetchone()
+    if row is not None:
+        raise RateLimitOverrideError(
+            "This database holds a rate limit seeded by the end-to-end test override; it must not run in production.")
 
 
 def utc_now_datetime() -> datetime:
@@ -65,15 +122,18 @@ def initialize_abuse_protection() -> None:
             )
         """)
         timestamp = utc_now()
-        for category, policy in DEFAULT_POLICIES.items():
+        policies = default_policies()
+        for category, policy in policies.items():
+            raised = policy["request_limit"] != DEFAULT_POLICIES[category]["request_limit"]
             connection.execute("""
                 INSERT OR IGNORE INTO rate_limit_policies (
                     category, enabled, request_limit, window_seconds,
                     block_seconds, max_failed_attempts, updated_at, updated_by
-                ) VALUES (?, 1, ?, ?, ?, ?, ?, 'system')
+                ) VALUES (?, 1, ?, ?, ?, ?, ?, ?)
             """, (
                 category, policy["request_limit"], policy["window_seconds"],
                 policy["block_seconds"], policy["max_failed_attempts"], timestamp,
+                E2E_OVERRIDE_ACTOR if raised else "system",
             ))
 
 

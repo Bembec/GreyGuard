@@ -242,6 +242,7 @@ from .agent_certificate_auth import (
     certificate_was_presented,
 )
 from .production_config import load_production_config
+from .abuse_protection import assert_no_test_override_in_production
 from .runtime_security import RuntimeSecurityMiddleware, readiness
 from .security_exports import (
     DESTINATION_TYPES,
@@ -337,6 +338,7 @@ async def lifespan(_app: FastAPI):
         initialize_capability_removal()
         initialize_threat_register()
         initialize_abuse_protection()
+        assert_no_test_override_in_production(runtime_config.environment)
         initialize_adapter_control(main.permissions.keys())
         initialize_observability()
         initialize_enterprise_identity()

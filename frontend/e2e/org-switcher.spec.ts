@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test } from "./fixtures"
 
 // Confirms P2.1's multi-org membership end to end in a real browser: the bootstrap
 // PLATFORM_ADMIN creates a second organization (via the real API, same pattern as

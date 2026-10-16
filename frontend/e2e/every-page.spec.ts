@@ -1,4 +1,4 @@
-import {expect,test,type Page} from "@playwright/test"
+import {expect,test,type Page} from "./fixtures"
 import {navigationItems} from "../src/config/navigation"
 import {adminSession} from "./session"
 

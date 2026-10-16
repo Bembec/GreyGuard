@@ -1,4 +1,4 @@
-import {expect,test} from "@playwright/test"
+import {expect,test} from "./fixtures"
 
 test("unauthenticated users see the administrator login boundary",async({page})=>{
  await page.goto("/")
