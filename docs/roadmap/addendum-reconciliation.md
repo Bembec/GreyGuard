@@ -590,7 +590,7 @@ The owner follows P7.5 here. The table is updated with every batch; the detailed
 | 2. Command Center with role presets | ✅ Done | batch 3 `edb8d36` |
 | 3. Universal page anatomy | ✅ Done, except contextual docs links, which wait for hosted docs | batches 2, 4, 4d; `p7.5-gap-matrix.md`, `p7.5-time-range-saved-views-design.md` |
 | 4. Control Graph | ✅ Done, including the 15-second cache (DEV-001 closed) | `p7.5-control-graph-design.md`; `eabf0e1`, `6e381db`, `d3104e5` |
-| 5. Investigation workspace | 🔨 **In progress**: design approved 2026-10-16; step 2 (workspace page) next | `p7.5-investigation-workspace-design.md` |
+| 5. Investigation workspace | 🔨 **In progress**: steps 1 and 2 done (`d6cbc2f`, `8dfdb51`, `19e956a`); next step 3, containment actions and the incident package | `p7.5-investigation-workspace-design.md` |
 | 6. Decision explainability | ✅ Explanation card done (`d6cbc2f`); it is also reused in the workspace | same design |
 | 7. Safe change management | Not started | |
 | 8. Unified action inbox | Not started | |
@@ -834,6 +834,34 @@ The Control Graph is complete apart from DEV-001, the 15-second cache (FU-CG-01)
   - the emergency reason, and both limitations.
 - **PostgreSQL:** migration `20261016_35` went up, down and up again, keeping a version-1 row, and updates were still refused by the trigger. 26 explanation tests and 26 Control Graph tests passed, each alone on a fresh database.
 - **Frontend:** 235 unit tests and the build passed. **Playwright:** 75 passed, 0 flaky, including the new explanation spec (a real agent request with a secret in its payload).
+
+Nothing was pushed, published or deployed.
+
+**P7.5 item 5, step 2: the incident workspace (`8dfdb51`, `19e956a`), 2026-10-16.**
+- **Page:** `/incidents/:alertId` has a header (severity, status, owner, SLA state, one primary action), a merged and filterable timeline, and a rail (what happened, as the exact explanation; agent; related incidents; evidence integrity; owner; actions). Each section fails on its own. On phones it is one column with a bottom action bar. Incident Center rows open it, and its modal was removed.
+- **Full action record:** `incident_events`, append-only. Every status change, assignment, note, containment action and export is recorded. Before, a status change without a note left no record, and every change was recorded as "administrator". Now the person's email is recorded.
+- **Exact incident-to-request link:** decision records version 3 store the audit event written for the same decision, so incidents derived from policy evidence link to their request. `audit_events` is untouched, so its sealed chain still verifies. Older decisions stay unlinked rather than guessed.
+- **Owner:** now an active member of the incident's organization, checked server-side. Free-text owners from before are kept and labelled legacy. (This was pulled forward from step 4, so removing the modal lost nothing.)
+- **SLA:** shows "No SLA set", per the owner's decision.
+- **Bug caught by the PostgreSQL rehearsal:** a table check in incident derivation that `db_compat` cannot translate would have broken alert derivation on PostgreSQL. Fixed before commit.
+
+**Verification run:**
+- **Backend:** 523 + 373 = 896 passed. After the PostgreSQL fix, the affected suites were rerun: 84 passed.
+- **New tests:** `test_incident_workspace.py`, 20 tests covering:
+  - the read view, exact-agent timeline, related incidents, the retention-bounded window and section isolation;
+  - the full action record, append-only storage and unknown event types;
+  - tenant 404s, foreign events never shown, install-level operators only;
+  - auditor actions disabled with role-only reasons, an auditor read changing nothing, and an auditor refused on the API;
+  - the exact link, unlinked older decisions, and a foreign record never supplying the link;
+  - owner membership, legacy owners, and candidates for managers only.
+- **Mutation checks:** 11 of 11 caught: the events' org scope, the exact agent filter (after strengthening its test), status changes recorded, the link's org scope, actions needing permission, the window within retention, section isolation, the append-only trigger, owner membership, the real actor, and candidates only for managers.
+- **PostgreSQL:**
+  - migrations `20261016_36` and `20261016_37` went up, down and up again; both tables refuse UPDATE, and the downgrade removes exactly what was added;
+  - `test_incident_workspace` (20), `test_decision_explanation` (26), `test_control_graph` (26) and `test_alerts` (5) passed, each alone on a fresh database.
+- **Pre-existing finding:** 7 tests in `test_agent_tenancy.py` and 6 in `test_notifications.py` fail on PostgreSQL identically at `b68ad7b`, before this work. They build SQLite-only legacy fixtures and are not PostgreSQL tests. They should be marked SQLite-only; not changed here.
+- **Frontend:** 242 unit tests (7 new for the page) and the build passed.
+- **Playwright:** 76 passed, 0 flaky. The new spec opens an incident from the list, acknowledges, assigns, adds a note, sees each in the action record with the person's email, and checks the phone layout.
+- **Screenshots** were reviewed at desktop and 390 px. They caught clipped long names on phones, fixed in the page kit for every page.
 
 Nothing was pushed, published or deployed.
 
