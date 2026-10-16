@@ -757,6 +757,26 @@ No backend change. Nothing was pushed, published or deployed.
 
 Nothing was pushed, published or deployed.
 
+**Test-only rate-limit override for the browser suite (`1e542fc`), owner decision 2026-10-16.** Production keeps GENERAL at 300 requests a minute. The throwaway e2e backend raises only GENERAL (3000) and AGENT_ACTION (1200), and only with `GREYGUARD_ENV=test` plus an exact sentinel. Anything else refuses to start. Override-seeded rows are marked, and production refuses a database holding one. Sign-in limits are never raised. A Playwright auto-fixture clears the e2e database's rate-limit counters before each test. Details: `docs/testing/e2e-rate-limits.md`.
+
+**Control Graph backend (`eabf0e1`, `7dddeb5`).** Exact, append-only decision records for every new tool request, plus the read-only graph and impact-preview endpoints, built to the owner's three decisions. The frontend is next. One design point is not built yet: the 15-second response cache, tracked as **DEV-001** with follow-up FU-CG-01 in `docs/roadmap/deviations.md`.
+
+**Verification run:**
+- **Backend:** full suite, run in two halves: 463 + 364 = 827 passed.
+- **New tests:**
+  - `test_rate_limit_override.py`, 14 tests, including "production keeps 300 requests a minute";
+  - `test_control_graph.py`, 26 tests, covering provenance, append-only storage, historical evidence (exact versus inferred, a changed policy record, a tampered record), tenant isolation, withheld install-level alerts, limits, the retention-bound window, no raw payloads, and an AUDITOR's read-only use, proven by a before/after snapshot of every table plus refused mutations.
+- **Mutation checks:** 21 caught.
+  - Override (5): the test-environment check, the exact sentinel, the production refusal of a seeded database, sign-in never raised, and the production-config hook.
+  - Control Graph (16): org scope on approvals and on alerts, the install-level rule, the ownership check on both routes, inferred labelled as recorded, the node limit, the preview counting only allowed requests, provenance recorded, the append-only trigger, both fingerprint checks, target shortening, and the one-second inference precision.
+- **PostgreSQL** (`postgres:17-alpine`):
+  - migration `20261016_34` went up, down and up again; an UPDATE was refused by the trigger, a DELETE was allowed, and the downgrade removed both the table and its function;
+  - `test_control_graph.py` (26) and `test_rate_limit_override.py` (14) passed, each test alone on a freshly migrated database.
+- **Frontend:** `npm run check` passed (220 unit tests, build).
+- **Playwright:** three consecutive full runs of 73 passed, 0 flaky, 0 skipped. The e2e backend recorded no rate-limit events at all.
+
+Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
