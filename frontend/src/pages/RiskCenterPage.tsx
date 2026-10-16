@@ -1,3 +1,5 @@
+import { EmptyState } from "../components/AsyncState";
+import { DataTable, type Column } from "../components/page/DataTable";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
@@ -128,6 +130,8 @@ async function resetAgent(
   return readResponse<ResetResponse>(response);
 }
 
+const RISK_RANK: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+
 function riskClass(level: string) {
   return `risk-level risk-${level.toLowerCase()}`;
 }
@@ -199,13 +203,69 @@ export default function RiskCenterPage() {
   const agents = agentsQuery.data ?? [];
   const policy = policiesQuery.data;
 
-  const rankedAgents = useMemo(
-    () => [...agents].sort(
-      (first, second) =>
-        second.risk_score - first.risk_score,
-    ),
-    [agents],
-  );
+  const maximumRisk = policy?.max_risk_score ?? 100;
+  const maximumBlocked = policy?.max_blocked_attempts ?? 3;
+  const riskColumns: Column<Agent>[] = [
+    {
+      key: "agent",
+      header: "Agent",
+      sortValue: (agent) => agent.agent_name,
+      render: (agent) => (
+        <div className="risk-agent-name">
+          <span aria-hidden="true">{agent.agent_name.slice(0, 2).toUpperCase()}</span>
+          <div>
+            <strong>{agent.agent_name}</strong>
+            <small>Independent boundary</small>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "level",
+      header: "Risk level",
+      sortValue: (agent) => RISK_RANK[agent.risk_level] ?? 0,
+      render: (agent) => <span className={riskClass(agent.risk_level)}>{agent.risk_level}</span>,
+    },
+    {
+      key: "score",
+      header: "Score",
+      sortValue: (agent) => agent.risk_score,
+      render: (agent) => (
+        <div className="risk-score-cell">
+          <div><strong>{agent.risk_score}</strong><small>/ {maximumRisk}</small></div>
+          <div className="risk-score-track">
+            <span style={{ width: `${Math.min(100, Math.round((agent.risk_score / maximumRisk) * 100))}%`, backgroundColor: riskColor(agent.risk_level) }} />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "blocked",
+      header: "Blocked",
+      secondary: true,
+      sortValue: (agent) => agent.blocked_attempts,
+      render: (agent) => `${agent.blocked_attempts} / ${maximumBlocked}`,
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortValue: (agent) => agent.agent_status,
+      render: (agent) => <span className={agent.agent_status === "SUSPENDED" ? "risk-status suspended" : "risk-status active"}>{agent.agent_status}</span>,
+    },
+    {
+      key: "control",
+      header: "Control",
+      align: "end",
+      // Only a suspended agent can be reset, and only by someone allowed to; nobody else is
+      // shown a control they cannot use.
+      render: (agent) => canResetAgents && agent.agent_status === "SUSPENDED" ? (
+        <button className="risk-row-action" type="button" onClick={() => setSelectedAgent(agent)}>
+          <RotateCcw />
+          Reset
+        </button>
+      ) : <span className="gg-muted">—</span>,
+    },
+  ];
 
   const summary = useMemo(() => {
     const suspended = agents.filter(
@@ -352,128 +412,16 @@ export default function RiskCenterPage() {
             </button>
           </div>
 
-          <div className="risk-table-wrapper">
-            <table className="risk-table">
-              <thead>
-                <tr>
-                  <th>Agent</th>
-                  <th>Risk level</th>
-                  <th>Score</th>
-                  <th>Blocked</th>
-                  <th>Status</th>
-                  <th>Control</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankedAgents.map((agent) => {
-                  const maximum =
-                    policy?.max_risk_score ?? 100;
-                  const percentage = Math.min(
-                    100,
-                    Math.round(
-                      (agent.risk_score / maximum)
-                      * 100,
-                    ),
-                  );
-
-                  return (
-                    <tr key={agent.agent_name}>
-                      <td>
-                        <div className="risk-agent-name">
-                          <span>
-                            {agent.agent_name
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </span>
-                          <div>
-                            <strong>
-                              {agent.agent_name}
-                            </strong>
-                            <small>
-                              Independent boundary
-                            </small>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span
-                          className={riskClass(
-                            agent.risk_level,
-                          )}
-                        >
-                          {agent.risk_level}
-                        </span>
-                      </td>
-
-                      <td>
-                        <div className="risk-score-cell">
-                          <div>
-                            <strong>
-                              {agent.risk_score}
-                            </strong>
-                            <small>
-                              / {maximum}
-                            </small>
-                          </div>
-                          <div className="risk-score-track">
-                            <span
-                              style={{
-                                width: `${percentage}%`,
-                                backgroundColor:
-                                  riskColor(
-                                    agent.risk_level,
-                                  ),
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        {agent.blocked_attempts}
-                        {" / "}
-                        {policy?.max_blocked_attempts
-                          ?? 3}
-                      </td>
-
-                      <td>
-                        <span
-                          className={
-                            agent.agent_status
-                              === "SUSPENDED"
-                              ? "risk-status suspended"
-                              : "risk-status active"
-                          }
-                        >
-                          {agent.agent_status}
-                        </span>
-                      </td>
-
-                      <td>
-                        {canResetAgents && (
-                          <button
-                            className="risk-row-action"
-                            type="button"
-                            disabled={
-                              agent.agent_status
-                              !== "SUSPENDED"
-                            }
-                            onClick={() =>
-                              setSelectedAgent(agent)
-                            }
-                          >
-                            <RotateCcw />
-                            Reset
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            label="Agents by risk"
+            columns={riskColumns}
+            rows={agents}
+            rowKey={(agent) => agent.agent_name}
+            pageSize={15}
+            initialSort={{ key: "score", direction: "desc" }}
+            rowTone={(agent) => (agent.agent_status === "SUSPENDED" || agent.risk_level === "CRITICAL" ? "danger" : agent.risk_level === "HIGH" ? "warning" : undefined)}
+            empty={<EmptyState title="No agents registered yet" description="Agents appear here, ranked by risk, once they are registered." />}
+          />
         </article>
 
         <aside className="risk-side-column">

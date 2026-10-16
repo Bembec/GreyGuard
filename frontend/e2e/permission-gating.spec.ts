@@ -83,10 +83,13 @@ test("AUDITOR gets the shared access-denied state on abuse protection (install-o
 test("AUDITOR sees agent scope/credential controls as read-only", async ({ page }) => {
   await signInAsAuditor(page)
   await page.goto("/agents")
-  const rows = page.locator(".agent-table tbody tr")
+  const table = page.getByRole("table", { name: "Agents" })
+  await expect(table.or(page.getByText("No agents registered yet"))).toBeVisible({ timeout: 15_000 })
+  const rows = table.locator("tbody tr")
   const rowCount = await rows.count()
   test.skip(rowCount === 0, "no agents registered in this environment")
-  await rows.first().click()
+  // The agent's name is a real button, so the details panel opens without a mouse.
+  await rows.first().getByRole("button", { name: /^Show .+ details$/ }).click()
   await expect(page.getByText(/read-only access to scope boundaries/i)).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole("button", { name: /Rotate credential/i })).toHaveCount(0)
   await expect(page.getByRole("button", { name: /^Revoke$/i })).toHaveCount(0)

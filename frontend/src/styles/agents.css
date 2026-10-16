@@ -193,47 +193,6 @@
   background: #0c1928;
 }
 
-.agent-table-wrapper {
-  overflow-x: auto;
-}
-
-.agent-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.77rem;
-  white-space: nowrap;
-}
-
-.agent-table th {
-  padding: 0.75rem 0.85rem;
-  color: #71839b;
-  font-size: 0.65rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-align: left;
-  text-transform: uppercase;
-}
-
-.agent-table td {
-  padding: 0.85rem;
-  border-top: 1px solid rgba(137, 168, 199, 0.09);
-  color: #bcc9d8;
-}
-
-.agent-table tbody tr {
-  cursor: pointer;
-  transition: background 150ms ease;
-}
-
-.agent-table tbody tr:hover,
-.agent-table tbody tr.selected {
-  background: rgba(51, 176, 226, 0.065);
-}
-
-.agent-table tbody tr.selected {
-  box-shadow: inset 3px 0 #52d7ff;
-}
-
 .agent-name-cell {
   display: flex;
   align-items: center;
@@ -373,8 +332,6 @@
   font-weight: 700;
   cursor: pointer;
 }
-
-.agents-empty,
 .agents-state-panel,
 .agent-detail-empty {
   display: flex;
@@ -383,21 +340,15 @@
   justify-content: center;
   text-align: center;
 }
-
-.agents-empty,
 .agents-state-panel {
   min-height: 19rem;
   padding: 2rem;
   color: #71839a;
 }
-
-.agents-empty strong,
 .agents-state-panel strong {
   margin-top: 0.7rem;
   color: #dceafa;
 }
-
-.agents-empty span,
 .agents-state-panel span {
   margin-top: 0.35rem;
   font-size: 0.78rem;
@@ -853,10 +804,6 @@ button:disabled {
   .agent-detail-empty {
     min-height: 13rem;
   }
-
-  .agent-table {
-    min-width: 790px;
-  }
 }
 
 @media (max-width: 1050px) {
@@ -907,16 +854,6 @@ button:disabled {
 
   .agents-filter select {
     flex: 1;
-  }
-
-  .agent-table-wrapper {
-    width: 100%;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-  }
-
-  .agent-table {
-    min-width: 760px;
   }
 
   .agent-detail-panel {
@@ -1002,7 +939,7 @@ button:disabled {
 
 /* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
    rules above; see docs/design-system.md. ---- */
-.section-kicker, .agent-table th, .detail-header span, .credential-modal > span {
+.section-kicker, .detail-header span, .credential-modal > span {
   text-transform: none;
   letter-spacing: 0;
   color: var(--gg-text-muted);
@@ -1041,4 +978,35 @@ button:disabled {
 .credential-modal, .agents-notice {
   background: var(--gg-surface-850);
   box-shadow: var(--gg-shadow-md);
+}
+.agent-name-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.agent-name-button:focus-visible {
+  border-radius: var(--gg-radius-sm);
+  outline: 2px solid var(--gg-cyan);
+  outline-offset: 2px;
+}
+
+.agent-name-button > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.agent-name-button > .agent-avatar {
+  display: grid;
+  margin-top: 0;
+  font-size: 0.75rem;
+}
+
+.agent-name-button > span:last-child {
+  margin-top: 0;
 }

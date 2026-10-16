@@ -35,7 +35,7 @@ test("an administrator registers an agent and sees its credential once", async (
   await expect(credential).toHaveCount(0)
   // The query string is cleared, so a reload does not reopen registration.
   await expect(page).toHaveURL(/\/agents$/)
-  await expect(page.locator(".agent-table").getByText(name)).toBeVisible()
+  await expect(page.getByRole("table", { name: "Agents" }).getByText(name)).toBeVisible()
 
   // A second registration under the same name is refused, and the server's reason is shown.
   await page.getByRole("button", { name: "Register agent" }).click()

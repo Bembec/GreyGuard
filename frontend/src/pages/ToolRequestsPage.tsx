@@ -1,3 +1,6 @@
+import { EmptyState } from "../components/AsyncState";
+import { DataTable, type Column } from "../components/page/DataTable";
+import { relativeTime } from "../components/page/timeFormat";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
@@ -291,6 +294,84 @@ export default function ToolRequestsPage() {
     );
   }
 
+  const requestColumns: Column<ToolRequest>[] = [
+    {
+      key: "request",
+      header: "Request",
+      sortValue: (request) => request.action,
+      render: (request) => (
+        // A real button, so the evidence panel opens from the keyboard as well as by clicking the row.
+        <button type="button" className="request-id-cell request-id-button" onClick={() => setSelectedRequestId(request.request_id)} aria-label={`Show evidence for ${request.action} ${shortRequestId(request.request_id)}`}>
+          <span className="request-action-icon" aria-hidden="true"><Code2 size={16} /></span>
+          <span>
+            <strong>{request.action}</strong>
+            <span>#{shortRequestId(request.request_id)}</span>
+          </span>
+        </button>
+      ),
+    },
+    {
+      key: "agent",
+      header: "Agent and target",
+      sortValue: (request) => request.agent_name,
+      render: (request) => (
+        <div className="request-target-cell">
+          <strong>{request.agent_name}</strong>
+          <span title={request.target}>{request.target}</span>
+        </div>
+      ),
+    },
+    {
+      key: "policy",
+      header: "Policy",
+      sortValue: (request) => request.policy_decision,
+      render: (request) => <span className={`request-badge decision-${statusClass(request.policy_decision)}`}>{readableStatus(request.policy_decision)}</span>,
+    },
+    {
+      key: "approval",
+      header: "Approval",
+      secondary: true,
+      sortValue: (request) => request.approval_status,
+      render: (request) => <span className={`request-badge approval-${statusClass(request.approval_status)}`}>{readableStatus(request.approval_status)}</span>,
+    },
+    {
+      key: "execution",
+      header: "Execution",
+      secondary: true,
+      sortValue: (request) => request.execution_status,
+      render: (request) => <span className={`request-badge execution-${statusClass(request.execution_status)}`}>{readableStatus(request.execution_status)}</span>,
+    },
+    {
+      key: "risk",
+      header: "Risk",
+      align: "end",
+      sortValue: (request) => request.risk_score,
+      render: (request) => (
+        <div className="request-risk">
+          <strong>{request.risk_score}</strong>
+          <span>+{request.risk_added}</span>
+        </div>
+      ),
+    },
+    {
+      key: "time",
+      header: "Time",
+      secondary: true,
+      sortValue: (request) => request.timestamp,
+      render: (request) => <span className="gg-muted" title={request.timestamp}>{relativeTime(request.timestamp)}</span>,
+    },
+    {
+      key: "open",
+      header: "Details",
+      align: "end",
+      render: (request) => (
+        <button type="button" className="request-inspect-button" onClick={() => navigate(`/requests/${encodeURIComponent(request.request_id)}`)}>
+          Investigate
+        </button>
+      ),
+    },
+  ];
+
   return (
     <main className="requests-page gg-page-pad">
       <div
@@ -452,179 +533,29 @@ export default function ToolRequestsPage() {
           {!requestsQuery.isLoading
             && !requestsQuery.isError
             && (
-              <div className="requests-table-wrapper">
-                <table className="requests-table">
-                  <thead>
-                    <tr>
-                      <th>Request</th>
-                      <th>Agent and target</th>
-                      <th>Policy</th>
-                      <th>Approval</th>
-                      <th>Execution</th>
-                      <th>Risk</th>
-                      <th aria-label="Inspect" />
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {filteredRequests.map(
-                      (request) => (
-                        <tr
-                          key={request.request_id}
-                          className={
-                            selectedRequestId
-                              === request.request_id
-                              ? "selected"
-                              : undefined
-                          }
-                          onClick={() =>
-                            setSelectedRequestId(
-                              request.request_id,
-                            )
-                          }
-                        >
-                          <td>
-                            <div className="request-id-cell">
-                              <div className="request-action-icon">
-                                <Code2 size={16} />
-                              </div>
-
-                              <div>
-                                <strong>
-                                  {request.action}
-                                </strong>
-                                <span>
-                                  #
-                                  {
-                                    shortRequestId(
-                                      request.request_id,
-                                    )
-                                  }
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td>
-                            <div className="request-target-cell">
-                              <strong>
-                                {request.agent_name}
-                              </strong>
-                              <span title={request.target}>
-                                {request.target}
-                              </span>
-                            </div>
-                          </td>
-
-                          <td>
-                            <span
-                              className={
-                                `request-badge decision-${
-                                  statusClass(
-                                    request.policy_decision,
-                                  )
-                                }`
-                              }
-                            >
-                              {
-                                readableStatus(
-                                  request.policy_decision,
-                                )
-                              }
-                            </span>
-                          </td>
-
-                          <td>
-                            <span
-                              className={
-                                `request-badge approval-${
-                                  statusClass(
-                                    request.approval_status,
-                                  )
-                                }`
-                              }
-                            >
-                              {
-                                readableStatus(
-                                  request.approval_status,
-                                )
-                              }
-                            </span>
-                          </td>
-
-                          <td>
-                            <span
-                              className={
-                                `request-badge execution-${
-                                  statusClass(
-                                    request.execution_status,
-                                  )
-                                }`
-                              }
-                            >
-                              {
-                                readableStatus(
-                                  request.execution_status,
-                                )
-                              }
-                            </span>
-                          </td>
-
-                          <td>
-                            <div className="request-risk">
-                              <strong>
-                                {request.risk_score}
-                              </strong>
-                              <span>
-                                +{request.risk_added}
-                              </span>
-                            </div>
-                          </td>
-
-                          <td>
-                            <button
-                              type="button"
-                              className="request-inspect-button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-
-                                navigate(`/requests/${encodeURIComponent(request.request_id)}`);
-                              }}
-                            >
-                              Investigate
-                            </button>
-                          </td>
-                        </tr>
-                      ),
-                    )}
-                  </tbody>
-                </table>
-
-                {filteredRequests.length === 0 && (requests.length > 0 ? (
-                  <div className="requests-empty">
-                    <Search size={25} />
-                    <strong>
-                      No matching requests
-                    </strong>
-                    <span>
-                      No request matches the current search and filters.
-                    </span>
-                    <button type="button" className="gg-button" onClick={() => { setSearchText(""); setDecisionFilter("ALL"); setExecutionFilter("ALL"); }}>
-                      Clear filters
-                    </button>
-                  </div>
+              <DataTable
+                label="Tool requests"
+                columns={requestColumns}
+                rows={filteredRequests}
+                rowKey={(request) => request.request_id}
+                pageSize={15}
+                selectedKey={selectedRequestId}
+                onRowClick={(request) => setSelectedRequestId(request.request_id)}
+                empty={requests.length > 0 ? (
+                  <EmptyState
+                    icon={<Search size={28} />}
+                    title="No matching requests"
+                    description="No request matches the current search and filters."
+                    action={<button type="button" className="gg-button" onClick={() => { setSearchText(""); setDecisionFilter("ALL"); setExecutionFilter("ALL"); }}>Clear filters</button>}
+                  />
                 ) : (
-                  <div className="requests-empty">
-                    <Search size={25} />
-                    <strong>
-                      No tool requests yet
-                    </strong>
-                    <span>
-                      Requests appear here once a registered agent asks GreyGuard to run a tool.
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  <EmptyState
+                    icon={<Search size={28} />}
+                    title="No tool requests yet"
+                    description="Requests appear here once a registered agent asks GreyGuard to run a tool."
+                  />
+                )}
+              />
             )}
         </div>
 

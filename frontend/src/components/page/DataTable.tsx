@@ -15,6 +15,13 @@ interface DataTableProps<T> {
   initialSort?: { key: string; direction: "asc" | "desc" }
   /** Optional highlight for a row, e.g. a critical item. */
   rowTone?: (row: T) => "danger" | "warning" | undefined
+  /** The row whose details are open beside the table, marked with aria-current. */
+  selectedKey?: string | null
+  /**
+   * A mouse convenience for opening a row's details. It never replaces the row's own button or
+   * link, which is what keyboard and screen-reader users reach.
+   */
+  onRowClick?: (row: T) => void
 }
 
 /**
@@ -22,7 +29,7 @@ interface DataTableProps<T> {
  * rows its filters selected. Row actions belong in a cell as real links or buttons, which keeps
  * every row reachable by keyboard.
  */
-export function DataTable<T>({ label, columns, rows, rowKey, empty, pageSize = 10, initialSort, rowTone }: DataTableProps<T>) {
+export function DataTable<T>({ label, columns, rows, rowKey, empty, pageSize = 10, initialSort, rowTone, selectedKey, onRowClick }: DataTableProps<T>) {
   const [sort, setSort] = useState(initialSort)
   const [page, setPage] = useState(0)
   const sorted = useMemo(
@@ -67,15 +74,28 @@ export function DataTable<T>({ label, columns, rows, rowKey, empty, pageSize = 1
             </tr>
           </thead>
           <tbody>
-            {visible.map((row) => (
-              <tr key={rowKey(row)} data-tone={rowTone?.(row)}>
+            {visible.map((row) => {
+              const key = rowKey(row)
+              return (
+              <tr
+                key={key}
+                data-tone={rowTone?.(row)}
+                className={[key === selectedKey ? "is-selected" : "", onRowClick ? "is-clickable" : ""].join(" ") || undefined}
+                aria-current={key === selectedKey ? "true" : undefined}
+                onClick={onRowClick ? (event) => {
+                  // Buttons and links inside the row do their own thing.
+                  if ((event.target as HTMLElement).closest("button, a, input, select, label")) return
+                  onRowClick(row)
+                } : undefined}
+              >
                 {columns.map((column) => (
                   <td key={column.key} className={[column.align === "end" ? "is-end" : "", column.secondary ? "is-secondary" : ""].join(" ")}>
                     {column.render(row)}
                   </td>
                 ))}
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

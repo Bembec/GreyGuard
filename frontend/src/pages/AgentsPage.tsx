@@ -33,6 +33,9 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { EmptyState } from "../components/AsyncState";
+import { DataTable, type Column } from "../components/page/DataTable";
+
 import { useDismissableLayer } from "../hooks/useDismissableLayer";
 import { usePermission } from "../hooks/usePermission";
 import "../styles/agents.css";
@@ -501,6 +504,70 @@ export default function AgentsPage() {
       || agent.risk_level === "CRITICAL",
   ).length;
 
+  const agentColumns: Column<Agent>[] = [
+    {
+      key: "agent",
+      header: "Agent identity",
+      sortValue: (agent) => agent.agent_name,
+      render: (agent) => (
+        // A real button, so the details panel opens from the keyboard as well as by clicking the row.
+        <button type="button" className="agent-name-cell agent-name-button" onClick={() => setSelectedName(agent.agent_name)} aria-label={`Show ${agent.agent_name} details`}>
+          <span className="agent-avatar" aria-hidden="true">{agent.agent_name.charAt(0).toUpperCase()}</span>
+          <span>
+            <strong>{agent.agent_name}</strong>
+            <span>{agent.blocked_attempts} blocked attempts</span>
+          </span>
+        </button>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortValue: (agent) => agent.agent_status,
+      render: (agent) => <span className={`agent-status ${agent.agent_status.toLowerCase()}`}>{agent.agent_status}</span>,
+    },
+    {
+      key: "risk",
+      header: "Risk",
+      sortValue: (agent) => agent.risk_score,
+      render: (agent) => (
+        <div className="agent-risk-cell">
+          <span className={`risk-label ${classNameForRisk(agent.risk_level)}`}>{agent.risk_level}</span>
+          <div className="risk-track"><span style={{ width: `${Math.min(agent.risk_score, 100)}%` }} /></div>
+          <small>{agent.risk_score}</small>
+        </div>
+      ),
+    },
+    {
+      key: "credential",
+      header: "Credential",
+      secondary: true,
+      sortValue: (agent) => agent.identity?.credential_status ?? "MISSING",
+      render: (agent) => {
+        const status = agent.identity?.credential_status ?? "MISSING"
+        return <span className={`credential-status ${status.toLowerCase()}`}>{status}</span>
+      },
+    },
+    {
+      key: "scopes",
+      header: "Scopes",
+      align: "end",
+      secondary: true,
+      sortValue: (agent) => agent.identity?.scopes?.length ?? 0,
+      render: (agent) => agent.identity?.scopes?.length ?? 0,
+    },
+    {
+      key: "open",
+      header: "Details",
+      align: "end",
+      render: (agent) => (
+        <button type="button" className="inspect-button" onClick={() => navigate(`/agents/${encodeURIComponent(agent.agent_name)}`)}>
+          Investigate
+        </button>
+      ),
+    },
+  ];
+
   function toggleScope(scope: string) {
     setSelectedScopes((currentScopes) => {
       if (currentScopes.includes(scope)) {
@@ -652,154 +719,30 @@ export default function AgentsPage() {
           {!agentsQuery.isLoading
             && !agentsQuery.isError
             && (
-              <div className="agent-table-wrapper">
-                <table className="agent-table">
-                  <thead>
-                    <tr>
-                      <th>Agent identity</th>
-                      <th>Status</th>
-                      <th>Risk</th>
-                      <th>Credential</th>
-                      <th>Scopes</th>
-                      <th aria-label="Open details" />
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {filteredAgents.map((agent) => (
-                      <tr
-                        key={agent.agent_name}
-                        className={
-                          selectedName
-                            === agent.agent_name
-                            ? "selected"
-                            : undefined
-                        }
-                        onClick={() =>
-                          setSelectedName(
-                            agent.agent_name,
-                          )
-                        }
-                      >
-                        <td>
-                          <div className="agent-name-cell">
-                            <div className="agent-avatar">
-                              {agent.agent_name
-                                .charAt(0)
-                                .toUpperCase()}
-                            </div>
-
-                            <div>
-                              <strong>
-                                {agent.agent_name}
-                              </strong>
-                              <span>
-                                {agent.blocked_attempts}
-                                {" "}
-                                blocked attempts
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td>
-                          <span
-                            className={
-                              `agent-status ${
-                                agent.agent_status
-                                  .toLowerCase()
-                              }`
-                            }
-                          >
-                            {agent.agent_status}
-                          </span>
-                        </td>
-
-                        <td>
-                          <div className="agent-risk-cell">
-                            <span
-                              className={
-                                `risk-label ${
-                                  classNameForRisk(
-                                    agent.risk_level,
-                                  )
-                                }`
-                              }
-                            >
-                              {agent.risk_level}
-                            </span>
-
-                            <div className="risk-track">
-                              <span
-                                style={{
-                                  width: `${
-                                    Math.min(
-                                      agent.risk_score,
-                                      100,
-                                    )
-                                  }%`,
-                                }}
-                              />
-                            </div>
-
-                            <small>
-                              {agent.risk_score}
-                            </small>
-                          </div>
-                        </td>
-
-                        <td>
-                          <span
-                            className={
-                              `credential-status ${
-                                (
-                                  agent.identity
-                                    ?.credential_status
-                                  ?? "MISSING"
-                                ).toLowerCase()
-                              }`
-                            }
-                          >
-                            {agent.identity
-                              ?.credential_status
-                              ?? "MISSING"}
-                          </span>
-                        </td>
-
-                        <td>
-                          {
-                            agent.identity
-                              ?.scopes?.length ?? 0
-                          }
-                        </td>
-
-                        <td>
-                          <button
-                            type="button"
-                            className="inspect-button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              navigate(`/agents/${encodeURIComponent(agent.agent_name)}`);
-                            }}
-                          >
-                            Investigate
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {filteredAgents.length === 0 && (
-                  <div className="agents-empty">
-                    <Search size={24} />
-                    <strong>No matching agents</strong>
-                    <span>
-                      Change your search or status filter.
-                    </span>
-                  </div>
+              <DataTable
+                label="Agents"
+                columns={agentColumns}
+                rows={filteredAgents}
+                rowKey={(agent) => agent.agent_name}
+                pageSize={15}
+                initialSort={{ key: "risk", direction: "desc" }}
+                selectedKey={selectedName}
+                onRowClick={(agent) => setSelectedName(agent.agent_name)}
+                empty={agents.length === 0 ? (
+                  <EmptyState
+                    icon={<Bot size={28} />}
+                    title="No agents registered yet"
+                    description="Register an agent to issue its identity and credential, and give it only the scopes its tools need."
+                  />
+                ) : (
+                  <EmptyState
+                    icon={<Search size={28} />}
+                    title="No matching agents"
+                    description="No agent matches the current search and status filter."
+                    action={<button type="button" className="gg-button" onClick={() => { setSearchText(""); setStatusFilter("ALL"); }}>Clear filters</button>}
+                  />
                 )}
-              </div>
+              />
             )}
         </div>
 

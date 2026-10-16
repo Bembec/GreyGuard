@@ -234,48 +234,6 @@
   background: #0c1928;
 }
 
-.requests-table-wrapper {
-  overflow-x: auto;
-}
-
-.requests-table {
-  width: 100%;
-  min-width: 840px;
-  border-collapse: collapse;
-  font-size: 0.73rem;
-  white-space: nowrap;
-}
-
-.requests-table th {
-  padding: 0.72rem 0.78rem;
-  color: #6e8198;
-  font-size: 0.61rem;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  text-align: left;
-  text-transform: uppercase;
-}
-
-.requests-table td {
-  padding: 0.78rem;
-  border-top: 1px solid rgba(129, 162, 194, 0.08);
-  color: #b9c8d7;
-}
-
-.requests-table tbody tr {
-  cursor: pointer;
-  transition: background 150ms ease;
-}
-
-.requests-table tbody tr:hover,
-.requests-table tbody tr.selected {
-  background: rgba(54, 181, 225, 0.065);
-}
-
-.requests-table tbody tr.selected {
-  box-shadow: inset 3px 0 #58d9ff;
-}
-
 .request-id-cell {
   display: flex;
   align-items: center;
@@ -402,7 +360,6 @@
 }
 
 .requests-state,
-.requests-empty,
 .request-detail-empty {
   display: flex;
   flex-direction: column;
@@ -411,21 +368,18 @@
   text-align: center;
 }
 
-.requests-state,
-.requests-empty {
+.requests-state{
   min-height: 18rem;
   padding: 2rem;
   color: #72849a;
 }
 
-.requests-state strong,
-.requests-empty strong {
+.requests-state strong{
   margin-top: 0.65rem;
   color: #dce9f5;
 }
 
-.requests-state span,
-.requests-empty span {
+.requests-state span{
   margin-top: 0.3rem;
   font-size: 0.74rem;
 }
@@ -808,7 +762,7 @@
 
 /* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
    rules above; see docs/design-system.md. ---- */
-.requests-kicker, .requests-table th, .request-detail-header span, .request-timeline small {
+.requests-kicker, .request-detail-header span, .request-timeline small {
   text-transform: none;
   letter-spacing: 0;
   color: var(--gg-text-muted);
@@ -839,4 +793,32 @@
 
 .evidence-orbit::after {
   display: none;
+}
+
+.request-id-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.request-id-button:focus-visible {
+  border-radius: var(--gg-radius-sm);
+  outline: 2px solid var(--gg-cyan);
+  outline-offset: 2px;
+}
+
+.request-id-button > .request-action-icon {
+  display: grid;
+  margin-top: 0;
+}
+
+.request-id-button > span:last-child {
+  display: grid;
+  min-width: 0;
+  margin-top: 0;
 }

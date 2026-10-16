@@ -210,31 +210,6 @@
   cursor: not-allowed;
 }
 
-.risk-table-wrapper {
-  overflow-x: auto;
-}
-
-.risk-table {
-  width: 100%;
-  min-width: 750px;
-  border-collapse: collapse;
-}
-
-.risk-table th,
-.risk-table td {
-  padding: 0.85rem 0.65rem;
-  border-bottom: 1px solid rgba(141, 178, 220, 0.1);
-  text-align: left;
-  font-size: 0.78rem;
-}
-
-.risk-table th {
-  color: #7890aa;
-  font-size: 0.68rem;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
 .risk-agent-name {
   display: flex;
   align-items: center;
@@ -599,7 +574,7 @@
 
 /* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
    rules above; see docs/design-system.md. ---- */
-.risk-eyebrow, .risk-panel-header span, .risk-modal > span, .risk-table th {
+.risk-eyebrow, .risk-panel-header span, .risk-modal > span{
   text-transform: none;
   letter-spacing: 0;
   color: var(--gg-text-muted);

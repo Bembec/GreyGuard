@@ -1011,3 +1011,15 @@
 .app-shell .workspace__content textarea {
   font-size: 0.82rem;
 }
+
+.gg-table tr.is-clickable {
+  cursor: pointer;
+}
+
+.gg-table tr.is-selected td {
+  background: var(--gg-selected);
+}
+
+.gg-table tr.is-selected td:first-child {
+  box-shadow: inset 2px 0 0 var(--gg-cyan);
+}

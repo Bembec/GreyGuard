@@ -50,6 +50,22 @@ describe("DataTable", () => {
     expect(within(table).getAllByRole("row")[1].textContent).toContain("agent-12")
   })
 
+  it("marks the selected row and opens a row on click, leaving buttons inside it alone", () => {
+    const opened: string[] = []
+    const withButton: Column<{ name: string; score: number }>[] = [
+      ...columns,
+      { key: "act", header: "Action", render: (row) => <button type="button">Act on {row.name}</button> },
+    ]
+    render(<DataTable label="Agents" columns={withButton} rows={rows.slice(0, 3)} rowKey={(row) => row.name} empty={<p>none</p>} selectedKey="agent-2" onRowClick={(row) => opened.push(row.name)} />)
+    const table = screen.getByRole("table", { name: "Agents" })
+    const [, first, second] = within(table).getAllByRole("row")
+    expect(second.getAttribute("aria-current")).toBe("true")
+    expect(first.getAttribute("aria-current")).toBeNull()
+    fireEvent.click(within(first).getAllByRole("cell")[0])
+    fireEvent.click(screen.getByRole("button", { name: "Act on agent-3" }))
+    expect(opened).toEqual(["agent-1"])
+  })
+
   it("shows the empty state when there are no rows", () => {
     render(<DataTable label="Agents" columns={columns} rows={[]} rowKey={(row) => row.name} empty={<p>No agents yet</p>} />)
     expect(screen.getByText("No agents yet")).toBeTruthy()
