@@ -155,3 +155,13 @@ test("the bell and the sidebar status show measured state, not fixed claims", as
   if (reported === "OPERATIONAL") await expect(status).toContainText("Control plane operational")
   else await expect(status).not.toContainText("operational")
 })
+
+test("the top bar says how fresh the open page's data is and refreshes all of it", async ({ page }) => {
+  await openWithSession(page, session, "/agents")
+  const freshness = page.locator(".shell-freshness")
+  await expect(freshness).toContainText(/Updated (just now|\d+ min ago)/, { timeout: 15_000 })
+  const refreshed = page.waitForResponse((response) => response.url().endsWith("/api/agents") && response.request().method() === "GET")
+  await page.getByRole("button", { name: "Refresh this page's data" }).click()
+  await refreshed
+  await expect(freshness).toContainText("Updated just now")
+})

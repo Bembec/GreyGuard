@@ -24,6 +24,7 @@ import { Logo } from "../components/brand/Logo"
 import { AccessDenied } from "../components/page/AccessDenied"
 import { GlobalSearchDialog } from "../components/GlobalSearchDialog"
 import { NavFlyout } from "../components/navigation/NavFlyout"
+import { ShellFreshness } from "../components/navigation/ShellFreshness"
 import { SidebarFavourites } from "../components/navigation/SidebarFavourites"
 import { SidebarNavGroup } from "../components/navigation/SidebarNavGroup"
 import { UserMenu } from "../components/navigation/UserMenu"
@@ -273,6 +274,8 @@ export function AppShell() {
           </div>
 
           <div className="topbar__actions">
+            <ShellFreshness />
+
             <button
               type="button"
               className="topbar__search"
