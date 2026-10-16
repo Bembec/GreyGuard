@@ -13,6 +13,9 @@ Rules this module keeps:
 - **Honest limits.** The window never reaches past retained data; when the node limit cuts the
   graph, the response says so, with counts per type.
 - **No raw content.** Targets are shortened, payloads, results and notes are never included.
+- **Incidents as derived.** Incidents are derived from evidence by the alert list, the live stream
+  and notifications (alerts.sync_alerts_from_events). The graph shows those already derived and
+  does not derive them itself, because deriving writes and the graph must not.
 """
 from __future__ import annotations
 
@@ -403,3 +406,121 @@ def impact_preview(agent_name: str, change: str, target: str | None, *, org_id: 
         "note": note,
         "how_to_apply": "Nothing changes here. Make the change on the Agents or Policies page, where it is confirmed and recorded.",
     }
+
+
+# --- Response cache (FU-CG-01, closes DEV-001) -----------------------------------------------------
+#
+# A 15-second cache for built graphs, so repeated opens of the same agent do not rebuild them.
+# The rules (owner decision, 2026-10-16):
+# - Never shared across tenants or people. The key holds the org, the viewer's admin id, role and
+#   install-operator flag (which decides what is withheld), the agent and every query parameter.
+# - Never stale after an application write. The key also holds the retention-bound lookback (it
+#   sets the window and the retention horizon shown) and a data version stamp: one
+#   org-scoped query over everything the graph reads. Any approval, execution, request, decision
+#   record, incident change, policy publication, emergency switch, credential, scope or runtime
+#   change gives a new stamp, so the old entry can no longer be hit.
+# - Authorization is never cached. The route authenticates and checks agent ownership on every
+#   request before the cache is consulted, so a revoked session or a moved agent is refused at once.
+# - Bypass: `Cache-Control: no-cache` from the client always rebuilds. The impact preview is never
+#   cached. Only the default 30-day window is cached, since an explicit range is a deliberate query.
+# - Bounded: at most MAX_ENTRIES graphs per process, least recently used evicted, expired entries
+#   dropped. Each graph is itself bounded by the node limit.
+# Known limit: a change made outside the application (direct database edits that leave every
+# stamped value equal) can be served for at most CACHE_SECONDS.
+import threading
+import time
+from collections import OrderedDict
+
+CACHE_SECONDS = 15.0
+MAX_ENTRIES = 256
+
+_ALERT_STATUS_WEIGHT = ("CASE status WHEN 'OPEN' THEN 1 WHEN 'ACKNOWLEDGED' THEN 3 WHEN 'INVESTIGATING' THEN 7 "
+                        "WHEN 'RESOLVED' THEN 13 WHEN 'DISMISSED' THEN 29 ELSE 53 END")
+
+
+def data_version(agent_name: str, org_id: str) -> tuple:
+    """Everything the graph reads, summarised: equal stamps mean an equal graph, for the same viewer."""
+    rows = _rows(
+        "SELECT "
+        "(SELECT COUNT(*) FROM tool_requests WHERE org_id = ? AND agent_name = ?), "
+        "(SELECT MAX(updated_at) FROM tool_requests WHERE org_id = ? AND agent_name = ?), "
+        "(SELECT COUNT(*) FROM decision_records WHERE org_id = ? AND agent_name = ?), "
+        "(SELECT MAX(id) FROM approval_events WHERE org_id = ?), "
+        "(SELECT MAX(id) FROM execution_events WHERE org_id = ?), "
+        f"(SELECT COUNT(*) FROM security_alerts WHERE org_id = ? OR (org_id IS NULL AND agent_name = ?)), "
+        f"(SELECT SUM({_ALERT_STATUS_WEIGHT}) FROM security_alerts WHERE org_id = ? OR (org_id IS NULL AND agent_name = ?)), "
+        "(SELECT MAX(updated_at) FROM security_alerts WHERE org_id = ? OR (org_id IS NULL AND agent_name = ?)), "
+        "(SELECT COUNT(*) FROM policy_versions WHERE org_id = ?), "
+        "(SELECT MAX(published_at) FROM policy_versions WHERE org_id = ?), "
+        "(SELECT MAX(policy_id) FROM policy_versions WHERE org_id = ? AND status = 'PUBLISHED'), "
+        "(SELECT MAX(updated_at) FROM policy_emergency_controls WHERE org_id = ?), "
+        "(SELECT MAX(credential_status || '|' || scopes_json || '|' || COALESCE(rotated_at, '') || '|' || COALESCE(revoked_at, '') || '|' || COALESCE(archived_at, '')) "
+        "FROM agent_identities WHERE org_id = ? AND agent_name = ?), "
+        "(SELECT MAX(agent_status || '|' || CAST(risk_score AS TEXT)) FROM agent_runtime_states WHERE org_id = ? AND agent_name = ?)",
+        (org_id, agent_name, org_id, agent_name, org_id, agent_name, org_id, org_id, org_id, agent_name, org_id, agent_name,
+         org_id, agent_name, org_id, org_id, org_id, org_id, org_id, agent_name, org_id, agent_name),
+    )
+    return tuple(str(value) for value in rows[0])
+
+
+class GraphCache:
+    def __init__(self, seconds: float = CACHE_SECONDS, max_entries: int = MAX_ENTRIES, clock=time.monotonic):
+        self.seconds = seconds
+        self.max_entries = max_entries
+        self.clock = clock
+        self._entries: OrderedDict[tuple, tuple[float, dict[str, Any]]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: tuple) -> tuple[dict[str, Any], float] | None:
+        now = self.clock()
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return None
+            stored_at, graph = entry
+            if now - stored_at >= self.seconds:
+                del self._entries[key]
+                return None
+            self._entries.move_to_end(key)
+            return graph, now - stored_at
+
+    def put(self, key: tuple, graph: dict[str, Any]) -> None:
+        now = self.clock()
+        with self._lock:
+            self._entries[key] = (now, graph)
+            self._entries.move_to_end(key)
+            for stale in [k for k, (stored_at, _) in self._entries.items() if now - stored_at >= self.seconds]:
+                del self._entries[stale]
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+
+graph_cache = GraphCache()
+
+
+def cached_control_graph(agent_name: str, *, org_id: str, viewer: dict[str, Any], window: TimeRange | None,
+                         depth: int, limit: int, bypass: bool = False) -> dict[str, Any]:
+    """build_control_graph behind the 15-second cache. The caller has already authorized the viewer."""
+    include_install_level = bool(viewer.get("install_operator"))
+    if window is not None or bypass:
+        graph = build_control_graph(agent_name, org_id=org_id, include_install_level=include_install_level,
+                                    window=window, depth=depth, limit=limit)
+        return {**graph, "cache": {"hit": False, "reason": "explicit window" if window is not None else "bypass requested"}}
+    key = (
+        org_id, viewer["admin_id"], viewer.get("role"), include_install_level, tuple(sorted(viewer.get("permissions") or [])),
+        agent_name, depth, limit, "default-window", permitted_lookback_days(org_id), data_version(agent_name, org_id),
+    )
+    found = graph_cache.get(key)
+    if found is not None:
+        graph, age = found
+        return {**graph, "cache": {"hit": True, "age_seconds": round(age, 3)}}
+    graph = build_control_graph(agent_name, org_id=org_id, include_install_level=include_install_level, depth=depth, limit=limit)
+    graph_cache.put(key, graph)
+    return {**graph, "cache": {"hit": False, "reason": "miss"}}

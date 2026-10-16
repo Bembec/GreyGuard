@@ -3361,6 +3361,7 @@ def agent_control_graph(
     x_admin_pin: str | None = Header(default=None),
     since: RangeBound = None,
     until: RangeBound = None,
+    cache_control: Annotated[str | None, Header(max_length=200)] = None,
 ):
     """One agent's relationships, read-only (P7.5 Control Graph).
 
@@ -3371,9 +3372,10 @@ def agent_control_graph(
     agent_name = require_agent_in_org(agent_name, administrator)
     org_id = organizations.resolve_org_id(administrator)
     window = parse_time_range(since, until, org_id=org_id)
-    return control_graph.build_control_graph(
-        agent_name, org_id=org_id, include_install_level=bool(administrator.get("install_operator")),
-        window=window, depth=depth, limit=limit,
+    # Authorization above runs on every request; only then may the 15-second cache answer.
+    return control_graph.cached_control_graph(
+        agent_name, org_id=org_id, viewer=administrator, window=window, depth=depth, limit=limit,
+        bypass="no-cache" in (cache_control or "").lower(),
     )
 
 

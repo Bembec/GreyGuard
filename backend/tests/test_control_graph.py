@@ -27,6 +27,7 @@ def world(tenants, monkeypatch):  # noqa: F811
         monkeypatch.setattr(module, "database_path", database.database_path)
     decision_provenance.initialize_decision_provenance()
     alerts.initialize_alert_database()  # as the API's startup does
+    control_graph.graph_cache.clear()  # no test sees another's cached graphs
     return tenants
 
 
