@@ -590,8 +590,8 @@ The owner follows P7.5 here. The table is updated with every batch; the detailed
 | 2. Command Center with role presets | ✅ Done | batch 3 `edb8d36` |
 | 3. Universal page anatomy | ✅ Done, except contextual docs links, which wait for hosted docs | batches 2, 4, 4d; `p7.5-gap-matrix.md`, `p7.5-time-range-saved-views-design.md` |
 | 4. Control Graph | ✅ Done, including the 15-second cache (DEV-001 closed) | `p7.5-control-graph-design.md`; `eabf0e1`, `6e381db`, `d3104e5` |
-| 5. Investigation workspace | 🔨 **In progress**: design approved 2026-10-16 | `p7.5-investigation-workspace-design.md` |
-| 6. Decision explainability | 🔨 **In progress**, built with item 5 | same design |
+| 5. Investigation workspace | 🔨 **In progress**: design approved 2026-10-16; step 2 (workspace page) next | `p7.5-investigation-workspace-design.md` |
+| 6. Decision explainability | ✅ Explanation card done (`d6cbc2f`); it is also reused in the workspace | same design |
 | 7. Safe change management | Not started | |
 | 8. Unified action inbox | Not started | |
 | 9. Help and explanation | Not started | |
@@ -811,6 +811,31 @@ Nothing was pushed, published or deployed.
 The Control Graph is complete apart from DEV-001, the 15-second cache (FU-CG-01). Nothing was pushed, published or deployed.
 
 **FU-CG-01, the Control Graph's 15-second cache (`d3104e5`).** DEV-001 is closed, with the evidence in `docs/roadmap/deviations.md`: full backend suite 850 passed; 23 cache tests and 26 graph tests passed on SQLite and PostgreSQL; 10 of 11 mutations caught (the survivor is a redundant stamp); frontend check passed; Playwright 74 passed, 0 flaky. One real stale-data gap was found and fixed while building it: a retention change was not in the key. Nothing was pushed, published or deployed.
+
+**P7.5 items 5 and 6, step 1: decision explainability (`d6cbc2f`), 2026-10-16.** The design (`p7.5-investigation-workspace-design.md`) was approved with all five recommendations.
+- **Explanation endpoint and card:** `/request-investigations/{id}/explanation`, shown on the request page. Fixed reasons per rule type and outcome, built from the exact decision record; inferred where no record exists; no confidence score.
+- **"Why is this unavailable?":** built from the viewer's role only.
+- **A wrong sentence removed:** the old generic text called emergency refusals policy decisions.
+- **Authentication assurance:** decision records version 2 record the agent key or verified certificate (migration `20261016_35`). Version-1 records still verify.
+- **Secret-looking values** (JWTs, API keys, GitHub, Slack, AWS and Google keys, GreyGuard credentials, bearer tokens, private keys) are redacted for every role, and the count is shown.
+- **A flaky test fixed (`d61ec25`):** the pilots test matched "fee" inside random hex ids, about 1 run in 100. It now matches whole words.
+
+**Verification run:**
+- **Backend:** 507 + 369 = 876 passed (the pilots flake appeared once, was diagnosed and fixed, and the half was rerun clean).
+- **New tests:** `test_decision_explanation.py`, 26 tests covering:
+  - every rule type's reason; inferred labelling; a changed policy as a limitation;
+  - key and certificate authentication recorded; version-1 records still verifying;
+  - role-only "unavailable" reasons; tenant 404s;
+  - redaction of eight secret formats, with ordinary text kept.
+- **Mutation checks:** 10 of 10 caught, including:
+  - certificate detection, the method allowlist and the version-1 fingerprint fields;
+  - the approve step's permission and the unavailable reason;
+  - value redaction and a single pattern;
+  - the emergency reason, and both limitations.
+- **PostgreSQL:** migration `20261016_35` went up, down and up again, keeping a version-1 row, and updates were still refused by the trigger. 26 explanation tests and 26 Control Graph tests passed, each alone on a fresh database.
+- **Frontend:** 235 unit tests and the build passed. **Playwright:** 75 passed, 0 flaky, including the new explanation spec (a real agent request with a secret in its payload).
+
+Nothing was pushed, published or deployed.
 
 ---
 
