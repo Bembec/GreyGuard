@@ -1,7 +1,9 @@
 import { CalendarRange } from "lucide-react"
 import { useId, useState } from "react"
 
+import { SavedViewsMenu } from "./SavedViewsMenu"
 import {
+  RANGE_KEYS,
   RANGE_PRESETS,
   customRangeProblem,
   describeRange,
@@ -109,14 +111,17 @@ interface RangeBarProps {
   label?: string
   /** What the list holds; omitted while it loads. */
   notice?: Omit<RangeNoticeProps, "range"> | null
+  /** Saved views for this page: its id and its own filter keys (the range keys are added). */
+  views?: { page: string; keys: readonly string[] }
 }
 
 /** The range row under a list's toolbar: the choice and what it produced, side by side. */
-export function RangeBar({ value, onChange, label, notice }: RangeBarProps) {
+export function RangeBar({ value, onChange, label, notice, views }: RangeBarProps) {
   return (
     <div className="gg-range-bar">
       <TimeRangeControl value={value} onChange={onChange} label={label} />
       {notice && <RangeNotice range={value} {...notice} />}
+      {views && <SavedViewsMenu page={views.page} keys={[...views.keys, ...RANGE_KEYS]} />}
     </div>
   )
 }

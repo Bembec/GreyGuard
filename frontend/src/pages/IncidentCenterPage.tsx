@@ -259,6 +259,7 @@ export default function IncidentCenterPage() {
           value={range}
           onChange={setRange}
           label="Resolved history range"
+          views={{ page: "incidents", keys: FILTER_KEYS }}
           notice={alerts.data ? {
             shown: alerts.data.alerts.length,
             truncated: alerts.data.truncated,

@@ -20,6 +20,9 @@ export type TimeRangeValue =
   | { kind: "preset"; preset: RangePreset }
   | { kind: "custom"; since: string; until: string | null }
 
+/** The URL keys a range uses; a page's saved views include them with its own filter keys. */
+export const RANGE_KEYS = ["range", "since", "until"] as const
+
 /** The server's ceiling; it may allow less (configured retention) and says so with a 422. */
 export const MAX_LOOKBACK_DAYS = 400
 

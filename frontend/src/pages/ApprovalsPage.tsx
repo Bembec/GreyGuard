@@ -79,6 +79,7 @@ type ViewMode =
   | "ALL";
 
 const VIEW_MODES = ["PENDING", "RESOLVED", "ALL"] as const;
+const FILTER_KEYS = ["view", "q"] as const;
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -503,6 +504,7 @@ export default function ApprovalsPage() {
             value={range}
             onChange={setRange}
             label="Decided history range"
+            views={{ page: "approvals", keys: FILTER_KEYS }}
             notice={requestsQuery.data ? {
               shown: approvedRequests.length + deniedRequests.length,
               truncated: requestsQuery.data.truncated,

@@ -538,6 +538,7 @@ export default function ToolRequestsPage() {
           <RangeBar
             value={range}
             onChange={setRange}
+            views={{ page: "tool-requests", keys: FILTER_KEYS }}
             notice={requestsQuery.data ? {
               shown: requests.length,
               truncated: requestsQuery.data.truncated,

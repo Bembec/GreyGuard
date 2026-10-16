@@ -336,6 +336,7 @@ export default function AuditTrailPage() {
         <RangeBar
           value={range}
           onChange={setRange}
+          views={{ page: "audit-trail", keys: FILTER_KEYS }}
           notice={auditQuery.data ? { shown: events.length, truncated: auditQuery.data.truncated, noun: "evidence records" } : null}
         />
 

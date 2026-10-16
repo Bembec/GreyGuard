@@ -54,6 +54,7 @@ type AuditResponse = {
 };
 
 const OUTCOMES = ["ALL", "SUCCESS", "DENIED", "SCOPE_DENIED"] as const;
+const FILTER_KEYS = ["q", "outcome", "agent"] as const;
 
 type AgentIdentity = {
   agent_name?: string;
@@ -433,6 +434,7 @@ export default function AuthenticationPage() {
           <RangeBar
             value={range}
             onChange={setRange}
+            views={{ page: "authentication", keys: FILTER_KEYS }}
             notice={authenticationQuery.data ? { shown: events.length, truncated: authenticationQuery.data.truncated, noun: "identity events" } : null}
           />
 
