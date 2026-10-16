@@ -273,6 +273,11 @@ def initialize_database():
                     "org_id TEXT NOT NULL DEFAULT 'org_default'"
                 )
 
+        # P7.5 time ranges: the evidence timeline is read per org, newest first, within a range.
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_audit_events_org_time ON audit_events (org_id, timestamp)"
+        )
+
     # Archive metadata (D6): retired agents keep their record as history and free plan capacity.
     sqlite3.ensure_columns(database_path, "agent_identities", sqlite3.ARCHIVE_COLUMNS)
 
@@ -1069,8 +1074,12 @@ def get_tool_requests(
     limit=50,
     *,
     org_id,
+    time_range=None,
 ):
-    """Return filtered tool requests."""
+    """Return filtered tool requests.
+
+    With a time_range, pending requests still appear however old (open work is never hidden by a
+    range) and sort first, so the row limit cannot crowd them out."""
 
     conditions = ["org_id = ?"]
     parameters = [org_id]
@@ -1092,6 +1101,13 @@ def get_tool_requests(
             "execution_status = ?"
         )
         parameters.append(execution_status)
+
+    order_clause = "ORDER BY timestamp DESC"
+    if time_range is not None:
+        fragment, bounds = time_range.in_range_or("timestamp", "approval_status = 'PENDING'")
+        conditions.append(fragment)
+        parameters.extend(bounds)
+        order_clause = "ORDER BY CASE WHEN approval_status = 'PENDING' THEN 0 ELSE 1 END, timestamp DESC"
 
     where_clause = (
         "WHERE "
@@ -1120,7 +1136,7 @@ def get_tool_requests(
             org_id
         FROM tool_requests
         {where_clause}
-        ORDER BY timestamp DESC
+        {order_clause}
         LIMIT ?
     """  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
 
@@ -1481,6 +1497,7 @@ def get_administrator_audit_events(
     limit=100,
     *,
     org_id,
+    time_range=None,
 ):
     """Return a unified administrator evidence timeline for one org.
 
@@ -1512,6 +1529,20 @@ def get_administrator_audit_events(
     )
     scope_parameters = () if every_org else (org_id,)
 
+    def bounded(alias):
+        """The range, ANDed after the org scope (never instead of it), plus its parameters."""
+        if time_range is None:
+            return "", ()
+        fragment, bounds = time_range.condition(f"{alias}timestamp")
+        return f" AND {fragment}", bounds
+
+    policy_range, policy_bounds = bounded("")
+    auth_range, auth_bounds = bounded("events.")
+    approval_range, approval_bounds = bounded("approvals.")
+    execution_range, execution_bounds = bounded("executions.")
+    # One row past the limit tells us whether a source holds more than is shown.
+    fetch_limit = safe_limit + 1
+
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
 
@@ -1531,11 +1562,11 @@ def get_administrator_audit_events(
                 agent_status,
                 blocked_attempts
             FROM audit_events
-            WHERE {scope.format(alias="")}
+            WHERE {scope.format(alias="")}{policy_range}
             ORDER BY id DESC
             LIMIT ?
             """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
-            (*scope_parameters, safe_limit),
+            (*scope_parameters, *policy_bounds, fetch_limit),
         ).fetchall()
 
         authentication_rows = connection.execute(
@@ -1555,11 +1586,11 @@ def get_administrator_audit_events(
                     events.authenticated_agent_name,
                     events.claimed_agent_name
                 )
-            WHERE {scope.format(alias="identities.")}
+            WHERE {scope.format(alias="identities.")}{auth_range}
             ORDER BY events.id DESC
             LIMIT ?
             """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
-            (*scope_parameters, safe_limit),
+            (*scope_parameters, *auth_bounds, fetch_limit),
         ).fetchall()
 
         approval_rows = connection.execute(
@@ -1579,11 +1610,11 @@ def get_administrator_audit_events(
                 ON requests.request_id =
                    approvals.request_id
                 AND requests.org_id = approvals.org_id
-            WHERE {scope.format(alias="approvals.")}
+            WHERE {scope.format(alias="approvals.")}{approval_range}
             ORDER BY approvals.id DESC
             LIMIT ?
             """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
-            (*scope_parameters, safe_limit),
+            (*scope_parameters, *approval_bounds, fetch_limit),
         ).fetchall()
 
         execution_rows = connection.execute(
@@ -1602,12 +1633,23 @@ def get_administrator_audit_events(
                 ON requests.request_id =
                    executions.request_id
                 AND requests.org_id = executions.org_id
-            WHERE {scope.format(alias="executions.")}
+            WHERE {scope.format(alias="executions.")}{execution_range}
             ORDER BY executions.id DESC
             LIMIT ?
             """,  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
-            (*scope_parameters, safe_limit),
+            (*scope_parameters, *execution_bounds, fetch_limit),
         ).fetchall()
+
+    more_than_shown = {
+        "POLICY": len(policy_rows) > safe_limit,
+        "AUTHENTICATION": len(authentication_rows) > safe_limit,
+        "APPROVAL": len(approval_rows) > safe_limit,
+        "EXECUTION": len(execution_rows) > safe_limit,
+    }
+    policy_rows = policy_rows[:safe_limit]
+    authentication_rows = authentication_rows[:safe_limit]
+    approval_rows = approval_rows[:safe_limit]
+    execution_rows = execution_rows[:safe_limit]
 
     for row in policy_rows:
         decision = row["decision"]
@@ -1766,11 +1808,17 @@ def get_administrator_audit_events(
         reverse=True,
     )
 
+    truncated = len(events) > safe_limit or any(
+        more for source, more in more_than_shown.items()
+        if normalized_type in (None, source)
+    )
     events = events[:safe_limit]
 
     return {
         "events": events,
         "count": len(events),
+        "truncated": truncated,
+        "range": time_range.as_dict() if time_range else None,
         "filters": {
             "event_type": normalized_type,
             "agent_name": normalized_agent,

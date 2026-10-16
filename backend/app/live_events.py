@@ -71,8 +71,12 @@ async def stream_administrator_events(
     last_event_id: str | None = None,
     *,
     org_id: str,
+    history_range=None,
 ) -> AsyncIterator[str]:
-    """Stream unified GreyGuard evidence to an administrator."""
+    """Stream unified GreyGuard evidence to an administrator.
+
+    history_range (a time_range.TimeRange) bounds only the initial history; the live stream that
+    follows is never range-limited."""
 
     seen_event_ids: set[str] = set()
     seen_event_order: deque[str] = deque()
@@ -96,6 +100,7 @@ async def stream_administrator_events(
         agent_name=agent_name,
         limit=limit,
         org_id=org_id,
+        time_range=history_range,
     )
 
     initial_events = prepare_stream_events(initial_response["events"], agent_name)
@@ -112,6 +117,8 @@ async def stream_administrator_events(
             "recovery_requested": bool(last_event_id),
             "recovered_events": len(recovered_events) if last_event_id else 0,
             "filters": {"event_type": event_type, "agent_name": agent_name, "limit": limit},
+            "history_range": history_range.as_dict() if history_range else None,
+            "history_truncated": initial_response.get("truncated", False),
         },
     )
 

@@ -116,6 +116,22 @@ def get_controls():
     return {"config": config, "legal_holds": holds, "chain_records": chain_count, "last_check": dict(last_check) if last_check else None}
 
 
+_retention_ready = set()
+
+
+def retention_days():
+    """The configured audit retention in days.
+
+    The evidence lists call this on every ranged request, so it initializes the tables once per
+    database rather than each time, and never counts the chain."""
+    if str(database_path) not in _retention_ready:
+        initialize_audit_integrity()
+        _retention_ready.add(str(database_path))
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute("SELECT retention_days FROM audit_retention_config WHERE config_id=1").fetchone()
+    return int(row[0]) if row else None
+
+
 def update_retention(retention_days, immutable_enabled, actor):
     if not 30 <= retention_days <= 3650: raise ValueError("Retention must be between 30 and 3650 days.")
     initialize_audit_integrity()

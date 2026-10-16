@@ -17,7 +17,7 @@ import hmac
 import os
 import re
 from . import db_compat as sqlite3
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import (
     Request,
@@ -73,6 +73,7 @@ from .enterprise_sso import (
     list_enabled_providers_for_login,
 )
 from . import organizations
+from .time_range import parse_time_range
 from . import entitlements
 from . import billing
 from . import licensing
@@ -2195,6 +2196,11 @@ async def entitlement_refused(_request: Request, error: entitlements.Entitlement
     return JSONResponse(status_code=403, content={"detail": str(error), "reason": "ENTITLEMENT"})
 
 
+# Range bounds for the evidence lists (see time_range.py). Annotated, so a direct call in a test
+# defaults to None rather than to a Query object.
+RangeBound = Annotated[str | None, Query(max_length=64)]
+
+
 def alert_scope(administrator):
     """Which alerts and notifications an administrator sees: their active org's, plus - for an
     install operator only - install-level ones that belong to no tenant (see
@@ -3687,22 +3693,34 @@ def list_tool_requests(
     x_admin_pin: str | None = Header(
         default=None,
     ),
+    since: RangeBound = None,
+    until: RangeBound = None,
 ):
-    """Return the administrator's org's tool requests."""
+    """Return the administrator's org's tool requests, optionally within a time range.
+
+    Pending requests are returned whatever the range: open work is never hidden by one."""
 
     administrator = require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    time_range = parse_time_range(since, until, org_id=org_id)
 
     requests = get_tool_requests(
         agent_name=agent_name,
         approval_status=approval_status,
         execution_status=execution_status,
-        limit=limit,
-        org_id=organizations.resolve_org_id(administrator),
+        # One row past the limit tells the page whether more exist than are shown.
+        limit=limit + 1,
+        org_id=org_id,
+        time_range=time_range,
     )
+    truncated = len(requests) > limit
+    requests = requests[:limit]
 
     return {
         "requests": requests,
         "count": len(requests),
+        "truncated": truncated,
+        "range": time_range.as_dict() if time_range else None,
         "filters": {
             "agent_name": agent_name,
             "approval_status": approval_status,
@@ -4008,10 +4026,14 @@ def administrator_audit_events(
     x_admin_pin: str | None = Header(
         default=None,
     ),
+    since: RangeBound = None,
+    until: RangeBound = None,
 ):
-    """Return the administrator's org's unified audit evidence."""
+    """Return the administrator's org's unified audit evidence, optionally within a time range."""
 
     administrator = require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    time_range = parse_time_range(since, until, org_id=org_id)
 
     from .database import (
         get_administrator_audit_events,
@@ -4021,7 +4043,8 @@ def administrator_audit_events(
         event_type=event_type,
         agent_name=agent_name,
         limit=limit,
-        org_id=organizations.resolve_org_id(administrator),
+        org_id=org_id,
+        time_range=time_range,
     )
 
 
@@ -4051,10 +4074,15 @@ def live_administrator_events(
     x_admin_pin: str | None = Header(
         default=None,
     ),
+    since: RangeBound = None,
 ):
-    """Stream the administrator's org's live security evidence."""
+    """Stream the administrator's org's live security evidence.
+
+    since bounds only the initial history; the live stream itself has no end."""
 
     administrator = require_admin(x_admin_pin)
+    org_id = organizations.resolve_org_id(administrator)
+    history_range = parse_time_range(since, None, org_id=org_id)
 
     event_stream = stream_administrator_events(
         request=request,
@@ -4064,7 +4092,8 @@ def live_administrator_events(
         include_history=include_history,
         poll_interval=poll_interval,
         last_event_id=last_event_id,
-        org_id=organizations.resolve_org_id(administrator),
+        org_id=org_id,
+        history_range=history_range,
     )
 
     return StreamingResponse(
@@ -4186,9 +4215,15 @@ def administrator_alerts(
     agent_name: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     x_admin_pin: str | None = Header(default=None),
+    since: RangeBound = None,
+    until: RangeBound = None,
 ):
-    """Return filtered security alerts."""
-    return get_alerts(status, severity, agent_name, limit, **alert_scope(require_admin(x_admin_pin)))
+    """Return filtered security alerts, optionally within a time range.
+
+    Unresolved alerts are returned whatever the range: open work is never hidden by one."""
+    scope = alert_scope(require_admin(x_admin_pin))
+    time_range = parse_time_range(since, until, org_id=scope["org_id"])
+    return get_alerts(status, severity, agent_name, limit, **scope, time_range=time_range)
 
 
 @app.get("/alerts/{alert_id}")

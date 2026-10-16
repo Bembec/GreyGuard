@@ -19,6 +19,10 @@ def current_timestamp() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
+# Alerts still needing attention; a time range never hides these.
+OPEN_CONDITION = "status NOT IN ('RESOLVED', 'DISMISSED')"
+
+
 def _visibility(org_id, include_install_level: bool) -> tuple[str, tuple]:
     """The WHERE fragment deciding which alerts a caller may see.
 
@@ -85,6 +89,11 @@ def initialize_alert_database(database=None) -> None:
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_alert_severity "
             "ON security_alerts(severity)"
+        )
+        # P7.5 time ranges: alerts are read per org, newest first, within a range.
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_alert_org_created "
+            "ON security_alerts(org_id, created_at)"
         )
 
 
@@ -162,8 +171,12 @@ def get_alerts(
     *,
     org_id,
     include_install_level: bool = False,
+    time_range=None,
 ) -> dict[str, Any]:
-    """Return one org's filtered alerts newest first (see _visibility())."""
+    """Return one org's filtered alerts newest first (see _visibility()).
+
+    With a time_range, unresolved alerts still appear however old (open work is never hidden by a
+    range) and sort first, so the row limit cannot crowd them out."""
     if sync_existing:
         sync_alerts_from_events()
     visible, visible_parameters = _visibility(org_id, include_install_level)
@@ -178,18 +191,27 @@ def get_alerts(
     if agent_name:
         clauses.append("agent_name = ?")
         parameters.append(agent_name.strip())
+    order = " ORDER BY created_at DESC"
+    if time_range is not None:
+        fragment, bounds = time_range.in_range_or("created_at", OPEN_CONDITION)
+        clauses.append(fragment)
+        parameters.extend(bounds)
+        order = f" ORDER BY CASE WHEN {OPEN_CONDITION} THEN 0 ELSE 1 END, created_at DESC"
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
     safe_limit = max(1, min(int(limit), 500))
     with sqlite3.connect(database_path) as connection:
         connection.row_factory = sqlite3.Row
         rows = connection.execute(
-            "SELECT * FROM security_alerts" + where + " ORDER BY created_at DESC LIMIT ?",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
-            (*parameters, safe_limit),
+            "SELECT * FROM security_alerts" + where + order + " LIMIT ?",  # nosec B608  # WHERE clause is built from constant fragments; every value is a bound parameter
+            # One row past the limit tells us whether more exist than are shown.
+            (*parameters, safe_limit + 1),
         ).fetchall()
-        alerts = [_serialize(connection, row) for row in rows]
+        alerts = [_serialize(connection, row) for row in rows[:safe_limit]]
     return {
         "alerts": alerts,
         "count": len(alerts),
+        "truncated": len(rows) > safe_limit,
+        "range": time_range.as_dict() if time_range else None,
         "filters": {"status": status, "severity": severity, "agent_name": agent_name, "limit": safe_limit},
     }
 
