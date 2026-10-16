@@ -299,10 +299,12 @@ def test_the_preview_refuses_unknown_changes_and_targets(world, change, target):
 
 def database_fingerprint():
     with db_compat.connect(database.database_path) as connection:
-        tables = [row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")]
+        listing = ("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
+                   if db_compat.backend_name() == "postgresql" else "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+        tables = [row[0] for row in connection.execute(listing)]
         digest = hashlib.sha256()
         for table in tables:
-            if table in ("administrator_sessions", "rate_limit_counters", "observability_spans", "abuse_events", "product_analytics_events"):
+            if table in ("alembic_version", "administrator_sessions", "rate_limit_counters", "observability_spans", "abuse_events", "product_analytics_events"):
                 continue  # request bookkeeping that every authenticated call touches, not records
             # Read-only inventory of every table, org-scoped or not, for this test's before/after comparison.
             rows = connection.execute(f"SELECT * FROM {table} /* every org_id: test snapshot */").fetchall()  # nosec B608  # names come from sqlite_master
@@ -311,14 +313,22 @@ def database_fingerprint():
         return digest.hexdigest()
 
 
+def warmed_client(headers):
+    """A client whose request pipeline has run once, so its one-time setup on a fresh database
+    (rate-limit policies, observability config) is not mistaken for a write by the call under test."""
+    client = TestClient(api.app, raise_server_exceptions=False)
+    assert client.get("/auth/me", headers=headers).status_code == 200
+    return client
+
+
 def test_an_auditor_reads_the_graph_and_the_preview_and_changes_nothing(world):
     register(world["ours"], "ours_agent")
     submit("ours_agent", "read_file")
     submit("ours_agent")
     token = make_auditor()
-    before = database_fingerprint()
-    client = TestClient(api.app, raise_server_exceptions=False)
     headers = {"X-Admin-Pin": token}
+    client = warmed_client(headers)
+    before = database_fingerprint()
     assert client.get("/agents/ours_agent/graph", headers=headers).status_code == 200
     for query in ("change=revoke_scope&target=read_file", "change=revoke_credential", "change=disable_tool&target=read_file"):
         response = client.get(f"/agents/ours_agent/impact-preview?{query}", headers=headers)
@@ -331,8 +341,8 @@ def test_an_auditor_cannot_mutate_through_direct_api_calls(world):
     pending = submit("ours_agent")
     published = policy_control.get_published_policy(org_id=organizations.DEFAULT_ORG_ID)
     token = make_auditor()
-    client = TestClient(api.app, raise_server_exceptions=False)
     headers = {"X-Admin-Pin": token}
+    client = warmed_client(headers)
     before = database_fingerprint()
     attempts = [
         ("post", "/policy-versions/drafts", {"permissions": published["permissions"], "risk_weights": published["risk_weights"],
