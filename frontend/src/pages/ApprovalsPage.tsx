@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -390,48 +391,12 @@ export default function ApprovalsPage() {
         </ol>
       </Guidance>
 
-      <section className="approval-stat-grid">
-        <article className="approval-stat-card amber">
-          <Clock3 size={22} />
-          <span>Pending review</span>
-          <strong>{pendingRequests.length}</strong>
-          <small>
-            Execution remains paused
-          </small>
-        </article>
-
-        <article className="approval-stat-card green">
-          <CheckCircle2 size={22} />
-          <span>Approved</span>
-          <strong>{approvedRequests.length}</strong>
-          <small>
-            Authorized by an administrator
-          </small>
-        </article>
-
-        <article className="approval-stat-card red">
-          <ShieldX size={22} />
-          <span>Denied</span>
-          <strong>{deniedRequests.length}</strong>
-          <small>
-            Prevented before execution
-          </small>
-        </article>
-
-        <article className="approval-stat-card cyan">
-          <Gavel size={22} />
-          <span>Total decisions</span>
-          <strong>
-            {
-              approvedRequests.length
-              + deniedRequests.length
-            }
-          </strong>
-          <small>
-            Resolved human reviews
-          </small>
-        </article>
-      </section>
+      <StatGrid label="Approval summary">
+        <StatCard label="Pending review" value={pendingRequests.length} hint="Execution remains paused" tone="warning" icon={<Clock3 size={16} />} />
+        <StatCard label="Approved" value={approvedRequests.length} hint="Authorized by an administrator" tone="success" icon={<CheckCircle2 size={16} />} />
+        <StatCard label="Denied" value={deniedRequests.length} hint="Prevented before execution" tone="danger" icon={<ShieldX size={16} />} />
+        <StatCard label="Total decisions" value={approvedRequests.length + deniedRequests.length} hint="Resolved human reviews" tone="info" icon={<Gavel size={16} />} />
+      </StatGrid>
 
       {notice && (
         <div className="approval-notice">

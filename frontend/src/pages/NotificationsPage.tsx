@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -174,12 +175,12 @@ export default function NotificationsPage() {
         </ol>
       </Guidance>
 
-    <section className="notifications-metrics" aria-label="Notification summary">
-      <article><Inbox /><div><strong>{summary.data?.unread ?? 0}</strong><span>Unread</span></div></article>
-      <article className="critical"><AlertTriangle /><div><strong>{summary.data?.unread_critical ?? 0}</strong><span>Critical unread</span></div></article>
-      <article className="high"><CircleAlert /><div><strong>{summary.data?.unread_high ?? 0}</strong><span>High unread</span></div></article>
-      <article><BellRing /><div><strong>{summary.data?.total ?? 0}</strong><span>Total history</span></div></article>
-    </section>
+    <StatGrid label="Notification summary">
+      <StatCard label="Unread" value={summary.data?.unread ?? 0} icon={<Inbox size={16} />} />
+      <StatCard label="Critical unread" value={summary.data?.unread_critical ?? 0} tone="danger" icon={<AlertTriangle size={16} />} />
+      <StatCard label="High unread" value={summary.data?.unread_high ?? 0} tone="warning" icon={<CircleAlert size={16} />} />
+      <StatCard label="Total history" value={summary.data?.total ?? 0} icon={<BellRing size={16} />} />
+    </StatGrid>
 
     {canManageRetention && <section className="notification-retention">
       <div><span><Settings2 size={18}/></span><div><strong>Notification retention</strong><small>Expired records are removed automatically while cleanup actions remain auditable.</small></div></div>

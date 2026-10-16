@@ -1,4 +1,4 @@
-import { Building2, ChevronDown, LockKeyhole, LogOut, Settings, ShieldCheck } from "lucide-react"
+import { Building2, ChevronDown, LockKeyhole, LogOut, Settings } from "lucide-react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 
@@ -13,6 +13,12 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 /** Replaces the previously static, non-interactive topbar operator label. */
+/** Up to two initials for the avatar, from the display name or, failing that, the email. */
+export function initialsFor(name: string): string {
+  const words = name.split(/[\s@._-]+/).filter(Boolean)
+  return words.slice(0, 2).map((word) => word[0]!.toUpperCase()).join("") || "?"
+}
+
 export function UserMenu() {
   const { administrator, switchActiveOrg, logout } = useAuth()
   const navigate = useNavigate()
@@ -49,8 +55,8 @@ export function UserMenu() {
         aria-controls="user-menu-panel"
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="user-menu__avatar">
-          <ShieldCheck size={16} />
+        <span className="user-menu__avatar" aria-hidden="true">
+          {initialsFor(administrator.display_name || administrator.email)}
         </span>
         <span className="user-menu__identity">
           <strong>{administrator.display_name}</strong>

@@ -3,8 +3,6 @@ import { PageHeader } from "../components/page/PageHeader"
 import {
   Bell,
   Check,
-  Database,
-  Gauge,
   KeyRound,
   LogOut,
   MonitorCog,
@@ -145,41 +143,13 @@ export default function SettingsPage() {
         </ul>
       </Guidance>
 
-      <section className="settings-status-grid">
-        <article>
-          <ShieldCheck size={20} />
-          <div>
-            <span>Administrator session</span>
-            <strong>Authenticated</strong>
-          </div>
-        </article>
-
-        <article>
-          <Server size={20} />
-          <div>
-            <span>Environment</span>
-            <strong>{environmentLabel}</strong>
-          </div>
-        </article>
-
-        <article>
-          <Database size={20} />
-          <div>
-            <span>API connection</span>
-            <strong>{apiBaseUrl}</strong>
-          </div>
-        </article>
-
-        <article>
-          <Gauge size={20} />
-          <div>
-            <span>Refresh interval</span>
-            <strong>
-              {settings.refreshInterval} seconds
-            </strong>
-          </div>
-        </article>
-      </section>
+      {/* Configuration facts, not metrics, so they are a facts row rather than KPI cards. */}
+      <dl className="gg-facts settings-facts" aria-label="Session and environment">
+        <div><dt>Administrator session</dt><dd>Authenticated</dd></div>
+        <div><dt>Environment</dt><dd>{environmentLabel}</dd></div>
+        <div><dt>API connection</dt><dd>{apiBaseUrl}</dd></div>
+        <div><dt>Refresh interval</dt><dd>{settings.refreshInterval} seconds</dd></div>
+      </dl>
 
       <div className="settings-layout">
         <section className="settings-panel">

@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import { StatusBadge } from "../components/page/StatusBadge"
@@ -297,48 +298,12 @@ export default function SandboxPage() {
         </ul>
       </Guidance>
 
-      <section className="sandbox-stat-grid">
-        <article>
-          <Wrench />
-          <div>
-            <span>Controlled tools</span>
-            <strong>{tools.length}</strong>
-            <small>Explicit allowlist</small>
-          </div>
-        </article>
-
-        <article>
-          <FileText />
-          <div>
-            <span>Sandbox resources</span>
-            <strong>{entries.length}</strong>
-            <small>Files and directories</small>
-          </div>
-        </article>
-
-        <article>
-          <CheckCircle2 />
-          <div>
-            <span>Successful executions</span>
-            <strong>
-              {executionStats.succeeded}
-            </strong>
-            <small>Approved operations</small>
-          </div>
-        </article>
-
-        <article>
-          <ShieldCheck />
-          <div>
-            <span>Safety validations</span>
-            <strong>
-              {executionStats.dryRuns
-                + executionStats.failed}
-            </strong>
-            <small>Dry runs and blocked escapes</small>
-          </div>
-        </article>
-      </section>
+      <StatGrid label="Sandbox summary">
+        <StatCard label="Controlled tools" value={tools.length} hint="Explicit allowlist" icon={<Wrench size={16} />} />
+        <StatCard label="Sandbox resources" value={entries.length} hint="Files and directories" icon={<FileText size={16} />} />
+        <StatCard label="Successful executions" value={executionStats.succeeded} hint="Approved operations" icon={<CheckCircle2 size={16} />} />
+        <StatCard label="Safety validations" value={executionStats.dryRuns + executionStats.failed} hint="Dry runs and blocked escapes" icon={<ShieldCheck size={16} />} />
+      </StatGrid>
 
       <section className="sandbox-layout">
         <div className="sandbox-main-column">

@@ -117,15 +117,6 @@
   background: #45e6b0;
   box-shadow: 0 0 14px #45e6b0;
 }
-
-.auth-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.auth-stat-grid article,
 .auth-panel {
   border: 1px solid rgba(143, 181, 221, 0.14);
   background:
@@ -137,73 +128,13 @@
   box-shadow: 0 22px 55px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(18px);
 }
-
-.auth-stat-grid article {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  min-height: 7rem;
-  padding: 1rem;
-  border-radius: 1rem;
-}
-
-.auth-stat-icon {
-  display: grid;
-  place-items: center;
-  width: 2.7rem;
-  height: 2.7rem;
-  flex: 0 0 auto;
-  border-radius: 0.8rem;
-}
-
-.auth-stat-icon svg {
-  width: 1.25rem;
-}
-
-.auth-stat-icon.success,
 .auth-event-icon.success {
   color: #45e6b0;
   background: rgba(69, 230, 176, 0.1);
 }
-
-.auth-stat-icon.danger,
 .auth-event-icon.danger {
   color: #ff718b;
   background: rgba(255, 77, 109, 0.11);
-}
-
-.auth-stat-icon.warning {
-  color: #ffd166;
-  background: rgba(255, 209, 102, 0.1);
-}
-
-.auth-stat-icon.active {
-  color: #68d7ff;
-  background: rgba(104, 215, 255, 0.1);
-}
-
-.auth-stat-grid span,
-.auth-stat-grid strong,
-.auth-stat-grid small {
-  display: block;
-}
-
-.auth-stat-grid span,
-.auth-stat-grid small {
-  color: #8ea2ba;
-}
-
-.auth-stat-grid span {
-  font-size: 0.73rem;
-}
-
-.auth-stat-grid strong {
-  margin: 0.1rem 0;
-  font-size: 1.65rem;
-}
-
-.auth-stat-grid small {
-  font-size: 0.66rem;
 }
 
 .auth-layout {
@@ -557,9 +488,6 @@
 }
 
 @media (max-width: 1050px) {
-  .auth-stat-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 
   .auth-layout {
     grid-template-columns: 1fr;
@@ -575,8 +503,6 @@
     align-items: flex-start;
     flex-direction: column;
   }
-
-  .auth-stat-grid,
   .auth-filters,
   .auth-evidence {
     grid-template-columns: 1fr;
@@ -605,4 +531,35 @@
   .auth-spin {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.auth-hero > div > span, .auth-panel-heading > div > span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.auth-identity-grid, .auth-scan-line {
+  display: none;
+}
+
+.auth-panel {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.auth-live i {
+  box-shadow: none;
+}
+
+.auth-avatar {
+  border: 1px solid var(--gg-border-strong);
+  color: var(--gg-text-secondary);
+  background: var(--gg-surface-800);
+  box-shadow: none;
 }

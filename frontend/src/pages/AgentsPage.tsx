@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -553,39 +554,12 @@ export default function AgentsPage() {
         </ol>
       </Guidance>
 
-      <section className="agent-stat-grid">
-        <article className="agent-stat-card cyan">
-          <ShieldCheck size={22} />
-          <span>Registered agents</span>
-          <strong>{agents.length}</strong>
-          <small>
-            Independent identities in GreyGuard
-          </small>
-        </article>
-
-        <article className="agent-stat-card green">
-          <UserRoundCheck size={22} />
-          <span>Active</span>
-          <strong>{activeAgents}</strong>
-          <small>Available under current policy</small>
-        </article>
-
-        <article className="agent-stat-card violet">
-          <KeyRound size={22} />
-          <span>Protected identities</span>
-          <strong>{protectedIdentities}</strong>
-          <small>Credentials currently active</small>
-        </article>
-
-        <article className="agent-stat-card red">
-          <ShieldAlert size={22} />
-          <span>High-risk or suspended</span>
-          <strong>
-            {highRiskAgents + suspendedAgents}
-          </strong>
-          <small>Requires security attention</small>
-        </article>
-      </section>
+      <StatGrid label="Agent summary">
+        <StatCard label="Registered agents" value={agents.length} hint="Independent identities in GreyGuard" tone="info" icon={<ShieldCheck size={16} />} />
+        <StatCard label="Active" value={activeAgents} hint="Available under current policy" tone="success" icon={<UserRoundCheck size={16} />} />
+        <StatCard label="Protected identities" value={protectedIdentities} hint="Credentials currently active" icon={<KeyRound size={16} />} />
+        <StatCard label="High-risk or suspended" value={highRiskAgents + suspendedAgents} hint="Requires security attention" tone="danger" icon={<ShieldAlert size={16} />} />
+      </StatGrid>
 
       {notice && (
         <div className="agents-notice">

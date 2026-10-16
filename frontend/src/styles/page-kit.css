@@ -3,7 +3,7 @@
 .gg-page {
   display: grid;
   gap: 1.25rem;
-  padding: clamp(1rem, 2vw, 2rem);
+  padding: 1.5rem clamp(1rem, 2.2vw, 2rem) 2.5rem;
 }
 
 .gg-page-header {
@@ -14,14 +14,14 @@
 
 .gg-page-header__icon {
   display: grid;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   place-items: center;
-  border: 1px solid var(--gg-border-strong);
-  border-radius: 14px;
-  color: var(--gg-cyan);
-  background: rgba(72, 200, 248, 0.08);
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-md);
+  color: var(--gg-text-secondary);
+  background: var(--gg-surface-900);
 }
 
 .gg-page-header__copy {
@@ -34,26 +34,26 @@
 .gg-page-header__eyebrow,
 .gg-panel__eyebrow {
   margin: 0;
-  color: var(--gg-cyan);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  color: var(--gg-text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .gg-page-header h1 {
   margin: 0;
   color: var(--gg-text-primary);
-  font-family: var(--gg-font-display);
-  font-size: clamp(1.45rem, 2.4vw, 2rem);
-  line-height: 1.15;
+  font-family: var(--gg-font-sans);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
 }
 
 .gg-page-header__description {
-  max-width: 72ch;
+  max-width: 75ch;
   margin: 0;
   color: var(--gg-text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   line-height: 1.55;
 }
 
@@ -75,23 +75,26 @@
 
 .gg-button {
   display: inline-flex;
-  min-height: 38px;
+  min-height: 32px;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--gg-border);
-  border-radius: 10px;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
   color: var(--gg-text-primary);
   background: var(--gg-surface-850);
   font: inherit;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   transition: border-color var(--gg-transition-fast), background var(--gg-transition-fast);
 }
 
 .gg-button:hover {
-  border-color: var(--gg-border-strong);
+  border-color: rgba(148, 163, 184, 0.36);
+  background: var(--gg-surface-800);
 }
 
 .gg-button:disabled {
@@ -101,14 +104,24 @@
 
 .gg-button--primary {
   border-color: transparent;
-  color: #031018;
+  color: #02121c;
   background: var(--gg-cyan);
 }
 
+.gg-button--primary:hover {
+  border-color: transparent;
+  background: var(--gg-cyan-soft);
+}
+
+.gg-button:focus-visible {
+  outline: 2px solid var(--gg-cyan);
+  outline-offset: 2px;
+}
+
 .gg-button--danger {
-  border-color: rgba(239, 68, 68, 0.45);
+  border-color: rgba(248, 113, 113, 0.4);
   color: var(--gg-red);
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(248, 113, 113, 0.08);
 }
 
 .gg-link {
@@ -123,28 +136,25 @@
 /* Stats */
 .gg-stat-grid {
   display: grid;
-  gap: 0.85rem;
+  gap: 0.75rem;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .gg-stat {
   position: relative;
   display: grid;
-  gap: 0.3rem;
-  padding: 1rem 1.1rem;
+  align-content: start;
+  gap: 0.25rem;
+  padding: 0.85rem 1rem;
   overflow: hidden;
   border: 1px solid var(--gg-border);
-  border-radius: var(--gg-radius-md);
+  border-radius: var(--gg-radius-lg);
   color: var(--gg-text-primary);
-  background: var(--gg-panel);
+  background: var(--gg-surface-900);
 }
 
 .gg-stat::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--gg-tone, var(--gg-border));
-  content: "";
+  display: none;
 }
 
 .gg-stat--info { --gg-tone: var(--gg-cyan); }
@@ -159,32 +169,36 @@
 .gg-stat--link:hover,
 .gg-stat--link:focus-visible {
   border-color: var(--gg-border-strong);
-  transform: translateY(-1px);
+  background: var(--gg-surface-850);
 }
 
 .gg-stat__icon {
   position: absolute;
-  top: 0.9rem;
+  top: 0.85rem;
   right: 0.9rem;
   color: var(--gg-tone, var(--gg-text-muted));
+  opacity: 0.9;
 }
 
 .gg-stat__label {
   padding-right: 1.6rem;
   color: var(--gg-text-secondary);
-  font-size: 0.74rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 
 .gg-stat__value {
-  font-family: var(--gg-font-display);
-  font-size: 1.75rem;
-  line-height: 1.1;
+  font-family: var(--gg-font-sans);
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .gg-stat__hint {
   color: var(--gg-text-muted);
-  font-size: 0.7rem;
+  font-size: 0.74rem;
 }
 
 /* Panels */
@@ -193,10 +207,10 @@
   align-content: start;
   gap: 0.85rem;
   min-width: 0;
-  padding: 1.1rem 1.2rem;
+  padding: 1rem 1.1rem;
   border: 1px solid var(--gg-border);
   border-radius: var(--gg-radius-lg);
-  background: var(--gg-panel);
+  background: var(--gg-surface-900);
 }
 
 .gg-panel__header {
@@ -208,9 +222,11 @@
 }
 
 .gg-panel__header h2 {
-  margin: 0.15rem 0 0;
+  margin: 0.1rem 0 0;
   color: var(--gg-text-primary);
-  font-size: 1rem;
+  font-family: var(--gg-font-sans);
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .gg-panel__body {
@@ -230,8 +246,8 @@
 /* Guidance */
 .gg-guidance {
   border: 1px solid var(--gg-border);
-  border-radius: var(--gg-radius-md);
-  background: rgba(72, 200, 248, 0.04);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-surface-900);
 }
 
 .gg-guidance__toggle {
@@ -239,13 +255,13 @@
   width: 100%;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.9rem;
   border: 0;
   color: var(--gg-text-primary);
   background: transparent;
   font: inherit;
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
 }
@@ -259,7 +275,7 @@
 }
 
 .gg-guidance__body {
-  padding: 0 1rem 0.9rem 2.6rem;
+  padding: 0 0.9rem 0.8rem 2.45rem;
   color: var(--gg-text-secondary);
   font-size: 0.82rem;
   line-height: 1.6;
@@ -290,11 +306,11 @@
   flex: 1 1 260px;
   align-items: center;
   gap: 0.5rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--gg-border);
-  border-radius: 10px;
+  padding: 0 0.65rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
   color: var(--gg-text-muted);
-  background: var(--gg-surface-850);
+  background: var(--gg-navy-950);
 }
 
 .gg-filter-bar__search:focus-within {
@@ -303,7 +319,7 @@
 
 .gg-filter-bar__search input {
   width: 100%;
-  min-height: 38px;
+  min-height: 32px;
   border: 0;
   outline: none;
   color: var(--gg-text-primary);
@@ -321,12 +337,12 @@
 .gg-filter-bar__options button,
 .gg-filter-bar select {
   display: inline-flex;
-  min-height: 34px;
+  min-height: 32px;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.35rem 0.75rem;
+  padding: 0.3rem 0.65rem;
   border: 1px solid var(--gg-border);
-  border-radius: 999px;
+  border-radius: var(--gg-radius-sm);
   color: var(--gg-text-secondary);
   background: transparent;
   font: inherit;
@@ -336,8 +352,8 @@
 }
 
 .gg-filter-bar select {
-  border-radius: 10px;
-  background: var(--gg-surface-850);
+  border-color: var(--gg-border-strong);
+  background: var(--gg-navy-950);
 }
 
 .gg-filter-bar__options button.is-active {
@@ -374,18 +390,17 @@
 .gg-table table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .gg-table th {
-  padding: 0.55rem 0.7rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--gg-border);
   color: var(--gg-text-muted);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  font-weight: 500;
   text-align: left;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -404,7 +419,7 @@
 }
 
 .gg-table td {
-  padding: 0.7rem;
+  padding: 0.6rem 0.75rem;
   border-bottom: 1px solid var(--gg-border);
   color: var(--gg-text-secondary);
   vertical-align: middle;
@@ -419,7 +434,7 @@
 }
 
 .gg-table tbody tr:hover td {
-  background: rgba(148, 163, 184, 0.04);
+  background: var(--gg-hover);
 }
 
 .gg-table tr[data-tone="danger"] td:first-child {
@@ -460,16 +475,17 @@
 .gg-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.18rem 0.55rem;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
 
-.gg-badge--neutral { color: var(--gg-text-secondary); border-color: var(--gg-border); }
+.gg-badge--neutral { color: var(--gg-text-secondary); }
 .gg-badge--info { color: var(--gg-cyan); }
 .gg-badge--success { color: var(--gg-green); }
 .gg-badge--warning { color: var(--gg-amber); }
@@ -606,12 +622,12 @@
 .gg-field select,
 .gg-field textarea {
   width: 100%;
-  min-height: 38px;
-  padding: 0.5rem 0.7rem;
-  border: 1px solid var(--gg-border);
-  border-radius: 10px;
+  min-height: 34px;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
   color: var(--gg-text-primary);
-  background: var(--gg-surface-850);
+  background: var(--gg-navy-950);
   font: inherit;
   font-size: 0.84rem;
   font-weight: 400;
@@ -751,8 +767,8 @@
   min-width: 0;
   padding: 1rem 1.1rem;
   border: 1px solid var(--gg-border);
-  border-radius: var(--gg-radius-md);
-  background: var(--gg-surface-850);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-surface-900);
 }
 
 .gg-card__header {
@@ -784,13 +800,13 @@
 
 .gg-card__icon {
   display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   place-items: center;
-  border-radius: 10px;
-  color: var(--gg-cyan);
-  background: rgba(72, 200, 248, 0.1);
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-md);
+  color: var(--gg-text-secondary);
 }
 
 .gg-facts {
@@ -853,7 +869,7 @@
 
 /* Mature pages keep their own layouts; this gives them the shared page gutter and spacing. */
 .gg-page-pad {
-  padding: clamp(1rem, 2vw, 2rem);
+  padding: 1.5rem clamp(1rem, 2.2vw, 2rem) 2.5rem;
 }
 
 .gg-page-pad > .gg-page-header,
@@ -965,4 +981,33 @@
 
 .gg-access-denied .gg-button {
   margin-top: 0.6rem;
+}
+
+/* Native dropdowns look the same on every page, whichever stylesheet first drew them. */
+.app-shell .workspace__content select {
+  min-height: 32px;
+  height: auto;
+  padding: 0.3rem 1.8rem 0.3rem 0.6rem;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
+  color: var(--gg-text-primary);
+  background-color: var(--gg-navy-950);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.app-shell .workspace__content select:focus-visible {
+  border-color: var(--gg-cyan);
+  outline: 2px solid rgba(72, 200, 248, 0.25);
+  outline-offset: 1px;
+}
+
+/* Older pages lay out their own sections; give the shared KPI row the same breathing room. */
+.gg-page-pad > .gg-stat-grid {
+  margin-bottom: 1rem;
+}
+
+.app-shell .workspace__content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.app-shell .workspace__content textarea {
+  font-size: 0.82rem;
 }

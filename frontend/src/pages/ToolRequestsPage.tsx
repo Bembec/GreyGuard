@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -343,52 +344,13 @@ export default function ToolRequestsPage() {
         </div>
       </section>
 
-      <section className="request-stat-grid">
-        <article className="request-stat-card cyan">
-          <Activity size={21} />
-          <span>Total requests</span>
-          <strong>{requests.length}</strong>
-          <small>
-            Recorded controlled operations
-          </small>
-        </article>
-
-        <article className="request-stat-card green">
-          <Check size={21} />
-          <span>Succeeded</span>
-          <strong>{succeededCount}</strong>
-          <small>
-            Completed inside the gateway
-          </small>
-        </article>
-
-        <article className="request-stat-card amber">
-          <Clock3 size={21} />
-          <span>Needs review</span>
-          <strong>{reviewCount}</strong>
-          <small>
-            Pending human authorization
-          </small>
-        </article>
-
-        <article className="request-stat-card red">
-          <ShieldAlert size={21} />
-          <span>Contained</span>
-          <strong>{containedCount}</strong>
-          <small>
-            Failed safely or denied
-          </small>
-        </article>
-
-        <article className="request-stat-card violet">
-          <Zap size={21} />
-          <span>Dry runs</span>
-          <strong>{dryRunCount}</strong>
-          <small>
-            Simulated without side effects
-          </small>
-        </article>
-      </section>
+      <StatGrid label="Request summary">
+        <StatCard label="Total requests" value={requests.length} hint="Recorded controlled operations" tone="info" icon={<Activity size={16} />} />
+        <StatCard label="Succeeded" value={succeededCount} hint="Completed inside the gateway" tone="success" icon={<Check size={16} />} />
+        <StatCard label="Needs review" value={reviewCount} hint="Pending human authorization" tone="warning" icon={<Clock3 size={16} />} />
+        <StatCard label="Contained" value={containedCount} hint="Failed safely or denied" tone="danger" icon={<ShieldAlert size={16} />} />
+        <StatCard label="Dry runs" value={dryRunCount} hint="Simulated without side effects" icon={<Zap size={16} />} />
+      </StatGrid>
 
       <section className="requests-workspace">
         <div className="requests-list-panel">

@@ -92,87 +92,6 @@
   background: rgba(18, 47, 69, 0.92);
 }
 
-.agent-stat-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.agent-stat-card {
-  position: relative;
-  overflow: hidden;
-  min-height: 9rem;
-  padding: 1rem;
-  border: 1px solid rgba(137, 168, 199, 0.13);
-  border-radius: 1rem;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(15, 28, 44, 0.92),
-      rgba(7, 15, 27, 0.87)
-    );
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.14);
-}
-
-.agent-stat-card::after {
-  content: "";
-  position: absolute;
-  right: -2rem;
-  bottom: -4rem;
-  width: 8rem;
-  height: 8rem;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.06;
-  filter: blur(4px);
-}
-
-.agent-stat-card svg {
-  color: currentColor;
-}
-
-.agent-stat-card.cyan {
-  color: #64dcff;
-}
-
-.agent-stat-card.green {
-  color: #57e7b1;
-}
-
-.agent-stat-card.violet {
-  color: #a996ff;
-}
-
-.agent-stat-card.red {
-  color: #ff778b;
-}
-
-.agent-stat-card span,
-.agent-stat-card small {
-  display: block;
-  color: var(--text-secondary, #91a0b4);
-}
-
-.agent-stat-card span {
-  margin-top: 0.65rem;
-  font-size: 0.77rem;
-  font-weight: 650;
-}
-
-.agent-stat-card strong {
-  display: block;
-  margin-top: 0.15rem;
-  color: #f4f9ff;
-  font-size: 1.8rem;
-}
-
-.agent-stat-card small {
-  margin-top: 0.15rem;
-  font-size: 0.68rem;
-}
-
 .agents-notice {
   display: flex;
   align-items: center;
@@ -870,9 +789,6 @@ button:disabled {
 }
 
 @media (max-width: 1180px) {
-  .agent-stat-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 
   .agents-workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -898,14 +814,6 @@ button:disabled {
     align-self: flex-start;
   }
 
-  .agent-stat-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .agent-stat-card {
-    min-height: auto;
-  }
-
   .agents-toolbar {
     flex-direction: column;
   }
@@ -928,7 +836,6 @@ button:disabled {
     width: 100%;
   }
 }
-
 
 /* GREYGUARD RESPONSIVE AGENTS FIX */
 
@@ -955,11 +862,6 @@ button:disabled {
 @media (max-width: 1050px) {
   .agents-heading h1 {
     font-size: clamp(1.8rem, 4.4vw, 2.6rem);
-  }
-
-  .agent-stat-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
   }
 
   .agents-watermark {
@@ -991,10 +893,6 @@ button:disabled {
 
   .agents-refresh-button {
     width: 100%;
-  }
-
-  .agent-stat-grid {
-    grid-template-columns: 1fr;
   }
 
   .agents-toolbar {
@@ -1044,7 +942,6 @@ button:disabled {
     overflow-y: auto;
   }
 }
-
 
 /* FIXED AGENT ACTION NOTIFICATION */
 
@@ -1101,4 +998,47 @@ button:disabled {
   margin: 0.8rem 0 0;
   color: var(--gg-red);
   font-size: 0.8rem;
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.section-kicker, .agent-table th, .detail-header span, .credential-modal > span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.agents-watermark {
+  display: none;
+}
+
+.agent-avatar {
+  border: 1px solid var(--gg-border-strong);
+  color: var(--gg-text-secondary);
+  background: var(--gg-surface-800);
+  box-shadow: none;
+}
+
+.detail-orbit {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-850);
+  box-shadow: none;
+  animation: none;
+}
+
+.detail-orbit::before, .detail-orbit::after {
+  display: none;
+}
+
+.detail-primary-button, .credential-close-button {
+  border: 1px solid transparent;
+  color: #02121c;
+  background: var(--gg-cyan);
+  box-shadow: none;
+}
+
+.credential-modal, .agents-notice {
+  background: var(--gg-surface-850);
+  box-shadow: var(--gg-shadow-md);
 }

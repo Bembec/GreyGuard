@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -324,51 +325,12 @@ export default function RiskCenterPage() {
         </ol>
       </Guidance>
 
-      <section className="risk-summary-grid">
-        <article className="risk-summary-card">
-          <div className="risk-card-icon">
-            <Users />
-          </div>
-          <div>
-            <span>Monitored agents</span>
-            <strong>{agents.length}</strong>
-            <small>Independent identities</small>
-          </div>
-        </article>
-
-        <article className="risk-summary-card">
-          <div className="risk-card-icon warning">
-            <TrendingUp />
-          </div>
-          <div>
-            <span>Elevated risk</span>
-            <strong>{summary.elevated}</strong>
-            <small>Medium or high exposure</small>
-          </div>
-        </article>
-
-        <article className="risk-summary-card">
-          <div className="risk-card-icon danger">
-            <AlertOctagon />
-          </div>
-          <div>
-            <span>Critical agents</span>
-            <strong>{summary.critical}</strong>
-            <small>Immediate review required</small>
-          </div>
-        </article>
-
-        <article className="risk-summary-card">
-          <div className="risk-card-icon suspended">
-            <ShieldOff />
-          </div>
-          <div>
-            <span>Suspended</span>
-            <strong>{summary.suspended}</strong>
-            <small>Execution access refused</small>
-          </div>
-        </article>
-      </section>
+      <StatGrid label="Risk summary">
+        <StatCard label="Monitored agents" value={agents.length} hint="Independent identities" icon={<Users size={16} />} />
+        <StatCard label="Elevated risk" value={summary.elevated} hint="Medium or high exposure" tone="warning" icon={<TrendingUp size={16} />} />
+        <StatCard label="Critical agents" value={summary.critical} hint="Immediate review required" tone="danger" icon={<AlertOctagon size={16} />} />
+        <StatCard label="Suspended" value={summary.suspended} hint="Execution access refused" tone="danger" icon={<ShieldOff size={16} />} />
+      </StatGrid>
 
       <section className="risk-intelligence-grid">
         <article className="risk-panel risk-ranking-panel">

@@ -57,7 +57,7 @@ export function NavFlyout({ group, workspaces }: NavFlyoutProps) {
         }}
         title={group.label}
       >
-        <GroupIcon size={19} />
+        <GroupIcon size={17} />
       </button>
       {/* On <body>: the sidebar is its own stacking context, which would keep the open menu
           beneath fixed banners such as the offline prompt. */}

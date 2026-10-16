@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -218,20 +219,12 @@ export default function IncidentCenterPage() {
         </ol>
       </Guidance>
 
-      <section className="incident-metrics" aria-label="Incident summary">
-        {[
-          ["Open alerts", summary.data?.open ?? 0, BellRing, "amber"],
-          ["Investigating", summary.data?.active_investigations ?? 0, CircleDot, "blue"],
-          ["Critical open", summary.data?.critical_open ?? 0, AlertTriangle, "red"],
-          ["Closed", summary.data?.closed ?? 0, CheckCircle2, "green"],
-        ].map(([label, value, Icon, tone]) => {
-          const MetricIcon = Icon as typeof BellRing
-          return <article className={`incident-metric incident-metric--${tone}`} key={String(label)}>
-            <span><MetricIcon size={19} /></span>
-            <div><strong>{String(value)}</strong><small>{String(label)}</small></div>
-          </article>
-        })}
-      </section>
+      <StatGrid label="Incident summary">
+        <StatCard label="Open alerts" value={summary.data?.open ?? 0} tone="warning" icon={<BellRing size={16} />} />
+        <StatCard label="Investigating" value={summary.data?.active_investigations ?? 0} tone="info" icon={<CircleDot size={16} />} />
+        <StatCard label="Critical open" value={summary.data?.critical_open ?? 0} tone="danger" icon={<AlertTriangle size={16} />} />
+        <StatCard label="Closed" value={summary.data?.closed ?? 0} tone="success" icon={<CheckCircle2 size={16} />} />
+      </StatGrid>
 
       <section className="incident-panel">
         <header className="incident-toolbar">

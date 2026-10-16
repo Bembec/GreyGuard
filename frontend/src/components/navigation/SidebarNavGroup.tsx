@@ -80,14 +80,12 @@ export function SidebarNavGroup({ group, workspaces }: SidebarNavGroupProps) {
                 to={tabs[0].path}
                 className={["sidebar__link", active ? "sidebar__link--active" : ""].join(" ")}
                 aria-current={active ? "page" : undefined}
+                title={workspace.description}
               >
                 <span className="sidebar__link-icon">
-                  <workspace.icon size={18} />
+                  <workspace.icon size={16} />
                 </span>
-                <span className="sidebar__link-copy">
-                  <strong>{workspace.label}</strong>
-                  <small>{workspace.description}</small>
-                </span>
+                <span className="sidebar__link-copy">{workspace.label}</span>
                 {tabs.length > 1 && <span className="sidebar__link-count" aria-label={`${tabs.length} sections`}>{tabs.length}</span>}
               </Link>
             )

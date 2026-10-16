@@ -165,14 +165,6 @@ export function AppShell() {
           </button>
         </div>
 
-        <div className={`sidebar__environment sidebar__environment--${posture.tone}`} role="status" title={posture.title}>
-          <span className="sidebar__pulse" />
-
-          <div>
-            <strong>{posture.title}</strong>
-            <span>{posture.detail}</span>
-          </div>
-        </div>
 
         <nav
           className="sidebar__nav gg-scrollbar"
@@ -181,22 +173,15 @@ export function AppShell() {
           {pinnedItem && (
             <NavLink
               to={pinnedItem.path}
+              title={collapsed ? pinnedItem.label : pinnedItem.description}
               className={({ isActive }) =>
                 ["sidebar__link", isActive ? "sidebar__link--active" : ""].join(" ")
               }
             >
               <span className="sidebar__link-icon">
-                <pinnedItem.icon size={19} />
+                <pinnedItem.icon size={16} />
               </span>
-              {!collapsed && (
-                <>
-                  <span className="sidebar__link-copy">
-                    <strong>{pinnedItem.label}</strong>
-                    <small>{pinnedItem.description}</small>
-                  </span>
-                  <ChevronRight className="sidebar__link-arrow" size={16} />
-                </>
-              )}
+              <span className="sidebar__link-copy">{pinnedItem.label}</span>
             </NavLink>
           )}
 
@@ -213,37 +198,45 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar__footer">
-          <button
-            type="button"
-            className="sidebar__logout"
-            onClick={logout}
-          >
-            <LogOut size={18} />
+          <div className={`sidebar__environment sidebar__environment--${posture.tone}`} role="status" title={posture.title}>
+            <span className="sidebar__pulse" />
 
-            <span className="sidebar__link-copy">
-              <strong>End session</strong>
-              <small>Remove administrator access</small>
-            </span>
-          </button>
+            <div>
+              <strong>{posture.title}</strong>
+              <span>{posture.detail}</span>
+            </div>
+          </div>
 
-          <button
-            type="button"
-            className="sidebar__collapse"
-            onClick={() =>
-              setCollapsed((current) => !current)
-            }
-            aria-label={
-              collapsed
-                ? "Expand sidebar"
-                : "Collapse sidebar"
-            }
-          >
-            {collapsed ? (
-              <ChevronRight size={18} />
-            ) : (
-              <ChevronLeft size={18} />
-            )}
-          </button>
+          <div className="sidebar__footer-row">
+            <button
+              type="button"
+              className="sidebar__logout"
+              onClick={logout}
+              title="End session and remove administrator access"
+            >
+              <LogOut size={16} />
+              <span>End session</span>
+            </button>
+
+            <button
+              type="button"
+              className="sidebar__collapse"
+              onClick={() =>
+                setCollapsed((current) => !current)
+              }
+              aria-label={
+                collapsed
+                  ? "Expand sidebar"
+                  : "Collapse sidebar"
+              }
+            >
+              {collapsed ? (
+                <ChevronRight size={16} />
+              ) : (
+                <ChevronLeft size={16} />
+              )}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -261,13 +254,13 @@ export function AppShell() {
 
             <div>
               <p className="topbar__trail">
-                GreyGuard
-                {currentPage.trail.map((part) => (
+                {currentPage.trail.map((part, index) => (
                   <span key={part}>
-                    <ChevronRight size={13} aria-hidden="true" />
+                    {index > 0 && <ChevronRight size={13} aria-hidden="true" />}
                     {part}
                   </span>
                 ))}
+                {currentPage.trail.length > 0 && <ChevronRight size={13} aria-hidden="true" />}
               </p>
 
               <div className="topbar__heading">
@@ -311,16 +304,6 @@ export function AppShell() {
               .replace("/", "")}`,
           ].join(" ")}
         >
-          <div className="workspace__background">
-            <div className="workspace__grid" />
-            <div className="workspace__orb workspace__orb--one" />
-            <div className="workspace__orb workspace__orb--two" />
-
-            {location.pathname === "/dashboard" ? (
-              <Logo variant="symbol" className="workspace__watermark" />
-            ) : null}
-          </div>
-
           <WorkspaceTabs />
           <OfflineBanner />
           <CapacityBanner />

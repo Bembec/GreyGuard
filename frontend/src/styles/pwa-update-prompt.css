@@ -1,23 +1,23 @@
 .gg-pwa-prompt {
   position: fixed;
   z-index: 190;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(560px, calc(100vw - 32px));
+  right: 16px;
+  bottom: 16px;
+  width: min(380px, calc(100vw - 32px));
 }
 
 .gg-pwa-prompt__banner {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid rgba(100, 116, 139, 0.3);
-  border-radius: 13px;
-  background: rgba(15, 23, 42, 0.97);
-  box-shadow: 0 18px 55px rgba(2, 6, 23, 0.45);
-  color: #e2e8f0;
-  font-size: 0.85rem;
+  padding: 10px 12px;
+  border: 1px solid var(--gg-border-strong);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-surface-850);
+  box-shadow: var(--gg-shadow-md);
+  color: var(--gg-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.45;
   animation: gg-pwa-prompt-in 0.2s ease-out;
 }
 

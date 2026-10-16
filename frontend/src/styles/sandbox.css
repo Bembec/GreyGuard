@@ -113,15 +113,6 @@
   color: #84ab9e;
   font-size: 0.64rem;
 }
-
-.sandbox-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.sandbox-stat-grid article,
 .sandbox-panel {
   border: 1px solid rgba(143, 181, 221, 0.14);
   background:
@@ -132,43 +123,6 @@
     );
   box-shadow: 0 22px 55px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(18px);
-}
-
-.sandbox-stat-grid article {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  min-height: 6.8rem;
-  padding: 1rem;
-  border-radius: 1rem;
-}
-
-.sandbox-stat-grid svg {
-  color: #68d7ff;
-}
-
-.sandbox-stat-grid span,
-.sandbox-stat-grid strong,
-.sandbox-stat-grid small {
-  display: block;
-}
-
-.sandbox-stat-grid span,
-.sandbox-stat-grid small {
-  color: #8ea2ba;
-}
-
-.sandbox-stat-grid span {
-  font-size: 0.72rem;
-}
-
-.sandbox-stat-grid strong {
-  margin: 0.1rem 0;
-  font-size: 1.6rem;
-}
-
-.sandbox-stat-grid small {
-  font-size: 0.64rem;
 }
 
 .sandbox-layout {
@@ -505,9 +459,6 @@
 }
 
 @media (max-width: 1050px) {
-  .sandbox-stat-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 
   .sandbox-layout {
     grid-template-columns: 1fr;
@@ -523,8 +474,6 @@
     align-items: flex-start;
     flex-direction: column;
   }
-
-  .sandbox-stat-grid,
   .sandbox-tool-grid,
   .sandbox-evidence {
     grid-template-columns: 1fr;
@@ -552,4 +501,24 @@
   .sandbox-spin {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.sandbox-hero > div > span, .sandbox-panel-heading > div > span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.sandbox-grid {
+  display: none;
+}
+
+.sandbox-panel {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
 }

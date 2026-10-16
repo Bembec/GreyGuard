@@ -182,71 +182,6 @@
   color: #52677f;
 }
 
-.policy-stat-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(5, minmax(0, 1fr));
-  gap: 0.7rem;
-  margin-bottom: 1rem;
-}
-
-.policy-stat-card {
-  padding: 0.9rem;
-  border: 1px solid rgba(129, 162, 194, 0.13);
-  border-radius: 0.9rem;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(15, 29, 45, 0.93),
-      rgba(7, 15, 27, 0.88)
-    );
-}
-
-.policy-stat-card.green {
-  color: #57e4af;
-}
-
-.policy-stat-card.amber {
-  color: #ffc363;
-}
-
-.policy-stat-card.red {
-  color: #ff7189;
-}
-
-.policy-stat-card.violet {
-  color: #a18cff;
-}
-
-.policy-stat-card.cyan {
-  color: #61ddff;
-}
-
-.policy-stat-card span,
-.policy-stat-card strong,
-.policy-stat-card small {
-  display: block;
-}
-
-.policy-stat-card span {
-  margin-top: 0.5rem;
-  color: #8497ac;
-  font-size: 0.67rem;
-  font-weight: 700;
-}
-
-.policy-stat-card strong {
-  margin-top: 0.1rem;
-  color: #edf7ff;
-  font-size: 1.55rem;
-}
-
-.policy-stat-card small {
-  margin-top: 0.14rem;
-  color: #677a90;
-  font-size: 0.59rem;
-}
-
 .policy-state-panel,
 .policy-empty {
   display: flex;
@@ -857,10 +792,6 @@ button:disabled {
 }
 
 @media (max-width: 1180px) {
-  .policy-stat-grid {
-    grid-template-columns:
-      repeat(3, minmax(0, 1fr));
-  }
 
   .policy-rule {
     grid-template-columns:
@@ -885,10 +816,6 @@ button:disabled {
 
   .policies-refresh-button {
     width: 100%;
-  }
-
-  .policy-stat-grid {
-    grid-template-columns: 1fr 1fr;
   }
 
   .policy-toolbar,
@@ -917,14 +844,32 @@ button:disabled {
   }
 }
 
-@media (max-width: 440px) {
-  .policy-stat-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .policy-node {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.policies-kicker, .policy-panel-header span, .policy-insight-header span, .simulator-header span, .policy-posture-ring span, .simulation-result span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.policy-network-background {
+  display: none;
+}
+
+.policy-node, .policy-posture-ring, .simulator-toggle button.enabled > span, .simulator-toggle button.danger.enabled > span {
+  box-shadow: none;
+}
+
+.run-simulation-button {
+  border: 1px solid transparent;
+  color: #02121c;
+  background: var(--gg-cyan);
+  box-shadow: none;
 }

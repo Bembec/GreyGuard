@@ -154,44 +154,6 @@
   background: #46e7b0;
 }
 
-.settings-status-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.settings-status-grid article {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 13px;
-  padding: 17px;
-  border: 1px solid rgba(129, 180, 214, 0.12);
-  border-radius: 17px;
-  color: #67dfff;
-  background: rgba(8, 24, 38, 0.82);
-}
-
-.settings-status-grid article div {
-  display: grid;
-  min-width: 0;
-  gap: 4px;
-}
-
-.settings-status-grid span {
-  color: #7991a6;
-  font-size: 0.75rem;
-}
-
-.settings-status-grid strong {
-  overflow: hidden;
-  color: #e9f6ff;
-  font-size: 0.88rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .settings-layout {
   display: grid;
   grid-template-columns:
@@ -593,13 +555,6 @@
   color: #59e3b5;
 }
 
-@media (max-width: 1100px) {
-  .settings-status-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 820px) {
   .settings-layout {
     grid-template-columns: 1fr;
@@ -628,10 +583,6 @@
 
   .settings-hero-orbit {
     display: none;
-  }
-
-  .settings-status-grid {
-    grid-template-columns: 1fr;
   }
 
   .settings-panel {
@@ -790,4 +741,39 @@
 
 .plan-assignment [role="alert"] {
   color: #fb7185;
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.settings-eyebrow, .settings-panel-heading span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.settings-hero-orbit, .settings-hero::before {
+  display: none;
+}
+
+.settings-hero, .settings-panel {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.settings-primary-button {
+  border: 1px solid transparent;
+  color: #02121c;
+  background: var(--gg-cyan);
+  box-shadow: none;
+}
+.settings-facts {
+  margin-bottom: 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--gg-border);
+  border-radius: var(--gg-radius-lg);
+  background: var(--gg-surface-900);
+  font-size: 0.8rem;
 }

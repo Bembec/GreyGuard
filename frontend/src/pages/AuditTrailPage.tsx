@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -243,41 +244,12 @@ export default function AuditTrailPage() {
         </ul>
       </Guidance>
 
-      <section className="audit-stat-grid">
-        <article>
-          <Database />
-          <div>
-            <span>Total evidence</span>
-            <strong>{statistics.total}</strong>
-          </div>
-        </article>
-
-        <article>
-          <ShieldCheck />
-          <div>
-            <span>Policy events</span>
-            <strong>{statistics.policy}</strong>
-          </div>
-        </article>
-
-        <article>
-          <Fingerprint />
-          <div>
-            <span>Authentication</span>
-            <strong>
-              {statistics.authentication}
-            </strong>
-          </div>
-        </article>
-
-        <article>
-          <AlertTriangle />
-          <div>
-            <span>Elevated evidence</span>
-            <strong>{statistics.elevated}</strong>
-          </div>
-        </article>
-      </section>
+      <StatGrid label="Evidence summary">
+        <StatCard label="Total evidence" value={statistics.total} icon={<Database size={16} />} />
+        <StatCard label="Policy events" value={statistics.policy} icon={<ShieldCheck size={16} />} />
+        <StatCard label="Authentication" value={statistics.authentication} icon={<Fingerprint size={16} />} />
+        <StatCard label="Elevated evidence" value={statistics.elevated} icon={<AlertTriangle size={16} />} />
+      </StatGrid>
 
       <section className="audit-console">
         <div className="audit-console-heading">

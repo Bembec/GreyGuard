@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -416,56 +417,13 @@ export default function PoliciesPage() {
 
       {policy && (
         <>
-          <section className="policy-stat-grid">
-            <article className="policy-stat-card green">
-              <CheckCircle2 size={22} />
-              <span>Allowed actions</span>
-              <strong>{allowCount}</strong>
-              <small>
-                Scoped low-friction operations
-              </small>
-            </article>
-
-            <article className="policy-stat-card amber">
-              <CircleHelp size={22} />
-              <span>Approval actions</span>
-              <strong>{askCount}</strong>
-              <small>
-                Human authorization required
-              </small>
-            </article>
-
-            <article className="policy-stat-card red">
-              <Ban size={22} />
-              <span>Blocked actions</span>
-              <strong>{blockCount}</strong>
-              <small>
-                Immediately refused by policy
-              </small>
-            </article>
-
-            <article className="policy-stat-card violet">
-              <Gauge size={22} />
-              <span>Risk threshold</span>
-              <strong>
-                {policy.max_risk_score}
-              </strong>
-              <small>
-                Automatic suspension boundary
-              </small>
-            </article>
-
-            <article className="policy-stat-card cyan">
-              <ShieldAlert size={22} />
-              <span>Block threshold</span>
-              <strong>
-                {policy.max_blocked_attempts}
-              </strong>
-              <small>
-                Attempts before suspension
-              </small>
-            </article>
-          </section>
+          <StatGrid label="Policy summary">
+            <StatCard label="Allowed actions" value={allowCount} hint="Scoped low-friction operations" tone="success" icon={<CheckCircle2 size={16} />} />
+            <StatCard label="Approval actions" value={askCount} hint="Human authorization required" tone="warning" icon={<CircleHelp size={16} />} />
+            <StatCard label="Blocked actions" value={blockCount} hint="Immediately refused by policy" tone="danger" icon={<Ban size={16} />} />
+            <StatCard label="Risk threshold" value={policy.max_risk_score} hint="Automatic suspension boundary" icon={<Gauge size={16} />} />
+            <StatCard label="Block threshold" value={policy.max_blocked_attempts} hint="Attempts before suspension" tone="info" icon={<ShieldAlert size={16} />} />
+          </StatGrid>
 
           <section className="policy-workspace">
             <div className="policy-matrix-panel">

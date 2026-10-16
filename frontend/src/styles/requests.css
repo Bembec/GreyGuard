@@ -167,77 +167,6 @@
   color: #65dcff;
 }
 
-.request-stat-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(5, minmax(0, 1fr));
-  gap: 0.7rem;
-  margin-bottom: 1rem;
-}
-
-.request-stat-card {
-  min-width: 0;
-  padding: 0.9rem;
-  overflow: hidden;
-  border: 1px solid rgba(129, 162, 194, 0.13);
-  border-radius: 0.9rem;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(15, 29, 45, 0.93),
-      rgba(7, 15, 27, 0.88)
-    );
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.13);
-}
-
-.request-stat-card.cyan {
-  color: #61dfff;
-}
-
-.request-stat-card.green {
-  color: #55e5ad;
-}
-
-.request-stat-card.amber {
-  color: #ffc061;
-}
-
-.request-stat-card.red {
-  color: #ff7189;
-}
-
-.request-stat-card.violet {
-  color: #a28cff;
-}
-
-.request-stat-card span,
-.request-stat-card strong,
-.request-stat-card small {
-  display: block;
-}
-
-.request-stat-card span {
-  margin-top: 0.5rem;
-  color: #8496ab;
-  font-size: 0.68rem;
-  font-weight: 700;
-}
-
-.request-stat-card strong {
-  margin-top: 0.1rem;
-  color: #edf7ff;
-  font-size: 1.55rem;
-}
-
-.request-stat-card small {
-  margin-top: 0.15rem;
-  overflow: hidden;
-  color: #667990;
-  font-size: 0.6rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .requests-workspace {
   display: grid;
   grid-template-columns:
@@ -817,10 +746,6 @@
 }
 
 @media (max-width: 1180px) {
-  .request-stat-grid {
-    grid-template-columns:
-      repeat(3, minmax(0, 1fr));
-  }
 
   .requests-toolbar {
     grid-template-columns: 1fr 1fr;
@@ -850,10 +775,6 @@
     padding-bottom: 0.8rem;
   }
 
-  .request-stat-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .requests-toolbar {
     grid-template-columns: 1fr;
   }
@@ -878,15 +799,44 @@
   }
 }
 
-@media (max-width: 440px) {
-  .request-stat-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .request-flow::after,
   .evidence-orbit::after {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.requests-kicker, .requests-table th, .request-detail-header span, .request-timeline small {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.requests-grid-background {
+  display: none;
+}
+
+.request-flow {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.request-flow::after, .timeline-node {
+  box-shadow: none;
+}
+
+.evidence-orbit {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-850);
+  box-shadow: none;
+  animation: none;
+}
+
+.evidence-orbit::after {
+  display: none;
 }

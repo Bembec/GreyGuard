@@ -227,78 +227,6 @@
   background: #fb7185;
 }
 
-.live-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-  margin-bottom: 1rem;
-}
-
-.live-metric {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.8rem;
-  padding: 1rem;
-  border: 1px solid rgba(112, 176, 219, 0.12);
-  border-radius: 1rem;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(13, 25, 42, 0.9),
-      rgba(8, 15, 27, 0.84)
-    );
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.16);
-}
-
-.live-metric__icon {
-  display: grid;
-  place-items: center;
-  width: 2.65rem;
-  height: 2.65rem;
-  border-radius: 0.8rem;
-  color: #5de1ff;
-  background: rgba(34, 211, 238, 0.1);
-}
-
-.live-metric__icon--danger {
-  color: #fb7185;
-  background: rgba(244, 63, 94, 0.1);
-}
-
-.live-metric__icon--warning {
-  color: #fbbf24;
-  background: rgba(245, 158, 11, 0.1);
-}
-
-.live-metric__icon--agent {
-  color: #a78bfa;
-  background: rgba(139, 92, 246, 0.1);
-}
-
-.live-metric small,
-.live-metric strong,
-.live-metric em {
-  display: block;
-}
-
-.live-metric small {
-  color: #8498b2;
-  font-size: 0.74rem;
-}
-
-.live-metric strong {
-  margin-top: 0.12rem;
-  color: #f3f9ff;
-  font-size: 1.65rem;
-}
-
-.live-metric em {
-  grid-column: 1 / -1;
-  color: #52677f;
-  font-size: 0.69rem;
-  font-style: normal;
-}
-
 .live-control-panel,
 .live-feed {
   border: 1px solid rgba(107, 190, 231, 0.13);
@@ -749,10 +677,6 @@
 }
 
 @media (max-width: 1100px) {
-  .live-metrics {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
 
   .live-filters {
     grid-template-columns:
@@ -796,9 +720,6 @@
 }
 
 @media (max-width: 520px) {
-  .live-metrics {
-    grid-template-columns: 1fr;
-  }
 
   .live-event {
     grid-template-columns: 2.2rem 1fr;
@@ -825,4 +746,43 @@
   .live-connection__pulse {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.live-eyebrow, .live-control-panel__heading span, .live-feed__indicator, .live-filters label > span, .live-event__details dt, .live-event__payload strong {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.live-page__atmosphere, .live-grid-glow, .live-orbit, .live-scan-beam {
+  display: none;
+}
+
+.live-connection, .live-control-panel, .live-feed {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.live-connection__pulse, .live-feed__indicator > span, .live-event__rail > span {
+  box-shadow: none;
+  animation: none;
+}
+
+.live-button--primary {
+  border: 1px solid transparent;
+  color: #02121c;
+  background: var(--gg-cyan);
+  box-shadow: none;
+}
+.live-input {
+  min-height: 32px;
+  border-color: var(--gg-border-strong);
+  border-radius: var(--gg-radius-sm);
+  background: var(--gg-navy-950);
+  font-size: 0.82rem;
 }

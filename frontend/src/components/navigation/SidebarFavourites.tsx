@@ -19,18 +19,16 @@ export function SidebarFavourites() {
   return (
     <div className="sidebar-group sidebar-favourites" role="group" aria-label="Favourites">
       <p className="sidebar-group__header sidebar-favourites__label">
-        <Star size={16} aria-hidden="true" />
+        <Star size={13} aria-hidden="true" />
         <span>Favourites</span>
       </p>
       <div className="sidebar-group__items">
         {pages.map(({ item }) => (
-          <Link key={item.path} to={item.path} className="sidebar__link sidebar__link--compact" title={item.description}>
+          <Link key={item.path} to={item.path} className="sidebar__link" title={item.description}>
             <span className="sidebar__link-icon">
               <item.icon size={16} />
             </span>
-            <span className="sidebar__link-copy">
-              <strong>{item.label}</strong>
-            </span>
+            <span className="sidebar__link-copy">{item.label}</span>
           </Link>
         ))}
       </div>

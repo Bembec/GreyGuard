@@ -64,7 +64,6 @@
 }
 
 .risk-hero,
-.risk-summary-grid,
 .risk-intelligence-grid,
 .risk-simulator {
   position: relative;
@@ -149,68 +148,12 @@
   font-size: 1.4rem;
   cursor: pointer;
 }
-
-.risk-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.risk-summary-card,
 .risk-panel {
   border: 1px solid rgba(141, 178, 220, 0.13);
   background:
     linear-gradient(145deg, rgba(18, 35, 55, 0.92), rgba(8, 19, 33, 0.88));
   box-shadow: 0 22px 55px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(18px);
-}
-
-.risk-summary-card {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  min-height: 8rem;
-  padding: 1rem;
-  border-radius: 1.1rem;
-}
-
-.risk-card-icon {
-  display: grid;
-  place-items: center;
-  width: 2.8rem;
-  height: 2.8rem;
-  flex: 0 0 auto;
-  border-radius: 0.85rem;
-  background: rgba(83, 197, 255, 0.12);
-  color: #6fd5ff;
-}
-
-.risk-card-icon.warning {
-  background: rgba(255, 209, 102, 0.12);
-  color: #ffd166;
-}
-
-.risk-card-icon.danger,
-.risk-card-icon.suspended {
-  background: rgba(255, 77, 109, 0.12);
-  color: #ff718b;
-}
-
-.risk-summary-card span,
-.risk-summary-card small {
-  display: block;
-  color: #91a3ba;
-}
-
-.risk-summary-card strong {
-  display: block;
-  margin: 0.1rem 0;
-  font-size: 1.75rem;
-}
-
-.risk-summary-card small {
-  font-size: 0.7rem;
 }
 
 .risk-intelligence-grid {
@@ -612,9 +555,6 @@
 }
 
 @media (max-width: 1100px) {
-  .risk-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .risk-intelligence-grid {
     grid-template-columns: 1fr;
@@ -629,10 +569,6 @@
   .risk-hero {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .risk-summary-grid {
-    grid-template-columns: 1fr;
   }
 
   .risk-simulator-controls,
@@ -659,4 +595,42 @@
   .risk-spin {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.risk-eyebrow, .risk-panel-header span, .risk-modal > span, .risk-table th {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.risk-grid-background, .risk-orbit {
+  display: none;
+}
+
+.risk-panel {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.risk-live-status span {
+  box-shadow: none;
+}
+
+.risk-agent-name > span {
+  border: 1px solid var(--gg-border-strong);
+  color: var(--gg-text-secondary);
+  background: var(--gg-surface-800);
+  box-shadow: none;
+}
+
+.risk-modal-actions .primary {
+  border: 1px solid transparent;
+  color: #02121c;
+  background: var(--gg-cyan);
+  box-shadow: none;
 }

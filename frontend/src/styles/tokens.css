@@ -9,48 +9,51 @@
   --gg-brand-steel: #8c939a;
   --gg-brand-steel-light: #e0e8e8;
 
+  /* Console design v2 (P7.5, 2026-10-16): the website's navy and cyan identity at console
+     density. Flat surfaces separated by hairline borders, cyan reserved for focus, the active
+     item and the primary action - no glows. */
   --gg-obsidian: var(--gg-brand-navy);
   --gg-navy-950: var(--gg-brand-navy);
-  /* Elevation steps tinted off the approved navy, not a second brand color. */
-  --gg-navy-900: #09111f;
-  --gg-navy-850: #0c1627;
-  --gg-surface-900: #101827;
-  --gg-surface-850: #131d2d;
-  --gg-surface-800: #172234;
-  --gg-surface-700: #223047;
+  --gg-navy-900: #08101b;
+  --gg-navy-850: #0a131f;
+  --gg-surface-900: #0b1421;
+  --gg-surface-850: #0e1826;
+  --gg-surface-800: #111d2d;
+  --gg-surface-700: #1a2738;
 
-  --gg-text-primary: #f8fafc;
-  --gg-text-secondary: var(--gg-brand-steel);
-  --gg-text-muted: #6f8097;
+  --gg-text-primary: #edf2f6;
+  --gg-text-secondary: #a3afbb;
+  --gg-text-muted: #6d7a89;
 
   --gg-cyan: var(--gg-brand-glow);
-  --gg-cyan-soft: #67e8f9;
+  --gg-cyan-soft: #8bdcfb;
   --gg-blue: var(--gg-brand-blue);
-  --gg-violet: #8b5cf6;
-  --gg-green: #22c55e;
-  --gg-amber: #f59e0b;
-  --gg-red: #ef4444;
+  --gg-violet: #a78bfa;
+  --gg-green: #4ade80;
+  --gg-amber: #fbbf24;
+  --gg-red: #f87171;
   --gg-rose: #fb7185;
 
-  --gg-border: rgba(148, 163, 184, 0.16);
-  --gg-border-strong: rgba(34, 211, 238, 0.28);
-  --gg-panel: rgba(10, 18, 32, 0.78);
-  --gg-panel-solid: #0d1727;
-  --gg-overlay: rgba(3, 7, 18, 0.78);
+  --gg-border: rgba(148, 163, 184, 0.13);
+  --gg-border-strong: rgba(148, 163, 184, 0.24);
+  --gg-hover: rgba(148, 163, 184, 0.07);
+  --gg-selected: rgba(72, 200, 248, 0.1);
+  --gg-panel: var(--gg-surface-900);
+  --gg-panel-solid: var(--gg-surface-900);
+  --gg-overlay: rgba(2, 6, 12, 0.78);
 
   --gg-shadow-sm:
-    0 8px 24px rgba(0, 0, 0, 0.2);
+    0 1px 2px rgba(0, 0, 0, 0.3);
   --gg-shadow-md:
-    0 18px 50px rgba(0, 0, 0, 0.34);
-  --gg-glow-cyan:
-    0 0 40px rgba(34, 211, 238, 0.12);
-  --gg-glow-violet:
-    0 0 44px rgba(139, 92, 246, 0.12);
+    0 12px 32px rgba(0, 0, 0, 0.45);
+  /* Kept so older stylesheets still resolve; they no longer glow. */
+  --gg-glow-cyan: none;
+  --gg-glow-violet: none;
 
-  --gg-radius-sm: 8px;
-  --gg-radius-md: 14px;
-  --gg-radius-lg: 20px;
-  --gg-radius-xl: 28px;
+  --gg-radius-sm: 6px;
+  --gg-radius-md: 8px;
+  --gg-radius-lg: 10px;
+  --gg-radius-xl: 12px;
 
   --gg-space-1: 0.25rem;
   --gg-space-2: 0.5rem;
@@ -62,9 +65,9 @@
   --gg-space-10: 2.5rem;
   --gg-space-12: 3rem;
 
-  --gg-sidebar-width: 280px;
-  --gg-sidebar-collapsed: 88px;
-  --gg-topbar-height: 76px;
+  --gg-sidebar-width: 248px;
+  --gg-sidebar-collapsed: 60px;
+  --gg-topbar-height: 52px;
 
   --gg-font-sans:
     Inter, ui-sans-serif, system-ui, -apple-system,

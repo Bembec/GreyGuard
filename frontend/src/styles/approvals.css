@@ -107,67 +107,6 @@
   cursor: pointer;
 }
 
-.approval-stat-grid {
-  display: grid;
-  grid-template-columns:
-    repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.approval-stat-card {
-  padding: 0.95rem;
-  border: 1px solid rgba(129, 162, 194, 0.13);
-  border-radius: 0.9rem;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(15, 29, 45, 0.93),
-      rgba(7, 15, 27, 0.88)
-    );
-}
-
-.approval-stat-card.amber {
-  color: #ffc363;
-}
-
-.approval-stat-card.green {
-  color: #58e4b0;
-}
-
-.approval-stat-card.red {
-  color: #ff7189;
-}
-
-.approval-stat-card.cyan {
-  color: #63dcff;
-}
-
-.approval-stat-card span,
-.approval-stat-card strong,
-.approval-stat-card small {
-  display: block;
-}
-
-.approval-stat-card span {
-  margin-top: 0.55rem;
-  color: #8799ae;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.approval-stat-card strong {
-  margin-top: 0.1rem;
-  color: #edf7ff;
-  font-size: 1.6rem;
-}
-
-.approval-stat-card small {
-  margin-top: 0.15rem;
-  color: #687b91;
-  font-size: 0.62rem;
-}
-
 .approval-notice {
   position: fixed;
   top: 5.5rem;
@@ -927,10 +866,6 @@ button:disabled {
 }
 
 @media (max-width: 1050px) {
-  .approval-stat-grid {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
-  }
 
   .approval-toolbar {
     align-items: stretch;
@@ -951,10 +886,6 @@ button:disabled {
 
   .approvals-refresh-button {
     width: 100%;
-  }
-
-  .approval-stat-grid {
-    grid-template-columns: 1fr;
   }
 
   .approval-tabs {
@@ -995,4 +926,31 @@ button:disabled {
   .approval-ring {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.approvals-kicker, .approval-detail-header span, .review-modal > span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.approval-card {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.authority-orbit {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-850);
+  box-shadow: none;
+  animation: none;
+}
+
+.authority-orbit::before, .authority-orbit::after {
+  display: none;
 }

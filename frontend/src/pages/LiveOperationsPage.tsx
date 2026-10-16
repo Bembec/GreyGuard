@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -601,51 +602,12 @@ export default function LiveOperationsPage() {
         </ul>
       </Guidance>
 
-      <section className="live-metrics">
-        <article className="live-metric">
-          <span className="live-metric__icon">
-            <Activity size={21} />
-          </span>
-          <div>
-            <small>Captured events</small>
-            <strong>{statistics.total}</strong>
-          </div>
-          <em>Current session</em>
-        </article>
-
-        <article className="live-metric">
-          <span className="live-metric__icon live-metric__icon--danger">
-            <AlertTriangle size={21} />
-          </span>
-          <div>
-            <small>High-risk signals</small>
-            <strong>{statistics.highRisk}</strong>
-          </div>
-          <em>High + critical</em>
-        </article>
-
-        <article className="live-metric">
-          <span className="live-metric__icon live-metric__icon--warning">
-            <XCircle size={21} />
-          </span>
-          <div>
-            <small>Denied activity</small>
-            <strong>{statistics.denials}</strong>
-          </div>
-          <em>Denied, blocked, refused</em>
-        </article>
-
-        <article className="live-metric">
-          <span className="live-metric__icon live-metric__icon--agent">
-            <Bot size={21} />
-          </span>
-          <div>
-            <small>Observed agents</small>
-            <strong>{statistics.agents}</strong>
-          </div>
-          <em>Connected evidence sources</em>
-        </article>
-      </section>
+      <StatGrid label="Live summary">
+        <StatCard label="Captured events" value={statistics.total} hint="Current session" icon={<Activity size={16} />} />
+        <StatCard label="High-risk signals" value={statistics.highRisk} hint="High + critical" tone="danger" icon={<AlertTriangle size={16} />} />
+        <StatCard label="Denied activity" value={statistics.denials} hint="Denied, blocked, refused" tone="warning" icon={<XCircle size={16} />} />
+        <StatCard label="Observed agents" value={statistics.agents} hint="Connected evidence sources" tone="info" icon={<Bot size={16} />} />
+      </StatGrid>
 
       <section className="live-control-panel">
         <div className="live-control-panel__heading">

@@ -1,3 +1,4 @@
+import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
 import {
@@ -337,53 +338,12 @@ export default function AuthenticationPage() {
         </ul>
       </Guidance>
 
-      <section className="auth-stat-grid">
-        <article>
-          <div className="auth-stat-icon success">
-            <UserCheck />
-          </div>
-          <div>
-            <span>Successful</span>
-            <strong>{statistics.successful}</strong>
-            <small>Verified requests</small>
-          </div>
-        </article>
-
-        <article>
-          <div className="auth-stat-icon danger">
-            <UserX />
-          </div>
-          <div>
-            <span>Denied</span>
-            <strong>{statistics.denied}</strong>
-            <small>Rejected identity attempts</small>
-          </div>
-        </article>
-
-        <article>
-          <div className="auth-stat-icon warning">
-            <ShieldAlert />
-          </div>
-          <div>
-            <span>Scope denials</span>
-            <strong>{statistics.scopeDenials}</strong>
-            <small>Identity lacked permission</small>
-          </div>
-        </article>
-
-        <article>
-          <div className="auth-stat-icon active">
-            <KeyRound />
-          </div>
-          <div>
-            <span>Active credentials</span>
-            <strong>
-              {statistics.activeCredentials}
-            </strong>
-            <small>Usable agent identities</small>
-          </div>
-        </article>
-      </section>
+      <StatGrid label="Authentication summary">
+        <StatCard label="Successful" value={statistics.successful} hint="Verified requests" tone="success" icon={<UserCheck size={16} />} />
+        <StatCard label="Denied" value={statistics.denied} hint="Rejected identity attempts" tone="danger" icon={<UserX size={16} />} />
+        <StatCard label="Scope denials" value={statistics.scopeDenials} hint="Identity lacked permission" tone="warning" icon={<ShieldAlert size={16} />} />
+        <StatCard label="Active credentials" value={statistics.activeCredentials} hint="Usable agent identities" icon={<KeyRound size={16} />} />
+      </StatGrid>
 
       <section className="auth-layout">
         <article className="auth-panel auth-events-panel">

@@ -98,15 +98,6 @@
 .audit-refresh svg {
   width: 1rem;
 }
-
-.audit-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.audit-stat-grid article,
 .audit-console {
   border: 1px solid rgba(143, 181, 221, 0.14);
   background:
@@ -117,35 +108,6 @@
     );
   box-shadow: 0 22px 55px rgba(0, 0, 0, 0.22);
   backdrop-filter: blur(18px);
-}
-
-.audit-stat-grid article {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  min-height: 6.8rem;
-  padding: 1rem;
-  border-radius: 1rem;
-}
-
-.audit-stat-grid svg {
-  width: 1.4rem;
-  color: #68d7ff;
-}
-
-.audit-stat-grid span,
-.audit-stat-grid strong {
-  display: block;
-}
-
-.audit-stat-grid span {
-  color: #8ea2ba;
-  font-size: 0.73rem;
-}
-
-.audit-stat-grid strong {
-  margin-top: 0.2rem;
-  font-size: 1.65rem;
 }
 
 .audit-console {
@@ -415,9 +377,6 @@
 }
 
 @media (max-width: 950px) {
-  .audit-stat-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
 
   .audit-filters {
     grid-template-columns: 1fr 1fr;
@@ -433,8 +392,6 @@
     align-items: flex-start;
     flex-direction: column;
   }
-
-  .audit-stat-grid,
   .audit-filters,
   .audit-evidence {
     grid-template-columns: 1fr;
@@ -463,4 +420,28 @@
   .audit-spin {
     animation: none;
   }
+}
+
+/* ---- Design v2 (P7.5): flat surfaces, quiet labels, no decorative layers. Overrides the
+   rules above; see docs/design-system.md. ---- */
+.audit-hero > div > span, .audit-console-heading > div > span {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--gg-text-muted);
+  font-weight: 500;
+}
+
+.audit-stream-background {
+  display: none;
+}
+
+.audit-console {
+  border-color: var(--gg-border);
+  background: var(--gg-surface-900);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.audit-live i {
+  box-shadow: none;
 }
