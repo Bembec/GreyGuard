@@ -668,6 +668,35 @@ Nothing was pushed, published or deployed.
 
 Nothing was pushed, published or deployed.
 
+**P7.5 batch 3: role-preset Command Center (v3 item 2), 2026-10-16, commit `edb8d36`.** It is one composable home rather than six dashboards. The registry, presets and rules are in `frontend/src/config/commandCenter.ts`.
+
+- **Six views:** Platform Administrator, Security Analyst, Approver, Auditor, Organization Owner and Billing Administrator.
+  - A person starts on their operational role's view: Platform Administrator, Security Analyst, or Auditor for everyone else.
+  - They are offered only the views their roles allow. Approver needs `approval:manage`, because there is no separate approver role and Security Analysts already hold it. Owner needs governance role `OWNER`. Billing needs `OWNER` or `BILLING_ADMIN`.
+  - A stored view that a role no longer allows falls back to the default.
+- **Only what the person may see.** Each view sets two to five KPIs and an ordered list of panels. Every KPI and panel reads data that every role may read (GET routes), so no panel appears only to be disabled. Acting still happens on the linked page, under that page's own checks.
+- **Pinning.** Customize pins extra panels or hides the view's own, with a reset. It is saved per account on this device under `greyguard_command_center:<admin_id>`, and anything that is not a known view or panel is dropped on read.
+- **Known limitation:** the server has no preference store yet, so pins do not follow a person to another device.
+- **New panels:** Plan & usage (`GET /entitlements`) and Compliance reports (`GET /compliance-reports`).
+- **Fewer requests.** Only the queries that the visible KPIs and panels need are fetched.
+
+**Verification run:**
+- Frontend `npm run check` passes: lint, 184 unit tests, and the build. The 7 new tests cover the preset rules, pinning and stored-value validation.
+- Mutations caught:
+  - every view offered to every role;
+  - a stored view used without re-checking the role;
+  - stored pins not validated;
+  - the billing view offered to everyone.
+- Playwright: 70 passed, 1 skipped, no retries.
+- New e2e tests:
+  - an administrator is offered all six views, switches to Billing, pins Compliance reports, hides Readiness, keeps both across a reload, and resets;
+  - a real AUDITOR session lands on the Auditor view, with no view switcher and no approval queue.
+- A mistake was caught during this batch: the new test file first replaced the existing P1.4 Command Center spec. The original test was restored beside the new one, and every other test file changed today was checked for the same problem.
+- Screenshots of the administrator view, the Auditor view and the Customize dialog were reviewed.
+- No backend change.
+
+Nothing was pushed, published or deployed. Next in v3's order: the rest of the universal page anatomy. The page-anatomy kit (gap matrix batch 4) adds freshness, time range, saved views, related records, docs links, and sorting and paging for the ten older list pages.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
