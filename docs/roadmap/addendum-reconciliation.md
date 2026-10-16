@@ -598,9 +598,24 @@ Nothing was pushed, published or deployed.
 
 **Observed, not changed:** when resuming a session fails for any reason, including a 429 from the rate limit, `AuthContext` tries a refresh and then signs the operator out. A rate-limited operator is therefore signed out rather than asked to retry. This showed up as a sign-out in an e2e test that made several full page loads. The test now navigates within the app. The underlying behaviour needs its own security-reviewed change.
 
-The P7.5 gap matrix (v3 ordering, step 2) has not been written yet. This batch went first because V1 was already decided. Next: the gap matrix, then the role-preset Command Center.
+The P7.5 gap matrix (v3 ordering, step 2) had not been written yet. This batch went first because V1 was already decided.
 
 Nothing was pushed, published or deployed.
+
+**P7.5 gap matrix (v3 ordering, step 2), 2026-10-16.** [`p7.5-gap-matrix.md`](p7.5-gap-matrix.md) audits all 35 navigation pages and both detail pages against v3's universal page anatomy and the shell items. It used a code scan of every page, screenshots of 16 pages, and hand checks.
+- **Four findings come first:**
+  - Agents cannot be registered from the console. `POST /agents` exists but no page calls it, so Getting Started's "Register your first agent" step dead-ends.
+  - The bell's unread dot and the sidebar's "control plane online" text are static.
+  - Three pages show "no matching…" when nothing exists.
+  - There is no shared permission-denied state.
+- **Systemic gaps** for the page kit: freshness, time range, saved views, related records, docs links and page-level primary actions. Sorting and paging are missing on the ten mature list pages.
+- **Proposed order:**
+  - batch 2: these corrections, with the registration flow under security review because it issues a credential;
+  - batch 3: the role-preset Command Center;
+  - batch 4: the page-anatomy kit;
+  - then the Control Graph, the investigation workspace and explainability.
+
+No code changed.
 
 ---
 
