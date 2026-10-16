@@ -1,4 +1,5 @@
 """P5 pilots (P4 decision D2): template, measured criteria, confirmations and outcomes."""
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -28,7 +29,8 @@ def test_onboarding_a_pilot_applies_the_d2_template(pilot):
     assert current["plan"] == "ENTERPRISE" and current["status"] == "TRIAL"  # the pilot flag overrides "plan"
     assert 88 <= started["days_remaining"] <= 90 and started["decision_due"] is False
     assert started["criteria_met"] == 0 and len(started["criteria"]) == 6
-    assert not any(word in str(started).lower() for word in ("price", "fee", "amount", "card"))
+    # Whole words: ids are random hex, and "fee" is all hex letters (it failed about 1 run in 100).
+    assert not re.search(r"\b(price|fee|amount|card)s?\b", str(started).lower())
 
 
 def test_criteria_are_measured_from_product_data(pilot, install):
