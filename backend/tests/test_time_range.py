@@ -118,6 +118,22 @@ def test_until_is_exclusive_and_bounds_the_end(retention):
     assert len(requests_in(retention["ours"], since=ago(days=4), until=ago(days=2))["requests"]) == 1
 
 
+@pytest.mark.parametrize("offset", ["+05:30", "-08:00", "+14:00", "-12:00"])
+def test_ranges_compare_instants_not_text_across_utc_offsets(retention, offset):
+    """Evidence is stored in the server's local time with its offset; text order is not time order."""
+    register(retention["ours"], "ours_agent")
+    inside = submit("ours_agent", "read_file")
+    outside = submit("ours_agent", "read_file")
+    hours, minutes = int(offset[1:3]), int(offset[4:6])
+    zone = timezone((1 if offset[0] == "+" else -1) * timedelta(hours=hours, minutes=minutes))
+    since = NOW - timedelta(hours=2)
+    # 30 minutes after the start, and 30 minutes before it, each written in that zone's local time.
+    backdate("tool_requests", "request_id", inside["request_id"], "timestamp", (since + timedelta(minutes=30)).astimezone(zone).isoformat(timespec="seconds"))
+    backdate("tool_requests", "request_id", outside["request_id"], "timestamp", (since - timedelta(minutes=30)).astimezone(zone).isoformat(timespec="seconds"))
+    listed = requests_in(retention["ours"], since=since.isoformat(), until=(since + timedelta(hours=1)).isoformat())["requests"]
+    assert [r["request_id"] for r in listed] == [inside["request_id"]]
+
+
 def test_pending_requests_stay_visible_whatever_the_range(retention):
     register(retention["ours"], "ours_agent")
     pending = submit("ours_agent")  # write_note: ASK, so PENDING

@@ -16,9 +16,25 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 
+from . import db_compat
+
 MAX_LOOKBACK_DAYS = 400
 # A browser clock a little ahead of the server's must not make "now" an invalid end.
 CLOCK_SKEW = timedelta(minutes=5)
+# Evidence timestamps are stored as local time with its offset (main.current_timestamp), so their
+# text order is not time order across offsets. No UTC offset exceeds 14 hours.
+MAX_UTC_OFFSET = timedelta(hours=14)
+
+
+def _instant(column: str) -> str:
+    """The column read as a point in time, offset included, on either database."""
+    if db_compat.backend_name() == "postgresql":
+        return f"CAST({column} AS timestamptz)"
+    return f"julianday({column})"
+
+
+def _instant_bound() -> str:
+    return "CAST(? AS timestamptz)" if db_compat.backend_name() == "postgresql" else "julianday(?)"
 
 
 def permitted_lookback_days(org_id) -> int:
@@ -39,10 +55,19 @@ class TimeRange:
     until: str | None
 
     def condition(self, column: str) -> tuple[str, tuple]:
-        """The SQL fragment and parameters bounding `column` (a trusted column name, never input)."""
-        if self.until is None:
-            return f"{column} >= ?", (self.since,)
-        return f"({column} >= ? AND {column} < ?)", (self.since, self.until)
+        """The SQL fragment and parameters bounding `column` (a trusted column name, never input).
+
+        Two parts: a text pre-filter widened by the largest UTC offset, which the time indexes can
+        use and which never drops a row in range, and the exact comparison as instants."""
+        start = datetime.fromisoformat(self.since)
+        loose_start = (start - MAX_UTC_OFFSET).isoformat()
+        fragment = f"{column} >= ? AND {_instant(column)} >= {_instant_bound()}"
+        parameters: tuple = (loose_start, self.since)
+        if self.until is not None:
+            loose_end = (datetime.fromisoformat(self.until) + MAX_UTC_OFFSET).isoformat()
+            fragment += f" AND {column} < ? AND {_instant(column)} < {_instant_bound()}"
+            parameters += (loose_end, self.until)
+        return f"({fragment})", parameters
 
     def in_range_or(self, column: str, open_condition: str) -> tuple[str, tuple]:
         """In range, or open: open items are never hidden by a range."""
