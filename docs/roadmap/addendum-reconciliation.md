@@ -777,6 +777,19 @@ Nothing was pushed, published or deployed.
 
 Nothing was pushed, published or deployed.
 
+**Control Graph interface (`6e381db`).** A "Relationships" tab on the agent page (`/agents/:name?tab=relationships`), built to the approved design.
+- **Layout:** five columns read left to right: identity, scopes, tools and policy, requests grouped by decision (riskiest first), outcomes. Every node is a real button.
+- **Selection:** selecting a node highlights its path, never expanding through the agent, and opens a details panel. The panel renders in a portal so the shell's top bar cannot cover it; a screenshot review caught that.
+- **Exact versus inferred:** every request node shows a badge for which it is. The panel shows the exact record (rule, policy version, the record's fingerprint check, and whether the stored version still matches), or says plainly that the decision is inferred and why it can be wrong.
+- **Impact preview:** offered for scopes, the credential and tools, labelled read-only, and sending GET requests only.
+- **List view:** the same relationships as sentences.
+- **Window:** 30 days by default, with the retention horizon stated ("older history is not retained"). Capped and withheld items are stated, not hidden.
+- **Loading:** the tab lives in the URL, and the graph loads only when the tab is open.
+
+**Verification run:** `npm run check` passed (230 unit tests, 10 of them new; build). The full Playwright suite had 74 passed, 0 flaky; the new e2e covers an exact decision, the panel's close button, a read-only preview with no non-GET request, and arrow-key tabs. Three frontend mutations were caught: the agent expanded in path highlighting, inferred badged as exact, and the list view dropping "inferred". Screenshots were reviewed at desktop and phone widths. The backend is unchanged since its verified run (827 passed).
+
+The Control Graph is complete apart from DEV-001, the 15-second cache (FU-CG-01). Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
