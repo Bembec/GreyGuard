@@ -697,6 +697,32 @@ Nothing was pushed, published or deployed.
 
 Nothing was pushed, published or deployed. Next in v3's order: the rest of the universal page anatomy. The page-anatomy kit (gap matrix batch 4) adds freshness, time range, saved views, related records, docs links, and sorting and paging for the ten older list pages.
 
+**P7.5 batch 4: page-anatomy kit, first part, 2026-10-16.** It has three pieces, each committed and verified on its own.
+
+- **4a, sortable and paged tables (`15c24f5`).**
+  - `DataTable` gains `selectedKey`, shown with `aria-current`, and `onRowClick`, a mouse convenience that leaves buttons and links in the row alone.
+  - Agents, Tool Requests and Risk Center move their custom tables onto it: sortable columns, 15 rows a page, and the shared empty states.
+  - The agent name and request action are now real buttons that open the details panel. Before, only a mouse click on the row could open it, so keyboard users could not.
+  - Risk Center shows Reset only for a suspended agent and only to someone allowed to reset (v3: never show a widget only to disable it).
+  - 32 dead rules were removed.
+  - A permission test that used to skip itself, because it counted rows before the table loaded, now waits and runs.
+- **4b, "Show more" paging (`767b91f`).** Approvals, Audit Trail, Authentication, Incident Center and Notifications show 25 items and grow on request. A new search or filter starts again from the first page. The hook is `components/page/ShowMore.tsx`.
+- **4c, evidence freshness (`efbe05a`).** The design changed from a per-page line to one top-bar indicator ("Updated 2 min ago") with one Refresh for the page, as in Grafana and Datadog.
+  - It reports the oldest successful load among the page's active queries, so a page never looks fresher than its stalest panel.
+  - It ignores the shell's own requests, and stays hidden on pages that load nothing through the query cache rather than guessing.
+
+**Deferred, with reasons:**
+- **Time range and saved views** need their own design: which pages, server-side time filters, and where views are stored.
+- **Contextual docs links** wait until documentation is hosted somewhere (W-decisions). Linking the private repository would mislead.
+- **Related records** need the Control Graph's relationship data.
+
+**Verification run:** for each piece, `npm run check` and the full Playwright suite passed with no retries. At the end: 190 unit tests, and 72 Playwright tests with none skipped. Mutations caught:
+- 4b: the filter reset removed;
+- 4c: the newest data reported instead of the oldest;
+- 4c: the shell's own requests counted.
+
+No backend change. Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
