@@ -645,6 +645,29 @@ No code changed.
 
 Nothing was pushed, published or deployed.
 
+**P7.5 design quality: console design v2, 2026-10-16, commit `52c0d93`.** The owner compared the console with the public website and found it unprofessional. They delegated the direction to the references.
+
+- **References.** The public product views of Linear, Grafana's playground, GitLab, Datadog Cloud Security and Vercel's Geist system were screenshotted and studied. All of them keep a compact left sidebar; top mega-menus appear only on their marketing sites. So the console keeps the sidebar (decision V1 stands) and adopts their calm, flat, dense style in the website's navy and cyan identity.
+- **Changes.**
+  - New tokens.
+  - The shell rewritten: compact sidebar, slim top bar, underline tabs.
+  - The page kit restyled: Inter headings, flat KPI cards, quiet labels and table headers, small radii.
+  - The page header no longer repeats the breadcrumb.
+  - Eleven older pages moved their KPI rows onto `StatCard`, and 145 dead rules were removed.
+  - Every older stylesheet now ends with a "Design v2" block that hides decorative layers and flattens surfaces.
+  - Dropdowns, inputs, the offline notice and the incident drawer were normalised.
+  - Settings shows configuration as facts rather than KPIs.
+  - The rules are recorded in [`docs/design-system.md`](../design-system.md), which replaces the "Sentinel Vault" direction.
+- **Gap matrix.** This covers the visual-consistency finding and part of v3 item 10. Visual-regression tests, performance budgets and the light theme remain.
+
+**Verification run:**
+- Frontend `npm run check` passes: lint, 177 unit tests, and the build.
+- Playwright: 69 passed, 1 skipped, no retries. This includes every page at 390 px with no horizontal scroll.
+- Screenshots were reviewed at 1440 px before and after for the Command Center, a page-kit page (Service Accounts) and all eleven older pages.
+- No backend change.
+
+Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
