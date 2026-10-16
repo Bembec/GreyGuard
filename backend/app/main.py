@@ -1503,8 +1503,12 @@ def submit_tool_request(
     payload=None,
     dry_run=False,
     request_id=None,
+    authentication_method=None,
 ):
-    """Create and process a tool request."""
+    """Create and process a tool request.
+
+    authentication_method is how the API authenticated the agent (decision_provenance); direct
+    calls (CLI, tests) leave it out and their decision records say NOT_RECORDED."""
 
     normalized_name = normalize_agent_name(
         agent_name
@@ -1594,7 +1598,7 @@ def submit_tool_request(
     # The exact provenance of this decision: append-only, never updated (decision_provenance).
     decision_provenance.record_decision(
         request_id, org_id=org_id, agent_name=normalized_name, action=normalized_action,
-        decided_at=decided_at, decided=decided,
+        decided_at=decided_at, decided=decided, authentication_method=authentication_method,
     )
 
     if execution_status == "BLOCKED":

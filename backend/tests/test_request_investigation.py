@@ -9,6 +9,9 @@ def test_request_bundle_redacts_secrets(monkeypatch):
         "executed_at": "2026-01-01", "payload": {"api_key": "secret-value"}, "result": {},
         "approval_events": [], "execution_events": [],
     })
+    # The explanation reads decision records from the database; this test covers redaction only.
+    from backend.app import decision_explanation
+    monkeypatch.setattr(decision_explanation, "build_explanation", lambda *args, **kwargs: None)
     result = request_investigation.build_request_investigation("req_1", org_id="org_default")
     assert result["redacted_evidence"]["payload"]["api_key"] == "[REDACTED]"
     assert "secret-value" not in str(result)

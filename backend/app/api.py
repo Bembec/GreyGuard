@@ -72,7 +72,7 @@ from .enterprise_sso import (
     initialize_enterprise_sso,
     list_enabled_providers_for_login,
 )
-from . import control_graph, organizations
+from . import control_graph, decision_explanation, organizations
 from .time_range import parse_time_range
 from . import entitlements
 from . import billing
@@ -3697,6 +3697,8 @@ def create_tool_request(
         result = main.submit_tool_request(
             agent_name=authenticated_name,
             action=authentication["action"],
+            # authenticate_request() above used the certificate whenever one was presented.
+            authentication_method="CLIENT_CERTIFICATE" if certificate_was_presented(x_ssl_client_verify) else "AGENT_KEY",
             target=request.target,
             payload=request.payload,
             dry_run=request.dry_run,
@@ -4225,7 +4227,22 @@ def request_investigation(
 ):
     """Return a redacted request lifecycle investigation bundle."""
     administrator = require_admin(x_admin_pin)
-    result = build_request_investigation(request_id, org_id=organizations.resolve_org_id(administrator))
+    result = build_request_investigation(request_id, org_id=organizations.resolve_org_id(administrator), viewer=administrator)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Tool request not found.")
+    return result
+
+
+@app.get("/request-investigations/{request_id}/explanation")
+def request_explanation(
+    request_id: str,
+    x_admin_pin: str | None = Header(default=None),
+):
+    """Why GreyGuard decided as it did, for one request in the caller's org (P7.5 item 6).
+
+    Any read role may see it. Another org's request is the same 404 as a missing one."""
+    administrator = require_admin(x_admin_pin)
+    result = decision_explanation.build_explanation(request_id, org_id=organizations.resolve_org_id(administrator), viewer=administrator)
     if result is None:
         raise HTTPException(status_code=404, detail="Tool request not found.")
     return result

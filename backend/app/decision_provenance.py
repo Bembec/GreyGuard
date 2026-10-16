@@ -29,16 +29,27 @@ from typing import Any
 from . import db_compat as sqlite3
 from .database import database_path
 
-SCHEMA_VERSION = 1
+# Version 2 (owner decision, 2026-10-16) adds authentication_method: how the agent proved its
+# identity for this request (AGENT_KEY or CLIENT_CERTIFICATE), or NOT_RECORDED when the decision
+# was made outside an authenticated API call (the CLI, tests). Version-1 records keep verifying
+# against version-1 fields: the fingerprint covers exactly the fields its version wrote.
+SCHEMA_VERSION = 2
+AUTHENTICATION_METHODS = ("AGENT_KEY", "CLIENT_CERTIFICATE", "NOT_RECORDED")
 
 POLICY_SOURCES = ("PUBLISHED", "ROLLOUT", "BUILTIN", "NONE")
 RULE_TYPES = ("PERMISSION", "DEFAULT_RULE", "EMERGENCY_CONTROL", "AGENT_STATE")
 
-_FIELDS = (
+_FIELDS_V1 = (
     "request_id", "org_id", "agent_name", "action", "decided_at", "outcome", "policy_source",
     "policy_version_id", "policy_version_number", "matched_rule_id", "rule_type", "rule_name",
     "rule_snapshot_json", "policy_fingerprint", "schema_version",
 )
+_FIELDS_BY_VERSION = {1: _FIELDS_V1, 2: (*_FIELDS_V1, "authentication_method")}
+_FIELDS = _FIELDS_BY_VERSION[SCHEMA_VERSION]
+
+
+def _fields_for(record: dict[str, Any]) -> tuple[str, ...]:
+    return _FIELDS_BY_VERSION.get(int(record.get("schema_version") or 1), _FIELDS_V1)
 
 
 def canonical(value: Any) -> str:
@@ -62,7 +73,7 @@ def policy_fingerprint(policy: dict[str, Any]) -> str:
 
 
 def record_fingerprint(record: dict[str, Any]) -> str:
-    return sha256(canonical({field: record.get(field) for field in _FIELDS}))
+    return sha256(canonical({field: record.get(field) for field in _fields_for(record)}))
 
 
 def initialize_decision_provenance() -> None:
@@ -84,9 +95,15 @@ def initialize_decision_provenance() -> None:
                 rule_snapshot_json TEXT NOT NULL,
                 policy_fingerprint TEXT,
                 record_fingerprint TEXT NOT NULL,
-                schema_version INTEGER NOT NULL
+                schema_version INTEGER NOT NULL,
+                authentication_method TEXT
             )
         """)
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(decision_records)")} \
+            if sqlite3.backend_name() == "sqlite" else {"authentication_method"}
+        if "authentication_method" not in columns:
+            # Version 2 on a SQLite database created at version 1 (PostgreSQL: migration 20261016_35).
+            connection.execute("ALTER TABLE decision_records ADD COLUMN authentication_method TEXT")
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_decision_records_org_agent ON decision_records (org_id, agent_name, decided_at)"
         )
@@ -126,8 +143,11 @@ def provenance(
 
 
 def record_decision(request_id: str, *, org_id: str, agent_name: str, action: str, decided_at: str,
-                    decided: dict[str, Any]) -> dict[str, Any]:
+                    decided: dict[str, Any], authentication_method: str | None = None) -> dict[str, Any]:
     """Append the decision record for one new tool request. Never updates an existing one."""
+    method = authentication_method or "NOT_RECORDED"
+    if method not in AUTHENTICATION_METHODS:
+        raise ValueError("Unknown authentication method.")
     record = {
         "request_id": request_id,
         "org_id": org_id,
@@ -144,6 +164,7 @@ def record_decision(request_id: str, *, org_id: str, agent_name: str, action: st
         "rule_snapshot_json": canonical(decided["rule_snapshot"]),
         "policy_fingerprint": decided["policy_fingerprint"],
         "schema_version": SCHEMA_VERSION,
+        "authentication_method": method,
     }
     record["record_fingerprint"] = record_fingerprint(record)
     columns = ", ".join(record)
@@ -158,6 +179,8 @@ def record_decision(request_id: str, *, org_id: str, agent_name: str, action: st
 
 def _serialize(row) -> dict[str, Any]:
     record = {field: row[field] for field in (*_FIELDS, "record_fingerprint")}
+    if int(record["schema_version"] or 1) < 2:
+        record["authentication_method"] = None  # version 1 did not record it
     record["rule_snapshot"] = json.loads(record.pop("rule_snapshot_json"))
     return record
 
@@ -182,7 +205,7 @@ def get_decision_records(request_ids: list[str], *, org_id: str) -> dict[str, di
 
 def record_intact(record: dict[str, Any]) -> bool:
     """Whether a read record still matches the fingerprint taken when it was written."""
-    stored = {field: record.get(field) for field in _FIELDS if field != "rule_snapshot_json"}
+    stored = {field: record.get(field) for field in _fields_for(record) if field != "rule_snapshot_json"}
     stored["rule_snapshot_json"] = canonical(record["rule_snapshot"])
     return record_fingerprint(stored) == record.get("record_fingerprint")
 
