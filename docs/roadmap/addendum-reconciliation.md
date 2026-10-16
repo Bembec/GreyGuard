@@ -580,6 +580,26 @@ Remaining before publication: the owner's claim approvals, W4 (domain and host),
 
 Nothing was pushed, published or deployed.
 
+### P7.5 progress against Master Roadmap v3 (Section 5, "P7.5 — product experience hardening")
+
+The owner follows P7.5 here. The table is updated with every batch; the detailed entries follow below it, newest last.
+
+| v3 item | Status | Where |
+|---|---|---|
+| 1. Navigation architecture | ✅ Done | batch 1 `385c32a` |
+| 2. Command Center with role presets | ✅ Done | batch 3 `edb8d36` |
+| 3. Universal page anatomy | ✅ Done, except contextual docs links, which wait for hosted docs | batches 2, 4, 4d; `p7.5-gap-matrix.md`, `p7.5-time-range-saved-views-design.md` |
+| 4. Control Graph | ✅ Done, including the 15-second cache (DEV-001 closed) | `p7.5-control-graph-design.md`; `eabf0e1`, `6e381db`, `d3104e5` |
+| 5. Investigation workspace | 🔨 **In progress**: design approved 2026-10-16 | `p7.5-investigation-workspace-design.md` |
+| 6. Decision explainability | 🔨 **In progress**, built with item 5 | same design |
+| 7. Safe change management | Not started | |
+| 8. Unified action inbox | Not started | |
+| 9. Help and explanation | Not started | |
+| 10. Design quality | Partly done: console design v2 `52c0d93`. **Next after 5 and 6:** visual-regression tests and performance budgets (owner's order) | |
+| 11. Synthetic demonstration org, Trust Center, UX gate | Not started | |
+
+Deviations from approved designs are tracked in [`deviations.md`](deviations.md).
+
 **P7.5 batch 1: seven-domain navigation (V1), 2026-10-16, commit `385c32a`.** The console now uses v3's seven task domains everywhere: the sidebar, the collapsed mega-menu, the breadcrumb trail, page eyebrows and Ctrl+K. The domains are Command Center (pinned), Agents & Access, Policies & Approvals, Operations & Incidents, Evidence & Reports, Integrations, and Organization & Administration. Gate, Watch, Respond and Evidence remain the website's buyer-facing names.
 
 - **Regrouping.** There are now 16 workspaces. New ones: Operators & Access, Agent Connections, Alerting & Ticketing and Platform Health. Authentication moved to Agents & Identity. Telemetry & Sensors moved to Integrations. Every route and page title is unchanged.
