@@ -1,3 +1,4 @@
+import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
@@ -289,6 +290,7 @@ export default function AuthenticationPage() {
     outcomeFilter,
     search,
   ]);
+  const more = useShowMore(filteredEvents, `${search}|${outcomeFilter}|${agentFilter}`);
 
   if (
     authenticationQuery.isLoading
@@ -436,7 +438,7 @@ export default function AuthenticationPage() {
                 </p>
               </div>
             ) : (
-              filteredEvents.map((event) => {
+              <>{more.visible.map((event) => {
                 const successful =
                   isSuccessful(event.outcome);
                 const expanded =
@@ -568,7 +570,7 @@ export default function AuthenticationPage() {
                     </button>
                   </article>
                 );
-              })
+              })}{more.control}</>
             )}
           </div>
         </article>

@@ -1,3 +1,4 @@
+import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
@@ -190,6 +191,7 @@ export default function AuditTrailPage() {
     search,
     typeFilter,
   ]);
+  const more = useShowMore(filteredEvents, `${search}|${typeFilter}|${outcomeFilter}`);
 
   const statistics = useMemo(() => ({
     total: events.length,
@@ -347,7 +349,7 @@ export default function AuditTrailPage() {
               </button>
             </div>
           ) : (
-            filteredEvents.map((event) => {
+            <>{more.visible.map((event) => {
               const expanded =
                 expandedId === event.event_id;
 
@@ -464,7 +466,7 @@ export default function AuditTrailPage() {
                   </button>
                 </article>
               );
-            })
+            })}{more.control}</>
           )}
         </div>
       </section>

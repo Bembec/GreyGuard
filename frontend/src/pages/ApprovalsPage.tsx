@@ -1,3 +1,4 @@
+import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
@@ -288,6 +289,7 @@ export default function ApprovalsPage() {
     searchText,
     viewMode,
   ]);
+  const more = useShowMore(visibleRequests, `${viewMode}|${searchText}`);
 
   const decisionMutation = useMutation({
     mutationFn: submitDecision,
@@ -499,7 +501,7 @@ export default function ApprovalsPage() {
             && !requestsQuery.isError
             && (
               <div className="approval-list">
-                {visibleRequests.map(
+                {more.visible.map(
                   (request) => (
                     <article
                       key={request.request_id}
@@ -653,7 +655,7 @@ export default function ApprovalsPage() {
                       </div>
                     </article>
                   ),
-                )}
+                )}{more.control}
 
                 {visibleRequests.length === 0 && (
                   <div className="approval-empty">

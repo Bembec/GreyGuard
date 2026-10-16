@@ -1,3 +1,4 @@
+import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
@@ -194,6 +195,7 @@ export default function IncidentCenterPage() {
       entry.assigned_to,
     ].some((value) => String(value ?? "").toLowerCase().includes(needle)))
   }, [alerts.data, search])
+  const more = useShowMore(visibleAlerts, `${search}|${status}|${severity}`);
 
   const openDetails = (alert: SecurityAlert) => {
     setSelected(alert)
@@ -248,13 +250,13 @@ export default function IncidentCenterPage() {
           : <EmptyState title="No incidents yet" description="GreyGuard opens an incident when high-risk evidence needs an owner. Nothing has needed one so far."/>)}
 
         <div className="incident-list">
-          {visibleAlerts.map((alert) => <button type="button" className="incident-row" key={alert.alert_id} onClick={() => openDetails(alert)}>
+          {more.visible.map((alert) => <button type="button" className="incident-row" key={alert.alert_id} onClick={() => openDetails(alert)}>
             <span className={`incident-severity incident-severity--${alert.severity.toLowerCase()}`}>{alert.severity}</span>
             <span className="incident-row__main"><strong>{alert.title}</strong><small>{alert.summary}</small></span>
             <span className="incident-row__meta"><strong>{formatIncidentStatus(alert.status)}</strong><small>{alert.agent_name ?? "System event"}</small></span>
             <span className="incident-row__time"><Clock3 size={14} />{formatDate(alert.created_at)}</span>
             <ChevronRight size={18} />
-          </button>)}
+          </button>)}{more.control}
         </div>
       </section>
 

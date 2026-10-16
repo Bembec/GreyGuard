@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it } from "vitest"
 
 import { DataTable } from "../components/page/DataTable"
+import { useShowMore } from "../components/page/ShowMore"
 import { compareValues, sortRows, type Column } from "../components/page/tableSort"
 import { greetingFor, relativeTime } from "../components/page/timeFormat"
 import { toneFor } from "../components/page/tones"
@@ -70,6 +71,32 @@ describe("DataTable", () => {
     render(<DataTable label="Agents" columns={columns} rows={[]} rowKey={(row) => row.name} empty={<p>No agents yet</p>} />)
     expect(screen.getByText("No agents yet")).toBeTruthy()
     expect(screen.queryByRole("table")).toBeNull()
+  })
+})
+
+function MoreList({ items, filter }: { items: number[]; filter: string }) {
+  const more = useShowMore(items, filter, 25)
+  return <div><ul>{more.visible.map((item) => <li key={item}>{item}</li>)}</ul>{more.control}</div>
+}
+
+describe("useShowMore", () => {
+  afterEach(cleanup)
+  const items = Array.from({ length: 30 }, (_, index) => index)
+
+  it("shows a page of items, grows on request, and starts again when the filter changes", () => {
+    const { rerender } = render(<MoreList items={items} filter="all" />)
+    expect(screen.getAllByRole("listitem")).toHaveLength(25)
+    expect(screen.getByText("Showing 25 of 30")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    expect(screen.getAllByRole("listitem")).toHaveLength(30)
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull()
+    rerender(<MoreList items={items} filter="critical" />)
+    expect(screen.getAllByRole("listitem")).toHaveLength(25)
+  })
+
+  it("shows no control when everything fits", () => {
+    render(<MoreList items={items.slice(0, 5)} filter="all" />)
+    expect(screen.queryByRole("button", { name: "Show more" })).toBeNull()
   })
 })
 

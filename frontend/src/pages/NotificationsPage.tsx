@@ -1,3 +1,4 @@
+import { useShowMore } from "../components/page/ShowMore";
 import { StatCard, StatGrid } from "../components/page/StatCard"
 import { Guidance } from "../components/page/Guidance"
 import { PageHeader } from "../components/page/PageHeader"
@@ -148,6 +149,7 @@ export default function NotificationsPage() {
   })
 
   const entries = useMemo(() => notifications.data?.notifications ?? [], [notifications.data])
+  const more = useShowMore(entries, `${unreadOnly}|${severity}`);
 
   const openIncident = async (notification: SecurityNotification) => {
     if (!notification.is_read && canManage) await markRead.mutateAsync(notification.notification_id)
@@ -203,11 +205,11 @@ export default function NotificationsPage() {
       {!notifications.isLoading && !notifications.isError && entries.length === 0 && <EmptyState icon={<Inbox size={30}/>} title="Inbox clear" description="No notifications match these filters."/>}
 
       <div className="notifications-list">
-        {entries.map((item) => <button type="button" key={item.notification_id} className={`notification-row ${item.is_read ? "read" : "unread"}`} onClick={() => void openIncident(item)}>
+        {more.visible.map((item) => <button type="button" key={item.notification_id} className={`notification-row ${item.is_read ? "read" : "unread"}`} onClick={() => void openIncident(item)}>
           <span className={`notification-severity ${item.severity.toLowerCase()}`}>{item.severity === "CRITICAL" ? <AlertTriangle size={18} /> : <CircleAlert size={18} />}</span>
           <span className="notification-copy"><strong>{item.title}</strong><small>{item.message}</small></span>
           <span className="notification-meta"><span className="notification-status">{item.is_read ? "Reviewed" : "New"}</span><small><Clock3 size={13} /> {formatNotificationDate(item.created_at)}</small></span>
-        </button>)}
+        </button>)}{more.control}
       </div>
     </section>
     {!canManage && <p className="notifications-readonly">Auditor access is read-only. Security Analysts and Platform Administrators can acknowledge notifications.</p>}
