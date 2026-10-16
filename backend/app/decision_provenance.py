@@ -33,7 +33,10 @@ from .database import database_path
 # identity for this request (AGENT_KEY or CLIENT_CERTIFICATE), or NOT_RECORDED when the decision
 # was made outside an authenticated API call (the CLI, tests). Version-1 records keep verifying
 # against version-1 fields: the fingerprint covers exactly the fields its version wrote.
-SCHEMA_VERSION = 2
+# Version 3 adds audit_event_id: the audit event written for the same decision, so an incident
+# derived from that event links to its request exactly (audit_events itself is never altered:
+# a new column would change the content its integrity chain has already sealed).
+SCHEMA_VERSION = 3
 AUTHENTICATION_METHODS = ("AGENT_KEY", "CLIENT_CERTIFICATE", "NOT_RECORDED")
 
 POLICY_SOURCES = ("PUBLISHED", "ROLLOUT", "BUILTIN", "NONE")
@@ -44,7 +47,11 @@ _FIELDS_V1 = (
     "policy_version_id", "policy_version_number", "matched_rule_id", "rule_type", "rule_name",
     "rule_snapshot_json", "policy_fingerprint", "schema_version",
 )
-_FIELDS_BY_VERSION = {1: _FIELDS_V1, 2: (*_FIELDS_V1, "authentication_method")}
+_FIELDS_BY_VERSION = {
+    1: _FIELDS_V1,
+    2: (*_FIELDS_V1, "authentication_method"),
+    3: (*_FIELDS_V1, "authentication_method", "audit_event_id"),
+}
 _FIELDS = _FIELDS_BY_VERSION[SCHEMA_VERSION]
 
 
@@ -96,16 +103,22 @@ def initialize_decision_provenance() -> None:
                 policy_fingerprint TEXT,
                 record_fingerprint TEXT NOT NULL,
                 schema_version INTEGER NOT NULL,
-                authentication_method TEXT
+                authentication_method TEXT,
+                audit_event_id INTEGER
             )
         """)
         columns = {row[1] for row in connection.execute("PRAGMA table_info(decision_records)")} \
-            if sqlite3.backend_name() == "sqlite" else {"authentication_method"}
+            if sqlite3.backend_name() == "sqlite" else {"authentication_method", "audit_event_id"}
+        # Later versions on a SQLite database created earlier (PostgreSQL: migrations 35 and 37).
         if "authentication_method" not in columns:
-            # Version 2 on a SQLite database created at version 1 (PostgreSQL: migration 20261016_35).
             connection.execute("ALTER TABLE decision_records ADD COLUMN authentication_method TEXT")
+        if "audit_event_id" not in columns:
+            connection.execute("ALTER TABLE decision_records ADD COLUMN audit_event_id INTEGER")
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_decision_records_org_agent ON decision_records (org_id, agent_name, decided_at)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_decision_records_audit_event ON decision_records (org_id, audit_event_id)"
         )
         if sqlite3.backend_name() == "sqlite":
             # PostgreSQL gets the same guarantee from migration 20261016_34.
@@ -165,6 +178,7 @@ def record_decision(request_id: str, *, org_id: str, agent_name: str, action: st
         "policy_fingerprint": decided["policy_fingerprint"],
         "schema_version": SCHEMA_VERSION,
         "authentication_method": method,
+        "audit_event_id": decided.get("audit_event_id"),
     }
     record["record_fingerprint"] = record_fingerprint(record)
     columns = ", ".join(record)
@@ -181,6 +195,8 @@ def _serialize(row) -> dict[str, Any]:
     record = {field: row[field] for field in (*_FIELDS, "record_fingerprint")}
     if int(record["schema_version"] or 1) < 2:
         record["authentication_method"] = None  # version 1 did not record it
+    if int(record["schema_version"] or 1) < 3:
+        record["audit_event_id"] = None  # versions 1 and 2 did not record it
     record["rule_snapshot"] = json.loads(record.pop("rule_snapshot_json"))
     return record
 
@@ -208,6 +224,15 @@ def record_intact(record: dict[str, Any]) -> bool:
     stored = {field: record.get(field) for field in _fields_for(record) if field != "rule_snapshot_json"}
     stored["rule_snapshot_json"] = canonical(record["rule_snapshot"])
     return record_fingerprint(stored) == record.get("record_fingerprint")
+
+
+def request_for_audit_event(audit_event_id: int, *, org_id: str) -> str | None:
+    """The request whose decision wrote this audit event, in this org: an exact link, or None."""
+    with sqlite3.connect(database_path) as connection:
+        row = connection.execute(
+            "SELECT request_id FROM decision_records WHERE org_id = ? AND audit_event_id = ?", (org_id, int(audit_event_id))
+        ).fetchone()
+    return row[0] if row else None
 
 
 def verify_record(record: dict[str, Any], *, org_id: str) -> dict[str, Any]:

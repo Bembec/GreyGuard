@@ -387,10 +387,12 @@ def save_audit_event(
     *,
     org_id,
 ):
-    """Save one GreyGuard security event."""
+    """Save one GreyGuard security event and return its id (decision records link to it)."""
 
+    # PostgreSQL reports the new id only through RETURNING; SQLite through lastrowid.
+    returning = " RETURNING id" if sqlite3.backend_name() == "postgresql" else ""
     with sqlite3.connect(database_path) as connection:
-        connection.execute(
+        cursor = connection.execute(
             """
             INSERT INTO audit_events (
                 agent_name,
@@ -406,7 +408,7 @@ def save_audit_event(
                 org_id
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            """ + returning,
             (
                 agent_name,
                 timestamp,
@@ -421,6 +423,7 @@ def save_audit_event(
                 org_id,
             ),
         )
+        return cursor.lastrowid
 
 
 def get_recent_audit_events(

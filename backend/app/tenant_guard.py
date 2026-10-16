@@ -230,6 +230,9 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # tables were blocked in batch 18 until alerts themselves were attributable to an org.
     "security_alerts",
     "alert_notes",
+    # P7.5 investigation workspace: an incident's full action record, under the incident's org
+    # (NULL for an install-level incident, exactly as security_alerts). Append-only.
+    "incident_events",
     "security_notifications",
     "notification_retention_policy",
     "notification_retention_events",

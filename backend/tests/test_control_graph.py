@@ -23,10 +23,12 @@ from backend.tests.test_agent_tenancy import PASSWORD, register, submit, tenants
 
 @pytest.fixture()
 def world(tenants, monkeypatch):  # noqa: F811
-    for module in (audit_integrity, decision_provenance, control_graph):
+    from backend.app import incident_workspace
+    for module in (audit_integrity, decision_provenance, control_graph, incident_workspace):
         monkeypatch.setattr(module, "database_path", database.database_path)
     decision_provenance.initialize_decision_provenance()
     alerts.initialize_alert_database()  # as the API's startup does
+    audit_integrity.initialize_audit_integrity()
     control_graph.graph_cache.clear()  # no test sees another's cached graphs
     return tenants
 

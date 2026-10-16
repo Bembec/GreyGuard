@@ -3,7 +3,7 @@
 import json
 from . import db_compat as sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .database import ALL_ORGS, database_path
@@ -90,6 +90,31 @@ def initialize_alert_database(database=None) -> None:
             "CREATE INDEX IF NOT EXISTS idx_alert_severity "
             "ON security_alerts(severity)"
         )
+        # P7.5 investigation workspace: the full action record of every incident. Append-only:
+        # a trigger refuses UPDATE (PostgreSQL: migration 20261016_36). org_id is nullable exactly
+        # as for security_alerts: NULL belongs to an install-level incident.
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS incident_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_id TEXT NOT NULL,
+                org_id TEXT,
+                timestamp TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                detail_json TEXT NOT NULL
+            )
+        """)
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_incident_events_alert ON incident_events(org_id, alert_id, id)"
+        )
+        if sqlite3.backend_name() == "sqlite":
+            connection.execute("""
+                CREATE TRIGGER IF NOT EXISTS incident_events_append_only
+                BEFORE UPDATE ON incident_events /* append-only for every org_id */
+                BEGIN
+                    SELECT RAISE(ABORT, 'incident events are append-only');
+                END
+            """)
         # P7.5 time ranges: alerts are read per org, newest first, within a range.
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_alert_org_created "
@@ -115,12 +140,23 @@ def sync_alerts_from_events(events: list[dict[str, Any]] | None = None, database
 
     created = 0
     with sqlite3.connect(database or database_path) as connection:
+        has_records = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'decision_records'").fetchone() is not None
         for event in events:
             severity = str(event.get("severity", "INFO")).upper()
             event_id = str(event.get("event_id", "")).strip()
             if severity not in {"HIGH", "CRITICAL"} or not event_id:
                 continue
             timestamp = str(event.get("timestamp") or current_timestamp())
+            request_id = event.get("request_id")
+            if request_id is None and has_records and event_id.startswith("policy-") and event.get("org_id"):
+                # A policy decision's audit event carries no request id; its decision record links
+                # the two exactly (decision records version 3). Older decisions stay unlinked.
+                row = connection.execute(
+                    "SELECT request_id FROM decision_records WHERE org_id = ? AND audit_event_id = ?",
+                    (event["org_id"], int(event_id.split("-", 1)[1])),
+                ).fetchone()
+                request_id = row[0] if row else None
             cursor = connection.execute("""
                 INSERT OR IGNORE INTO security_alerts (
                     alert_id, source_event_id, created_at, updated_at,
@@ -129,7 +165,7 @@ def sync_alerts_from_events(events: list[dict[str, Any]] | None = None, database
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?)
             """, (
                 str(uuid.uuid4()), event_id, timestamp, timestamp,
-                event.get("agent_name"), event.get("request_id"),
+                event.get("agent_name"), request_id,
                 str(event.get("event_type", "UNKNOWN")), event.get("action"),
                 str(event.get("outcome", "UNKNOWN")), severity,
                 _alert_title(event), str(event.get("summary", "Security evidence recorded.")),
@@ -228,6 +264,19 @@ def get_alert(alert_id: str, *, org_id, include_install_level: bool = False) -> 
         return None if row is None else _serialize(connection, row)
 
 
+INCIDENT_EVENT_TYPES = ("STATUS_CHANGED", "ASSIGNED", "NOTE_ADDED", "CONTAINMENT", "EXPORTED")
+
+
+def record_incident_event(connection, alert_id: str, org_id, actor: str, event_type: str, detail: dict[str, Any]) -> None:
+    """Append one entry to an incident's action record, in the caller's transaction."""
+    if event_type not in INCIDENT_EVENT_TYPES:
+        raise ValueError("Unknown incident event type.")
+    connection.execute(
+        "INSERT INTO incident_events (alert_id, org_id, timestamp, actor, event_type, detail_json) VALUES (?, ?, ?, ?, ?, ?)",
+        (alert_id, org_id, datetime.now(timezone.utc).isoformat(), actor, event_type, json.dumps(detail, sort_keys=True)),
+    )
+
+
 def update_alert(
     alert_id: str,
     status: str,
@@ -260,6 +309,15 @@ def update_alert(
                 INSERT INTO alert_notes (alert_id, timestamp, actor, note, org_id)
                 VALUES (?, ?, ?, ?, ?)
             """, (alert_id, timestamp, actor, note.strip(), alert_org))
+        # The full action record: every change, not only the ones that came with a note.
+        if current["status"] != normalized:
+            record_incident_event(connection, alert_id, alert_org, actor, "STATUS_CHANGED",
+                                  {"from": current["status"], "to": normalized, "with_note": bool(note)})
+        if (current.get("assigned_to") or None) != (assigned_to or None):
+            record_incident_event(connection, alert_id, alert_org, actor, "ASSIGNED",
+                                  {"from": current.get("assigned_to"), "to": assigned_to})
+        if note:
+            record_incident_event(connection, alert_id, alert_org, actor, "NOTE_ADDED", {"note": note.strip()})
     result = get_alert(alert_id, org_id=org_id, include_install_level=include_install_level)
     if result is None:
         raise KeyError("Alert not found.")
@@ -291,6 +349,7 @@ def add_alert_note(alert_id: str, actor: str, note: str, *, org_id,
             (timestamp, alert_id, alert_org or ""),
         )
         note_id = cursor.lastrowid
+        record_incident_event(connection, alert_id, alert_org, actor, "NOTE_ADDED", {"note": normalized_note})
     return {"id": note_id, "alert_id": alert_id, "timestamp": timestamp, "actor": actor, "note": normalized_note}
 
 

@@ -72,7 +72,7 @@ from .enterprise_sso import (
     initialize_enterprise_sso,
     list_enabled_providers_for_login,
 )
-from . import control_graph, decision_explanation, organizations
+from . import control_graph, decision_explanation, incident_workspace, organizations
 from .time_range import parse_time_range
 from . import entitlements
 from . import billing
@@ -4291,6 +4291,21 @@ def administrator_alerts(
     scope = alert_scope(require_admin(x_admin_pin))
     time_range = parse_time_range(since, until, org_id=scope["org_id"])
     return get_alerts(status, severity, agent_name, limit, **scope, time_range=time_range)
+
+
+@app.get("/incidents/{alert_id}/workspace")
+def incident_workspace_view(alert_id: str, x_admin_pin: str | None = Header(default=None)):
+    """The investigation workspace for one incident (P7.5 item 5). Read-only.
+
+    Same visibility as /alerts/{id}: another org's incident is the same 404 as a missing one, and
+    install-level incidents are for install operators only."""
+    administrator = require_admin(x_admin_pin)
+    scope = alert_scope(administrator)
+    result = incident_workspace.build_workspace(alert_id, caller_org=scope["org_id"], include_install_level=scope["include_install_level"],
+                                                viewer=administrator)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+    return result
 
 
 @app.get("/alerts/{alert_id}")

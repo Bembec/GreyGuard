@@ -1149,7 +1149,7 @@ def write_log(
             f"{blocked_attempts}\n"
         )
 
-    save_audit_event(
+    return save_audit_event(
         agent_name=normalized_name,
         timestamp=timestamp,
         action=action,
@@ -1214,6 +1214,12 @@ def evaluate_action(
         if decided is not None:
             decided.update(decision_provenance.provenance(**fields))
 
+    def logged(audit_event_id):
+        # The audit event written for this same decision: an incident derived from it can then be
+        # linked to its request exactly (decision records version 3).
+        if decided is not None:
+            decided["audit_event_id"] = audit_event_id
+
     normalized_name = normalize_agent_name(
         agent_name
     )
@@ -1251,7 +1257,7 @@ def evaluate_action(
              rule_snapshot={"global_deny": bool(emergency["global_deny"]),
                             "agent_disabled": normalized_name in emergency["disabled_agents"],
                             "tool_disabled": normalized_action in emergency["disabled_tools"]})
-        write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED", approval="NOT_REQUIRED", risk_added=0)
+        logged(write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED", approval="NOT_REQUIRED", risk_added=0))
         return action_result(
             agent_name=normalized_name, action=normalized_action,
             policy_decision="REFUSED", approval="NOT_REQUIRED", risk_added=0,
@@ -1261,13 +1267,13 @@ def evaluate_action(
     if state["agent_status"] == "SUSPENDED":
         note(outcome="REFUSED", rule_type="AGENT_STATE", matched_rule_id="agent_state:suspended",
              rule_name="Agent suspended", rule_snapshot={"agent_status": "SUSPENDED"})
-        write_log(
+        logged(write_log(
             agent_name=normalized_name,
             action=normalized_action,
             decision="REFUSED",
             approval="NOT_REQUIRED",
             risk_added=0,
-        )
+        ))
 
         return action_result(
             agent_name=normalized_name,
@@ -1343,8 +1349,8 @@ def evaluate_action(
         # Suspended by a concurrent request after the check above.
         note(outcome="REFUSED", rule_type="AGENT_STATE", matched_rule_id="agent_state:suspended",
              rule_name="Agent suspended", rule_snapshot={"agent_status": "SUSPENDED", "concurrent": True})
-        write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED",
-                  approval="NOT_REQUIRED", risk_added=0)
+        logged(write_log(agent_name=normalized_name, action=normalized_action, decision="REFUSED",
+                         approval="NOT_REQUIRED", risk_added=0))
         return action_result(
             agent_name=normalized_name, action=normalized_action, policy_decision="REFUSED",
             approval="NOT_REQUIRED", risk_added=0,
@@ -1352,13 +1358,13 @@ def evaluate_action(
         )
 
     note(outcome=policy_decision, **rule_note)
-    write_log(
+    logged(write_log(
         agent_name=normalized_name,
         action=normalized_action,
         decision=policy_decision,
         approval=approval_result,
         risk_added=risk_added,
-    )
+    ))
 
     if policy_decision == "ALLOW":
         message = "Action allowed by policy."
