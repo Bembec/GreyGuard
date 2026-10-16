@@ -129,6 +129,12 @@ test("the Team page marks install operators and exposes the operator toggle", as
 
 test("AUDITOR sees only the workspaces and tabs its role may open", async ({ page }) => {
   await signInAsAuditor(page)
+  // The Command Center opens on the Auditor view, the only one this role is offered, so there is
+  // no view switcher and no approval queue.
+  await expect(page.getByRole("heading", { name: "Latest decisions and events" })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole("heading", { name: "Compliance reports" })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Approval queue" })).toHaveCount(0)
+  await expect(page.getByLabel("Command Center view")).toHaveCount(0)
   const sidebar = page.getByRole("navigation", { name: "Primary navigation" })
   await expect(sidebar.getByRole("link", { name: /Requests & Approvals/ })).toBeVisible({ timeout: 15_000 })
   // Every Containment page needs PLATFORM_ADMIN, so the workspace itself is not offered.
