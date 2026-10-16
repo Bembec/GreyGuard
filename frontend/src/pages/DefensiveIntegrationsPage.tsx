@@ -81,7 +81,6 @@ export default function DefensiveIntegrationsPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Telemetry & Sensors"
         title="Defensive integrations"
         icon={<ShieldCheck size={22} />}
         description="Permissioned browser connectors, and defensive response plans that need a human's approval, expire on their own and can always be reversed."

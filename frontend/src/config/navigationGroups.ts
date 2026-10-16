@@ -1,4 +1,4 @@
-import { FileCheck2, KeyRound, LifeBuoy, Settings2, Siren, type LucideIcon } from "lucide-react"
+import { Bot, FileCheck2, Plug, Settings2, Siren, SlidersHorizontal, type LucideIcon } from "lucide-react"
 
 import type { NavigationGroupId } from "./navigation"
 
@@ -10,40 +10,47 @@ export interface NavigationGroup {
 }
 
 /**
- * Internal information-architecture labels only - not a rename of any route, module or page
- * title. Mirrors the four buyer-facing product groups the commercial roadmap already uses
- * to describe GreyGuard (Gate/Watch/Respond/Evidence), plus Administration for platform and
- * account housekeeping that isn't part of that security narrative.
+ * The console's task domains (roadmap v3, decision V1). With the pinned Command Center they make
+ * the seven domains used everywhere in the console: the sidebar, the collapsed mega-menu, the
+ * breadcrumb trail, page eyebrows and Ctrl+K. Operators work by task, so these differ on purpose
+ * from the buyer-facing Gate, Watch, Respond and Evidence names the website uses.
  */
 export const navigationGroups: NavigationGroup[] = [
   {
-    id: "gate",
-    label: "Gate",
-    description: "Identity, scopes, tool gateway and policy enforcement",
-    icon: KeyRound,
+    id: "agents",
+    label: "Agents & Access",
+    description: "Agent identities, machine accounts, federation and operator access",
+    icon: Bot,
   },
   {
-    id: "watch",
-    label: "Watch",
-    description: "Live monitoring, risk, alerts and investigation",
-    icon: LifeBuoy,
+    id: "policies",
+    label: "Policies & Approvals",
+    description: "Policies, capability controls, human approval and tool requests",
+    icon: SlidersHorizontal,
   },
   {
-    id: "respond",
-    label: "Respond",
-    description: "Suspension, incidents, isolation and recoverable containment",
+    id: "operations",
+    label: "Operations & Incidents",
+    description: "Live monitoring, risk, incidents and containment",
     icon: Siren,
   },
   {
     id: "evidence",
-    label: "Evidence",
-    description: "Tamper-evident audit history, reports and exports",
+    label: "Evidence & Reports",
+    description: "Tamper-evident audit history, integrity, reports and exports",
     icon: FileCheck2,
   },
   {
-    id: "administration",
-    label: "Administration",
-    description: "Organization setup, operators, account security and platform protection",
+    id: "integrations",
+    label: "Integrations",
+    description: "Agent adapters, secret references, alerting, ticketing and sensors",
+    icon: Plug,
+  },
+  {
+    id: "organization",
+    label: "Organization & Administration",
+    description: "Onboarding, plan and lifecycle settings, and platform health",
     icon: Settings2,
   },
 ]
+

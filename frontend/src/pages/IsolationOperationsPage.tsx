@@ -101,7 +101,6 @@ export default function IsolationOperationsPage() {
     <section className="gg-page">
       <input ref={fileInput} type="file" hidden onChange={(event) => void handleFileChosen(event)} />
       <PageHeader
-        eyebrow="Containment"
         title="Isolation operations"
         icon={<Boxes size={22} />}
         description="Per-agent isolated workspaces, artifact quarantine, network boundaries and the global execution kill switch."

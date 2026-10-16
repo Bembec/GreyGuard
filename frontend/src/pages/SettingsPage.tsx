@@ -132,7 +132,6 @@ export default function SettingsPage() {
   return (
     <main className="settings-page gg-page-pad">
       <PageHeader
-        eyebrow="Organization"
         title="Settings"
         icon={<MonitorCog size={22} />}
         description="Your organization's plan, usage and lifecycle, this console's display preferences, and the security environment protecting this session."

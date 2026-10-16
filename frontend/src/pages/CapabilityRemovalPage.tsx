@@ -71,7 +71,6 @@ export default function CapabilityRemovalPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Policies & Controls"
         title="Capability removal"
         icon={<ShieldOff size={22} />}
         description="Retire a high-risk capability safely: fail it closed first, keep the evidence, then complete each recovery step in order with proof."

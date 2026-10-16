@@ -204,7 +204,6 @@ export default function IncidentCenterPage() {
   return (
     <main className="incident-page gg-page-pad">
       <PageHeader
-        eyebrow="Incident Response"
         title="Incident Center"
         icon={<ShieldAlert size={22} />}
         description="High-risk evidence turned into owned, reviewable security investigations: who has each incident, what was done and how it closed."

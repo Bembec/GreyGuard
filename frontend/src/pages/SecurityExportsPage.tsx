@@ -71,7 +71,6 @@ export default function SecurityExportsPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Reports & Exports"
         title="Security exports"
         icon={<RadioTower size={22} />}
         description="Signed delivery of minimized security evidence to your SIEM and observability destinations, with queue and destination health."

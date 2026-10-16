@@ -229,7 +229,6 @@ export default function AuditTrailPage() {
       <div className="audit-light audit-light-two" />
 
       <PageHeader
-        eyebrow="Audit & Integrity"
         title="Audit Trail"
         icon={<FileSearch size={22} />}
         description="One timeline of policy decisions, authentication attempts, human approvals and controlled execution results, kept as tamper-evident evidence."

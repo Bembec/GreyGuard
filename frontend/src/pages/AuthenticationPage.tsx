@@ -323,7 +323,6 @@ export default function AuthenticationPage() {
       <div className="auth-glow auth-glow-two" />
 
       <PageHeader
-        eyebrow="Live Monitoring"
         title="Authentication"
         icon={<Fingerprint size={22} />}
         description="Identity claims, credential verification, scope checks and denied access across every agent."

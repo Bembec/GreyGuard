@@ -471,7 +471,6 @@ export default function AgentsPage() {
       />
 
       <PageHeader
-        eyebrow="Agents & Identity"
         title="Agents"
         icon={<Bot size={22} />}
         description="Every registered agent with its identity, scopes, credential and risk. An identity is not a permission: restrict scopes, rotate or revoke credentials, and contain a risky agent from here."

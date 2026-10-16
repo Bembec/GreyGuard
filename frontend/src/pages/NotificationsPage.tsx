@@ -155,7 +155,6 @@ export default function NotificationsPage() {
 
   return <main className="notifications-page gg-page-pad">
     <PageHeader
-        eyebrow="Live Monitoring"
         title="Notifications"
         icon={<BellRing size={22} />}
         description="Prioritized security signals, each linked to the evidence behind it. Refreshes every 15 seconds."

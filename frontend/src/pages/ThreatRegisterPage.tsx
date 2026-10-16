@@ -74,7 +74,6 @@ export default function ThreatRegisterPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Risk & Threats"
         title="Threat register"
         icon={<ShieldCheck size={22} />}
         description="Each threat's attack path, controls, test evidence, owner, residual risk and next review date, kept as reviewed security governance."

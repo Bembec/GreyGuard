@@ -556,7 +556,6 @@ export default function LiveOperationsPage() {
       </div>
 
       <PageHeader
-        eyebrow="Live Monitoring"
         title="Live operations"
         icon={<RadioTower size={22} />}
         description="Policy decisions, authentication, approvals and controlled execution, streamed as GreyGuard records them."

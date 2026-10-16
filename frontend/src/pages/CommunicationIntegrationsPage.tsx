@@ -64,7 +64,6 @@ export default function CommunicationIntegrationsPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Incident Response"
         title="Communications"
         icon={<BellRing size={22} />}
         description="External security notifications for your responders: which channels receive which severities, quiet hours, escalation, and the evidence of each delivery."

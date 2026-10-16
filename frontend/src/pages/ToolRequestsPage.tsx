@@ -302,7 +302,6 @@ export default function ToolRequestsPage() {
       </div>
 
       <PageHeader
-        eyebrow="Requests & Approvals"
         title="Tool requests"
         icon={<Boxes size={22} />}
         description="Every action an agent asked to take, followed from identity and policy evaluation through approval and sandbox execution to its final evidence."

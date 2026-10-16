@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from "react"
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react"
 import { Link, useLocation } from "react-router-dom"
 
 import type { NavigationGroup } from "../../config/navigationGroups"
@@ -24,6 +24,15 @@ export function NavFlyout({ group, workspaces }: NavFlyoutProps) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useDismissableLayer<HTMLDivElement>({ open, onClose: () => setOpen(false), trapFocus: true })
 
+  // Once painted, lift the panel so all of it sits on screen; one taller than the window scrolls.
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (!open || !panel) return
+    const margin = 8
+    const top = Math.max(margin, Math.min(panel.getBoundingClientRect().top, window.innerHeight - panel.offsetHeight - margin))
+    if (top !== panel.getBoundingClientRect().top) setPosition((current) => ({ ...current, top }))
+  }, [open, panelRef])
+
   const visible = workspaces
     .map((workspace) => ({ workspace, tabs: visibleTabs(workspace, administrator) }))
     .filter(({ tabs }) => tabs.length > 0)
@@ -42,7 +51,7 @@ export function NavFlyout({ group, workspaces }: NavFlyoutProps) {
         aria-controls={`nav-flyout-${group.id}`}
         onClick={() => {
           const rect = triggerRef.current?.getBoundingClientRect()
-          if (rect) setPosition({ top: Math.max(8, Math.min(rect.top, window.innerHeight - 420)), left: rect.right + 12 })
+          if (rect) setPosition({ top: Math.max(8, rect.top), left: rect.right + 12 })
           setOpen((value) => !value)
         }}
         title={group.label}

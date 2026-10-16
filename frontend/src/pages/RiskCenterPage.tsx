@@ -310,7 +310,6 @@ export default function RiskCenterPage() {
       <div className="risk-orbit risk-orbit-two" />
 
       <PageHeader
-        eyebrow="Risk & Threats"
         title="Risk Center"
         icon={<Radar size={22} />}
         description="Accumulated agent risk, blocked attempts, suspension thresholds and recovery after investigation."

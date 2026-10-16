@@ -118,7 +118,6 @@ export default function ComplianceReportsPage() {
 
   return <main className="compliance-page gg-page-pad">
     <PageHeader
-        eyebrow="Reports & Exports"
         title="Compliance Reports"
         icon={<ShieldCheck size={22} />}
         description="Immutable, verifiable evidence snapshots, signed and exportable for auditors and reviewers."

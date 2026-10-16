@@ -148,7 +148,6 @@ export default function ServiceAccountsPage() {
 
   return <section className="gg-page">
     <PageHeader
-      eyebrow="Agents & Identity"
       title="API keys & service accounts"
       icon={<Bot size={22} />}
       description="Issue scoped, expiring credentials for automation and CI, so no integration ever shares an administrator's session."

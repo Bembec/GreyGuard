@@ -102,7 +102,6 @@ export default function GettingStartedPage() {
   return (
     <section className="gg-page getting-started">
       <PageHeader
-        eyebrow="Organization"
         title="Getting started"
         icon={<Rocket size={22} />}
         description="Your organization's path from its first agent to governed production. Each step is computed from your real configuration, so it completes itself when the work is done."

@@ -376,7 +376,6 @@ export default function ApprovalsPage() {
       </div>
 
       <PageHeader
-        eyebrow="Requests & Approvals"
         title="Approvals"
         icon={<CheckSquare size={22} />}
         description="Requests that policy marked ASK wait here, paused, until a person decides. Every approval or denial is bound to the reviewer, the time, a note and a permanent security record."

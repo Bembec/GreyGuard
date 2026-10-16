@@ -63,7 +63,6 @@ export default function ExecutionIsolationPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Containment"
         title="Execution isolation"
         icon={<Box size={22} />}
         description="Predefined jobs run in hardened Docker containers with no network by default, no host Docker socket and no extra privileges."

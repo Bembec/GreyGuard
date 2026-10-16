@@ -112,7 +112,6 @@ export default function EnterpriseIdentityPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Agents & Identity"
         title="Enterprise identity"
         icon={<Building2 size={22} />}
         description="Install-wide trust: single sign-on federation, the claims that map to GreyGuard roles, agent workload certificates and time-bound privilege elevation."

@@ -82,7 +82,6 @@ export default function AccountSecurityPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Access & Accounts"
         title="Account security"
         icon={<ShieldCheck size={22} />}
         description={<>Protect <strong>{administrator?.email}</strong> with multi-factor authentication, and review every device signed in to your account.</>}

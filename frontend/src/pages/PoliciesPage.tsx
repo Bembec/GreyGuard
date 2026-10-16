@@ -357,7 +357,6 @@ export default function PoliciesPage() {
       </div>
 
       <PageHeader
-        eyebrow="Policies & Controls"
         title="Policies"
         icon={<SlidersHorizontal size={22} />}
         description="The rules that turn an agent's request into ALLOW, ASK or BLOCK. GreyGuard weighs agent state, scope, the requested action, human authority and accumulated risk before anything runs."

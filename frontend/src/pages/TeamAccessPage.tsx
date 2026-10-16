@@ -96,7 +96,6 @@ export default function TeamAccessPage() {
 
   return <main className="team-page gg-page-pad">
     <PageHeader
-      eyebrow="Access & Accounts"
       title="Team & Access"
       icon={<ShieldEllipsis size={22} />}
       description="Every administrator account on this install, with its role, its install-operator flag and its status. Create accountable operators and keep roles to the least privilege needed."

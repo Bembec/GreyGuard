@@ -2,8 +2,9 @@ import { expect, test } from "@playwright/test"
 
 import { adminSession, openWithSession } from "./session"
 
-// The P1.4 information architecture: the sidebar lists product domains and their workspaces,
-// and a workspace's pages are tabs that keep their own URLs.
+// The console information architecture (P1.4, regrouped into v3's seven task domains in P7.5): the
+// sidebar lists the pinned Command Center and six task domains with their workspaces, and a
+// workspace's pages are tabs that keep their own URLs.
 
 let session: Record<string, string> = {}
 test.beforeAll(() => { session = adminSession() })
@@ -12,18 +13,18 @@ test.beforeAll(() => { session = adminSession() })
 test("the sidebar groups workspaces into expandable product domains", async ({ page }) => {
   await openWithSession(page, session, "/getting-started")
   const sidebar = page.getByRole("navigation", { name: "Primary navigation" })
-  for (const domain of ["Gate", "Watch", "Respond", "Evidence", "Administration"]) {
+  for (const domain of ["Agents & Access", "Policies & Approvals", "Operations & Incidents", "Evidence & Reports", "Integrations", "Organization & Administration"]) {
     await expect(sidebar.getByRole("button", { name: domain })).toHaveAttribute("aria-expanded", "true")
   }
   // One entry per workspace, not one per page.
-  await expect(sidebar.getByRole("link")).toHaveCount(13)
-  await sidebar.getByRole("button", { name: "Evidence" }).click()
-  await expect(sidebar.getByRole("button", { name: "Evidence" })).toHaveAttribute("aria-expanded", "false")
+  await expect(sidebar.getByRole("link")).toHaveCount(16)
+  await sidebar.getByRole("button", { name: "Evidence & Reports" }).click()
+  await expect(sidebar.getByRole("button", { name: "Evidence & Reports" })).toHaveAttribute("aria-expanded", "false")
   await expect(sidebar.getByRole("link", { name: /Audit & Integrity/ })).toHaveCount(0)
   // The choice is remembered on this device.
   await page.reload()
-  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "Evidence" })).toHaveAttribute("aria-expanded", "false")
-  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "Evidence" }).click()
+  await expect(page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "Evidence & Reports" })).toHaveAttribute("aria-expanded", "false")
+  await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("button", { name: "Evidence & Reports" }).click()
 })
 
 test("workspace tabs move between pages and keep each page's URL", async ({ page }) => {
@@ -35,7 +36,7 @@ test("workspace tabs move between pages and keep each page's URL", async ({ page
   await tabs.getByRole("link", { name: "Tool Requests" }).click()
   await expect(page).toHaveURL(/\/requests$/)
   await expect(tabs.getByRole("link", { name: "Tool Requests" })).toHaveAttribute("aria-current", "page")
-  await expect(page.locator(".topbar__trail")).toContainText("Gate")
+  await expect(page.locator(".topbar__trail")).toContainText("Policies & Approvals")
   await expect(page.locator(".topbar__trail")).toContainText("Requests & Approvals")
   // A direct visit opens the same workspace with the right tab selected.
   await page.goto("/sandbox")
@@ -50,11 +51,44 @@ test("search jumps to a page by name", async ({ page }) => {
   await expect(page).toHaveURL(/\/threat-register$/)
 })
 
+test("favourites and recent pages are one step away in the sidebar and Ctrl+K", async ({ page }) => {
+  // In-app navigation only: every full load resumes the shared admin session against the rate limit.
+  await openWithSession(page, session, "/approvals")
+  const sidebar = page.getByRole("navigation", { name: "Primary navigation" })
+  await expect(sidebar.getByRole("group", { name: "Favourites" })).toHaveCount(0)
+  await page.getByRole("button", { name: "Add Approvals to favourites" }).click()
+  await expect(page.getByRole("button", { name: "Remove Approvals from favourites" })).toHaveAttribute("aria-pressed", "true")
+  await expect(sidebar.getByRole("group", { name: "Favourites" }).getByRole("link", { name: "Approvals" })).toBeVisible()
+
+  // Detail pages and the Command Center have no star.
+  await page.getByRole("navigation", { name: "Requests & Approvals sections" }).getByRole("link", { name: "Sandbox" }).click()
+  await expect(page.getByRole("button", { name: "Add Sandbox to favourites" })).toBeVisible()
+  await sidebar.getByRole("link", { name: /^Command Center/ }).click()
+  await expect(page.locator(".topbar__title")).toHaveText("Command Center")
+  await expect(page.locator(".topbar__favourite")).toHaveCount(0)
+
+  await page.keyboard.press("Control+k")
+  await expect(page.getByRole("listbox", { name: "Favourite pages" }).getByRole("option", { name: /^Approvals/ })).toBeVisible()
+  const recent = page.getByRole("listbox", { name: "Recent pages" })
+  await expect(recent.getByRole("option", { name: /^Sandbox/ })).toBeVisible()
+  // A favourite is listed once, and the Command Center is never a recent page.
+  await expect(recent.getByRole("option", { name: /^Approvals/ })).toHaveCount(0)
+  await expect(recent.getByRole("option", { name: /^Command Center/ })).toHaveCount(0)
+  await recent.getByRole("option", { name: /^Sandbox/ }).click()
+  await expect(page).toHaveURL(/\/sandbox$/)
+
+  // Favourites survive a reload on this device, and un-starring removes them.
+  await page.reload()
+  await sidebar.getByRole("group", { name: "Favourites" }).getByRole("link", { name: "Approvals" }).click({ timeout: 15_000 })
+  await page.getByRole("button", { name: "Remove Approvals from favourites" }).click()
+  await expect(sidebar.getByRole("group", { name: "Favourites" })).toHaveCount(0)
+})
+
 test("the collapsed sidebar opens a mega-menu with every workspace and page in a domain", async ({ page }) => {
   await openWithSession(page, session, "/getting-started")
   await page.getByRole("button", { name: "Collapse sidebar" }).click()
-  await page.getByTitle("Respond").click()
-  const menu = page.getByRole("menu", { name: "Respond navigation" })
+  await page.getByTitle("Operations & Incidents").click()
+  const menu = page.getByRole("menu", { name: "Operations & Incidents navigation" })
   await expect(menu.getByRole("group", { name: "Incident Response" })).toBeVisible()
   await expect(menu.getByRole("group", { name: "Containment" })).toBeVisible()
   // The panel must actually be painted, not clipped by the sidebar: the item is the topmost
@@ -80,7 +114,7 @@ test("the tab bar stays above a page's own background layers", async ({ page }) 
 test("sections and tabs work from the keyboard alone", async ({ page }) => {
   await openWithSession(page, session, "/approvals")
   const sidebar = page.getByRole("navigation", { name: "Primary navigation" })
-  const evidence = sidebar.getByRole("button", { name: "Evidence" })
+  const evidence = sidebar.getByRole("button", { name: "Evidence & Reports" })
   await evidence.focus()
   await page.keyboard.press("Enter")
   await expect(evidence).toHaveAttribute("aria-expanded", "false")

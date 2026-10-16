@@ -1,6 +1,10 @@
 import {
+  Activity,
+  BellRing,
   Bot,
+  Cable,
   ClipboardCheck,
+  Container,
   FileLock2,
   FileOutput,
   Gauge,
@@ -10,7 +14,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
-  Container,
   UsersRound,
   type LucideIcon,
 } from "lucide-react"
@@ -39,64 +42,64 @@ export const workspaces: Workspace[] = [
   {
     id: "agents",
     label: "Agents & Identity",
-    description: "Agent identities, machine accounts, federation and adapters",
-    domain: "gate",
+    description: "Agent identities, machine accounts, federation and authentication activity",
+    domain: "agents",
     icon: Bot,
-    tabs: ["/agents", "/service-accounts", "/enterprise-identity", "/adapters"],
+    tabs: ["/agents", "/service-accounts", "/enterprise-identity", "/authentication"],
+  },
+  {
+    id: "access",
+    label: "Operators & Access",
+    description: "Operators, roles and your own account security",
+    domain: "agents",
+    icon: UsersRound,
+    tabs: ["/team", "/account-security"],
   },
   {
     id: "requests",
     label: "Requests & Approvals",
     description: "Human authorization, tool requests and the sandbox",
-    domain: "gate",
+    domain: "policies",
     icon: ClipboardCheck,
     tabs: ["/approvals", "/requests", "/sandbox"],
   },
   {
     id: "controls",
     label: "Policies & Controls",
-    description: "Policies, capability tiers, removal and secret references",
-    domain: "gate",
+    description: "Policies, capability tiers and capability removal",
+    domain: "policies",
     icon: SlidersHorizontal,
-    tabs: ["/policies", "/universal-controls", "/capability-removals", "/secrets"],
+    tabs: ["/policies", "/universal-controls", "/capability-removals"],
   },
   {
     id: "monitoring",
     label: "Live Monitoring",
-    description: "Live events, prioritized signals and authentication activity",
-    domain: "watch",
+    description: "Live events and prioritized signals",
+    domain: "operations",
     icon: RadioTower,
-    tabs: ["/live", "/notifications", "/authentication"],
+    tabs: ["/live", "/notifications"],
   },
   {
     id: "risk",
     label: "Risk & Threats",
     description: "Agent risk, the threat register and control validation",
-    domain: "watch",
+    domain: "operations",
     icon: Radar,
     tabs: ["/risk", "/threat-register", "/simulations"],
   },
   {
-    id: "telemetry",
-    label: "Telemetry & Sensors",
-    description: "Endpoint telemetry, defensive connectors and observability",
-    domain: "watch",
-    icon: Gauge,
-    tabs: ["/endpoint-telemetry", "/defensive-integrations", "/observability"],
-  },
-  {
     id: "incidents",
     label: "Incident Response",
-    description: "Incident ownership, ticketing and notifications",
-    domain: "respond",
+    description: "Incident ownership, timelines and containment decisions",
+    domain: "operations",
     icon: ShieldAlert,
-    tabs: ["/incidents", "/incident-integrations", "/communication-integrations"],
+    tabs: ["/incidents"],
   },
   {
     id: "containment",
     label: "Containment",
     description: "Hardened execution, workspaces and quarantine",
-    domain: "respond",
+    domain: "operations",
     icon: Container,
     tabs: ["/execution-isolation", "/isolation-operations"],
   },
@@ -117,20 +120,44 @@ export const workspaces: Workspace[] = [
     tabs: ["/compliance", "/security-exports"],
   },
   {
+    id: "connections",
+    label: "Agent Connections",
+    description: "Framework adapters and secret references",
+    domain: "integrations",
+    icon: Cable,
+    tabs: ["/adapters", "/secrets"],
+  },
+  {
+    id: "alerting",
+    label: "Alerting & Ticketing",
+    description: "Ticketing systems and notification channels",
+    domain: "integrations",
+    icon: BellRing,
+    tabs: ["/incident-integrations", "/communication-integrations"],
+  },
+  {
+    id: "telemetry",
+    label: "Telemetry & Sensors",
+    description: "Defensive connectors and endpoint telemetry",
+    domain: "integrations",
+    icon: Gauge,
+    tabs: ["/defensive-integrations", "/endpoint-telemetry"],
+  },
+  {
     id: "organization",
     label: "Organization",
     description: "Onboarding, plan, lifecycle and interface settings",
-    domain: "administration",
+    domain: "organization",
     icon: Rocket,
     tabs: ["/getting-started", "/settings"],
   },
   {
-    id: "access",
-    label: "Access & Accounts",
-    description: "Operators, your account security and abuse protection",
-    domain: "administration",
-    icon: UsersRound,
-    tabs: ["/team", "/account-security", "/abuse-protection"],
+    id: "platform",
+    label: "Platform Health",
+    description: "Observability and abuse protection for the whole install",
+    domain: "organization",
+    icon: Activity,
+    tabs: ["/observability", "/abuse-protection"],
   },
 ]
 
@@ -193,4 +220,12 @@ export function matchPages(query: string, administrator: Administrator | null, l
     .sort((a, b) => a.rank - b.rank)
     .slice(0, limit)
     .map(({ match }) => match)
+}
+
+/** The pages at these paths that this administrator may open, in the order given. */
+export function visiblePages(paths: string[], administrator: Administrator | null): PageMatch[] {
+  return paths
+    .map((path) => itemsByPath.get(path))
+    .filter((item): item is NavigationItem => Boolean(item) && matchesPermission(administrator, navigationPermission(item!)))
+    .map((item) => ({ item, workspace: workspaceForPath(item.path) }))
 }

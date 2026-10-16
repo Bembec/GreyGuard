@@ -79,7 +79,6 @@ export default function AgentAdaptersPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Agents & Identity"
         title="Agent adapters"
         icon={<Network size={22} />}
         description="Framework adapters translate agent requests into GreyGuard's gateway. Review each adapter's capability manifest, test it in isolation, and stop it immediately with its kill switch."

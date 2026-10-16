@@ -36,7 +36,7 @@ export default function RequestDetailPage() {
 
   return <main className="request-investigation gg-page-pad">
     <PageHeader
-      eyebrow="Requests & Approvals · Investigation"
+      eyebrowSuffix="Investigation"
       title={request ? String(request.action) : requestId}
       icon={<Route size={22} />}
       description={<>Why GreyGuard decided as it did, the approval and execution timeline, and the redacted evidence for request <code className="gg-code">{requestId}</code>.</>}

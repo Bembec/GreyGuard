@@ -251,6 +251,29 @@
   color: var(--gg-text-muted);
 }
 
+.sidebar-favourites__label,
+.sidebar-favourites__label:hover {
+  cursor: default;
+  color: var(--gg-text-muted);
+  background: transparent;
+}
+
+.sidebar-favourites__label svg {
+  color: var(--gg-amber);
+}
+
+.sidebar__link--compact {
+  min-height: 40px;
+  padding: 0.35rem 0.65rem;
+}
+
+.sidebar__link--compact .sidebar__link-icon {
+  width: 30px;
+  height: 30px;
+  flex-basis: 30px;
+  border-radius: 8px;
+}
+
 .app-shell--collapsed .sidebar-group__header {
   opacity: 0;
   pointer-events: none;
@@ -569,6 +592,39 @@
   font-size: 1rem;
   font-weight: 700;
   color: var(--gg-text-primary);
+}
+
+.topbar__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.topbar__favourite {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  color: var(--gg-text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.topbar__favourite:hover,
+.topbar__favourite:focus-visible {
+  color: var(--gg-text-primary);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.topbar__favourite--on,
+.topbar__favourite--on:hover {
+  color: var(--gg-amber);
+}
+
+.topbar__favourite--on svg {
+  fill: currentColor;
 }
 
 .topbar__actions {

@@ -98,7 +98,6 @@ export default function SecretsPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Policies & Controls"
         title="Secret references"
         icon={<KeyRound size={22} />}
         description="GreyGuard stores references to secrets held in your providers, plus the audit evidence of their use. Secret values are fetched just in time for a controlled integration and are never displayed or stored."

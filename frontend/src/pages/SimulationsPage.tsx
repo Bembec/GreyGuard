@@ -83,7 +83,6 @@ export default function SimulationsPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Risk & Threats"
         title="Simulation lab"
         icon={<FlaskConical size={22} />}
         description="Check that GreyGuard detects, refuses, alerts on and records prohibited agent behaviour, using predefined scenarios against fictional targets."

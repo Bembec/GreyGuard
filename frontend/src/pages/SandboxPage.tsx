@@ -283,7 +283,6 @@ export default function SandboxPage() {
       <div className="sandbox-glow" />
 
       <PageHeader
-        eyebrow="Requests & Approvals"
         title="Controlled sandbox"
         icon={<LockKeyhole size={22} />}
         description="The restricted filesystem and tool surface where approved requests run, and the persistent evidence of each execution. Nothing here can reach the host machine."

@@ -78,7 +78,6 @@ export default function UniversalControlsPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Policies & Controls"
         title="Universal controls"
         icon={<LockKeyhole size={22} />}
         description="Every Tier 2 and Tier 3 capability needs an owner, a purpose, an expiry, human approval and an allowlist before the backend lets it run."

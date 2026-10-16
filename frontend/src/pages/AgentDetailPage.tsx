@@ -61,7 +61,7 @@ export default function AgentDetailPage() {
 
   return <main className="agent-investigation gg-page-pad">
     <PageHeader
-      eyebrow="Agents & Identity · Investigation"
+      eyebrowSuffix="Investigation"
       title={agent?.agent_name ?? agentName}
       icon={<Bot size={22} />}
       description="Correlated identity, risk, authentication, credential and controlled-execution evidence for one agent."

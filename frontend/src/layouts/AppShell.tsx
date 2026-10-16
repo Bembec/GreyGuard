@@ -5,6 +5,7 @@ import {
   LogOut,
   Menu,
   Search,
+  Star,
   X,
 } from "lucide-react"
 import {
@@ -22,12 +23,14 @@ import {
 import { Logo } from "../components/brand/Logo"
 import { GlobalSearchDialog } from "../components/GlobalSearchDialog"
 import { NavFlyout } from "../components/navigation/NavFlyout"
+import { SidebarFavourites } from "../components/navigation/SidebarFavourites"
 import { SidebarNavGroup } from "../components/navigation/SidebarNavGroup"
 import { UserMenu } from "../components/navigation/UserMenu"
 import { WorkspaceTabs } from "../components/navigation/WorkspaceTabs"
 import { navigationGroups } from "../config/navigationGroups"
 import { commandCenter, pageForPath, workspaceForPath, workspaces } from "../config/workspaces"
 import { useAuth } from "../context/AuthContext"
+import { recordRecentPage, toggleFavourite, usePageShortcuts } from "../lib/pageShortcuts"
 import { recordPageView } from "../lib/pageViewAnalytics"
 import { CapacityBanner } from "../components/CapacityBanner"
 import { OfflineBanner } from "../components/page/OfflineBanner"
@@ -53,9 +56,27 @@ function getPageInformation(pathname: string) {
   return { label: page.label, path: page.path, trail }
 }
 
+/** Stars the open page. Detail pages and the Command Center have no toggle: only list pages are kept. */
+function FavouriteToggle({ path, label }: { path: string; label: string }) {
+  const favourite = usePageShortcuts().favourites.includes(path)
+  return (
+    <button
+      type="button"
+      className={["topbar__favourite", favourite ? "topbar__favourite--on" : ""].join(" ")}
+      onClick={() => toggleFavourite(path)}
+      aria-pressed={favourite}
+      aria-label={favourite ? `Remove ${label} from favourites` : `Add ${label} to favourites`}
+      title={favourite ? "Remove from favourites" : "Add to favourites"}
+    >
+      <Star size={15} aria-hidden="true" />
+    </button>
+  )
+}
+
 export function AppShell() {
   const location = useLocation()
   useEffect(() => recordPageView(location.pathname), [location.pathname])
+  useEffect(() => recordRecentPage(location.pathname), [location.pathname])
   const navigate = useNavigate()
   const { logout } = useAuth()
 
@@ -173,9 +194,12 @@ export function AppShell() {
             ? groupedWorkspaces.map(({ group, workspaces }) => (
                 <NavFlyout key={group.id} group={group} workspaces={workspaces} />
               ))
-            : groupedWorkspaces.map(({ group, workspaces }) => (
-                <SidebarNavGroup key={group.id} group={group} workspaces={workspaces} />
-              ))}
+            : <>
+                <SidebarFavourites />
+                {groupedWorkspaces.map(({ group, workspaces }) => (
+                  <SidebarNavGroup key={group.id} group={group} workspaces={workspaces} />
+                ))}
+              </>}
         </nav>
 
         <div className="sidebar__footer">
@@ -236,7 +260,12 @@ export function AppShell() {
                 ))}
               </p>
 
-              <p className="topbar__title">{currentPage.label}</p>
+              <div className="topbar__heading">
+                <p className="topbar__title">{currentPage.label}</p>
+                {location.pathname === currentPage.path && currentPage.path !== commandCenter.path && (
+                  <FavouriteToggle path={currentPage.path} label={currentPage.label} />
+                )}
+              </div>
             </div>
           </div>
 

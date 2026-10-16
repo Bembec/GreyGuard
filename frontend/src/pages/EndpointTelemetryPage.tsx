@@ -60,7 +60,6 @@ export default function EndpointTelemetryPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Telemetry & Sensors"
         title="Endpoint telemetry"
         icon={<Eye size={22} />}
         description="Consent-bound, read-only metadata from endpoints you have registered. Each collector is visible to the people it monitors and stays off until an administrator enables it."

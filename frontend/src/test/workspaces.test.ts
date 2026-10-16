@@ -6,6 +6,7 @@ import {
   commandCenter,
   matchPages,
   pagePathFor,
+  visiblePages,
   visibleTabs,
   workspaceForPath,
   workspaces,
@@ -70,6 +71,14 @@ describe("route inventory", () => {
 })
 
 describe("information architecture", () => {
+  it("uses v3's seven task domains: the pinned Command Center and six groups", () => {
+    expect(commandCenter.label).toBe("Command Center")
+    expect(navigationGroups.map((group) => group.label)).toEqual([
+      "Agents & Access", "Policies & Approvals", "Operations & Incidents", "Evidence & Reports", "Integrations",
+      "Organization & Administration",
+    ])
+  })
+
   it("never shows a domain as a long flat list", () => {
     for (const group of navigationGroups) {
       const count = workspaces.filter((workspace) => workspace.domain === group.id).length
@@ -132,6 +141,14 @@ describe("role-based visibility", () => {
     expect(matchPages("service", auditor).map((match) => match.item.path)).not.toContain("/service-accounts")
     expect(matchPages("team", orgAdmin).map((match) => match.item.path)).not.toContain("/team")
     expect(matchPages("", operator)).toEqual([])
+  })
+
+  it("only shows stored favourites and recent pages the administrator may open, in order", () => {
+    const stored = ["/team", "/service-accounts", "/approvals", "/agents/x"]
+    expect(visiblePages(stored, operator).map((match) => match.item.path)).toEqual(["/team", "/service-accounts", "/approvals"])
+    expect(visiblePages(stored, orgAdmin).map((match) => match.item.path)).toEqual(["/service-accounts", "/approvals"])
+    expect(visiblePages(stored, auditor).map((match) => match.item.path)).toEqual(["/approvals"])
+    expect(visiblePages(stored, null).map((match) => match.item.path)).toEqual(["/approvals"])
   })
 
   it("ranks a page-name match above a description match", () => {

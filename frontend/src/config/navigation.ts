@@ -38,7 +38,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-export type NavigationGroupId = "gate" | "watch" | "respond" | "evidence" | "administration"
+export type NavigationGroupId = "agents" | "policies" | "operations" | "evidence" | "integrations" | "organization"
 
 export interface NavigationItem {
   label: string
@@ -63,63 +63,63 @@ export const navigationItems: NavigationItem[] = [
     label: "Getting Started",
     path: "/getting-started",
     description: "Onboarding steps and pilot progress",
-    group: "administration",
+    group: "organization",
     icon: Rocket,
   },
   {
     label: "Live Operations",
     path: "/live",
     description: "Real-time security event monitoring",
-    group: "watch",
+    group: "operations",
     icon: RadioTower,
   },
   {
     label: "Agents",
     path: "/agents",
     description: "Identity, scopes and agent states",
-    group: "gate",
+    group: "agents",
     icon: Bot,
   },
   {
     label: "Tool Requests",
     path: "/requests",
     description: "Controlled execution requests",
-    group: "gate",
+    group: "policies",
     icon: Boxes,
   },
   {
     label: "Approvals",
     path: "/approvals",
     description: "Human authorization queue",
-    group: "gate",
+    group: "policies",
     icon: CheckSquare,
   },
   {
     label: "Policies",
     path: "/policies",
     description: "Action permissions and boundaries",
-    group: "gate",
+    group: "policies",
     icon: SlidersHorizontal,
   },
   {
     label: "Risk Center",
     path: "/risk",
     description: "Risk scores and suspensions",
-    group: "watch",
+    group: "operations",
     icon: Radar,
   },
   {
     label: "Incident Center",
     path: "/incidents",
     description: "Alert ownership and response workflow",
-    group: "respond",
+    group: "operations",
     icon: ShieldAlert,
   },
   {
     label: "Notifications",
     path: "/notifications",
     description: "Prioritized security signal inbox",
-    group: "watch",
+    group: "operations",
     icon: Bell,
   },
   {
@@ -140,21 +140,21 @@ export const navigationItems: NavigationItem[] = [
     label: "Authentication",
     path: "/authentication",
     description: "Credential and scope events",
-    group: "watch",
+    group: "agents",
     icon: Fingerprint,
   },
   {
     label: "Account Security",
     path: "/account-security",
     description: "MFA, credential expiry and active devices",
-    group: "administration",
+    group: "agents",
     icon: Lock,
   },
   {
     label: "Sandbox",
     path: "/sandbox",
     description: "Contained tool environment",
-    group: "gate",
+    group: "policies",
     icon: ClipboardList,
   },
   {
@@ -162,7 +162,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/team",
     description: "Administrator identities and roles",
     requiresInstallOperator: true,
-    group: "administration",
+    group: "agents",
     icon: UsersRound,
   },
   {
@@ -170,7 +170,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/secrets",
     description: "References, rotation and emergency revocation",
     requiredRole: "PLATFORM_ADMIN",
-    group: "gate",
+    group: "integrations",
     icon: KeySquare,
   },
   {
@@ -178,7 +178,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/service-accounts",
     description: "Scoped machine identities and API keys",
     requiredRole: "PLATFORM_ADMIN",
-    group: "gate",
+    group: "agents",
     icon: KeyRound,
   },
   {
@@ -186,7 +186,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/adapters",
     description: "Framework manifests, tests and emergency kill switches",
     requiredRole: "PLATFORM_ADMIN",
-    group: "gate",
+    group: "integrations",
     icon: Plug,
   },
   {
@@ -194,7 +194,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/observability",
     description: "Tracing, metrics, correlation and export controls",
     requiresInstallOperator: true,
-    group: "watch",
+    group: "organization",
     icon: LineChart,
   },
   {
@@ -218,7 +218,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/communication-integrations",
     description: "Incident notifications, quiet hours and delivery evidence",
     requiredRole: "PLATFORM_ADMIN",
-    group: "respond",
+    group: "integrations",
     icon: MessageSquare,
   },
   {
@@ -226,7 +226,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/incident-integrations",
     description: "Jira, ServiceNow, approval links and signed callbacks",
     requiredRole: "PLATFORM_ADMIN",
-    group: "respond",
+    group: "integrations",
     icon: Workflow,
   },
   {
@@ -234,7 +234,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/execution-isolation",
     description: "Hardened Docker sandbox and emergency termination",
     requiredRole: "PLATFORM_ADMIN",
-    group: "respond",
+    group: "operations",
     icon: Container,
   },
   {
@@ -242,7 +242,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/isolation-operations",
     description: "Workspaces, quarantine, network boundaries and Kubernetes jobs",
     requiredRole: "PLATFORM_ADMIN",
-    group: "respond",
+    group: "operations",
     icon: Layers,
   },
   {
@@ -250,7 +250,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/endpoint-telemetry",
     description: "Consent-bound read-only endpoint monitoring",
     requiredRole: "PLATFORM_ADMIN",
-    group: "watch",
+    group: "integrations",
     icon: Satellite,
   },
   {
@@ -258,7 +258,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/defensive-integrations",
     description: "Permissioned connectors and reversible response plans",
     requiredRole: "PLATFORM_ADMIN",
-    group: "watch",
+    group: "integrations",
     icon: ShieldPlus,
   },
   {
@@ -266,7 +266,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/simulations",
     description: "Non-operational adversarial control validation",
     requiredRole: "PLATFORM_ADMIN",
-    group: "watch",
+    group: "operations",
     icon: FlaskConical,
   },
   {
@@ -274,7 +274,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/universal-controls",
     description: "Tier 2 and Tier 3 capability enforcement",
     requiredRole: "PLATFORM_ADMIN",
-    group: "gate",
+    group: "policies",
     icon: ToggleLeft,
   },
   {
@@ -282,14 +282,14 @@ export const navigationItems: NavigationItem[] = [
     path: "/capability-removals",
     description: "Guided retirement, rollback and emergency shutdown",
     requiredRole: "PLATFORM_ADMIN",
-    group: "gate",
+    group: "policies",
     icon: Trash2,
   },
   {
     label: "Threat Register",
     path: "/threat-register",
     description: "Threat ownership, residual risk and review evidence",
-    group: "watch",
+    group: "operations",
     icon: AlertTriangle,
   },
   {
@@ -297,7 +297,7 @@ export const navigationItems: NavigationItem[] = [
     path: "/enterprise-identity",
     description: "Federation, workload trust and privileged access",
     requiresInstallOperator: true,
-    group: "gate",
+    group: "agents",
     icon: Building2,
   },
   {
@@ -305,14 +305,14 @@ export const navigationItems: NavigationItem[] = [
     path: "/abuse-protection",
     description: "Rate limits, lockouts and burst controls",
     requiresInstallOperator: true,
-    group: "administration",
+    group: "organization",
     icon: ShieldEllipsis,
   },
   {
     label: "Settings",
     path: "/settings",
     description: "Interface and control settings",
-    group: "administration",
+    group: "organization",
     icon: Settings,
   },
 ]

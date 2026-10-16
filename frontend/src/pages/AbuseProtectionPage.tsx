@@ -72,7 +72,6 @@ export default function AbuseProtectionPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Access & Accounts"
         title="Abuse protection"
         icon={<ShieldAlert size={22} />}
         description="Install-wide request throttling, lockouts after repeated failures, and evidence of suspicious bursts."

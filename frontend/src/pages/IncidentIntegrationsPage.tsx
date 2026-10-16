@@ -65,7 +65,6 @@ export default function IncidentIntegrationsPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Incident Response"
         title="Incident integrations"
         icon={<TicketCheck size={22} />}
         description="Send incidents to Jira or ServiceNow, and keep the evidence of expiring approval links and signed callbacks."

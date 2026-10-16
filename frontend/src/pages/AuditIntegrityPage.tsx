@@ -63,7 +63,6 @@ export default function AuditIntegrityPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Audit & Integrity"
         title="Audit integrity"
         icon={<Fingerprint size={22} />}
         description="Install-wide evidence protection: hash-chained audit records, chain verification, retention and legal holds."

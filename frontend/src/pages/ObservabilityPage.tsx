@@ -74,7 +74,6 @@ export default function ObservabilityPage() {
   return (
     <section className="gg-page">
       <PageHeader
-        eyebrow="Telemetry & Sensors"
         title="Observability"
         icon={<Waypoints size={22} />}
         description="Install-wide telemetry: trace sampling, Prometheus metrics, structured logs and redacted OTLP trace export."
