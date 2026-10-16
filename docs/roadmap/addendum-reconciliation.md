@@ -723,6 +723,40 @@ Nothing was pushed, published or deployed. Next in v3's order: the rest of the u
 
 No backend change. Nothing was pushed, published or deployed.
 
+**P7.5 batch 4d: time range and saved views, 2026-10-16.** Built to the design approved that day (`docs/roadmap/p7.5-time-range-saved-views-design.md`, decisions recorded in `7be46c5`).
+
+- **4d-1, server-side ranges (`3896adc`).**
+  - `since`/`until` on `/tool-requests`, `/audit-events` and `/alerts`; `since` on `/live-events`, for its initial history only.
+  - A range is ANDed after the org filter, never instead of it.
+  - Pending approvals and unresolved alerts are returned whatever the range, and sort first so the row limit cannot crowd them out.
+  - The lookback is the smaller of 400 days and configured audit retention (`time_range.permitted_lookback_days`), so nobody queries past what is retained. Retention is install-wide today; the function takes `org_id` so it can become per-org.
+  - Responses report the range and whether the list was truncated.
+  - Migration `20261016_33` adds per-org time indexes to `audit_events` and `security_alerts`.
+- **4d-2, the range bar and URL filters (`d6a1643`).**
+  - One range bar under the toolbar on Tool Requests, Approvals, Audit Trail, Incident Center and Authentication, and a history range on Live Operations. Defaults: 24 hours on Tool Requests and Live Operations, 7 days elsewhere.
+  - Each list says what it holds, whether the server capped it, and that open items are always shown. Empty states name the range and offer a wider one.
+  - Filters live in the URL: Back works, and a link reopens the same view. Invalid values fall back to the defaults.
+  - Approvals now asks the server for ASK decisions only (new `policy_decision` filter), so its "newest N" notice is exact.
+- **4d-3, personal saved views (`f294942`).** A Views menu in the range bar. Views are stored in the browser under the person's account id and page, and hold only the page's own filter keys (re-filtered on read), at most 20 per page. The record shape (`page`, `query`, `scope`) is ready for a permission-controlled shared-views table later.
+- **Fix found while building the Control Graph (`9338e77`).** Evidence timestamps are stored in local time with an offset, so comparing them as text is wrong on a server that does not run in UTC. Ranges now compare instants (`julianday` on SQLite, `timestamptz` on PostgreSQL) behind an index-friendly text pre-filter widened by 14 hours.
+
+**Verification run:**
+- **Backend:** full suite 437 + 346 = 783 passed, run in two halves, before the fix; after it, the 33 time-range tests again. The tests cover validation, tenant isolation with a range, open items, truncation, the retention-bound lookback, UTC offsets, 401 before 422, and an AUDITOR's scoped read.
+- **Mutation checks:** 12 caught. The 10 below, plus two on the fix (text-only comparison; the pre-filter not widened):
+  - the open-rule parentheses removed (would leak another org's pending requests);
+  - the lookback, retention cap, `until` and timezone checks removed;
+  - range validation run before authentication;
+  - the open rule removed for alerts and for requests;
+  - pending not sorted first;
+  - audit truncation ignored.
+- **PostgreSQL** (`postgres:17-alpine`): migration up, down and up again, with a seeded row intact. All 33 time-range tests passed, each alone on a freshly migrated database.
+- **Frontend:** `npm run check` passed (220 unit tests, build). Two mutations caught on saved views: stored keys not re-filtered, and malformed entries accepted.
+- **Playwright:** the final full run had 73 passed and none flaky.
+- **Rate-limit finding (pre-existing, for the owner):** the full e2e suite runs at the API's GENERAL limit of 300 requests a minute per client. The e2e backend recorded a limit breach even in a passing run, and 1 of 4 full runs failed its last test on it. Running in shards is worse: each shard signs in again and trips the ADMIN_AUTH limit. The new spec was cut to one page load and one reload. The limits were not changed; a fix is the owner's call (for example a test-only policy, or fewer shell requests per page load under v3 item 10's performance budgets).
+- **Screenshots** of five pages, the custom range and the Views menu were reviewed at desktop and phone widths.
+
+Nothing was pushed, published or deployed.
+
 ---
 
 ## P8 — Proof, demonstrations and claims governance
