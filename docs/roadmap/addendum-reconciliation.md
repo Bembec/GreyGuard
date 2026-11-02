@@ -590,7 +590,7 @@ The owner follows P7.5 here. The table is updated with every batch; the detailed
 | 2. Command Center with role presets | ✅ Done | batch 3 `edb8d36` |
 | 3. Universal page anatomy | ✅ Done, except contextual docs links, which wait for hosted docs | batches 2, 4, 4d; `p7.5-gap-matrix.md`, `p7.5-time-range-saved-views-design.md` |
 | 4. Control Graph | ✅ Done, including the 15-second cache (DEV-001 closed) | `p7.5-control-graph-design.md`; `eabf0e1`, `6e381db`, `d3104e5` |
-| 5. Investigation workspace | 🔨 **In progress**: steps 1 and 2 done (`d6cbc2f`, `8dfdb51`, `19e956a`); next step 3, containment actions and the incident package | `p7.5-investigation-workspace-design.md` |
+| 5. Investigation workspace | 🔨 **In progress**: steps 1, 2 and 3 done (step 3: containment from the incident and the incident package); next step 4, SLA settings | `p7.5-investigation-workspace-design.md` |
 | 6. Decision explainability | ✅ Explanation card done (`d6cbc2f`); it is also reused in the workspace | same design |
 | 7. Safe change management | Not started | |
 | 8. Unified action inbox | Not started | |
@@ -862,6 +862,51 @@ Nothing was pushed, published or deployed.
 - **Frontend:** 242 unit tests (7 new for the page) and the build passed.
 - **Playwright:** 76 passed, 0 flaky. The new spec opens an incident from the list, acknowledges, assigns, adds a note, sees each in the action record with the person's email, and checks the phone layout.
 - **Screenshots** were reviewed at desktop and 390 px. They caught clipped long names on phones, fixed in the page kit for every page.
+
+Nothing was pushed, published or deployed.
+
+
+**P7.5 item 5, step 3: containment from the incident and the incident package, 2026-11-02.**
+- **Containment:** `POST /incidents/{id}/actions` with four actions. Each one checks `incident:manage` and then the same guard as its own route:
+  - revoke the agent's credential needs `identity:manage`;
+  - emergency-disabling the agent or the tool needs the Platform Administrator role;
+  - stopping running isolated executions needs the Platform Administrator role.
+- **Safeguards on every action:** you must type exactly what it acts on (the agent name, the tool, or `TERMINATE`) and give a reason of at least 5 characters. It acts only on the incident's own agent or tool, in the incident's own org.
+- **Refusals:**
+  - an incident in another org, or one that names another org's agent, is the same 404, and nothing changes or is recorded;
+  - install-level incidents offer no containment.
+- **Recording:** each action is recorded in the incident's action record with the actor, target, reason and result. The original routes are unchanged.
+- **Package:** `POST /incidents/{id}/package` is open to any read role, auditors included (owner decision 4). It returns:
+  - the incident, owner, explanation, timeline, decision records, action record, notes and integrity statement;
+  - a SHA-256 manifest over each part and over the whole.
+
+  It holds redacted evidence only, and every export is recorded with its package hash. The browser downloads it as `greyguard-incident-<id>.json`; the incident id is sanitized and never shapes a path.
+- **Page:** a Containment section in the rail shows each action with the reason it is unavailable to your role. A confirmation dialog asks for the typed target and the reason, with a hint on the reason's minimum length. The header has an "Export package" button.
+
+**Verification run:**
+- **Backend:** 914 passed in one full run.
+- **New tests:** `test_incident_containment.py`, 18 tests covering:
+  - the permission mapping;
+  - each action with confirmation and reason;
+  - a wrong confirmation or a missing reason changes nothing;
+  - a security analyst gets exactly the original routes' guards;
+  - an auditor is refused and the database is unchanged;
+  - another org's incident, an incident naming another org's agent, and install-level incidents;
+  - role-only reasons;
+  - export by an admin and an auditor, both recorded;
+  - every part of the manifest verifies;
+  - no export across orgs;
+  - redaction.
+- **Updated test:** `test_incident_workspace.py` now expects export to be the *only* action open to an auditor. Before, it expected every action to be disabled, which no longer matched owner decision 4.
+- **Mutation checks:** 11 of 11 caught: the role guard, the own-route guard, the confirmation, the reason, the cross-org agent check, the install-level refusal, the incident scope, recording containment, recording exports, the manifest covering every part, and the permission for the actions route. The cross-org agent check was missed on the first run, so its test was added.
+- **PostgreSQL:** `test_incident_containment` (18) and `test_incident_workspace` (20) passed, each alone on a fresh migrated database. The PostgreSQL run caught a test-only ordering fault: the auditor test took its before snapshot ahead of the pipeline's one-time setup. It now warms up first, and the assertion is unchanged.
+- **Frontend:** 246 unit tests (4 new), type check, lint (no new warnings) and build passed.
+- **Playwright:** 77 passed, 0 flaky. The new test revokes from an incident and checks:
+  - a wrong typed name keeps the button disabled;
+  - the action appears in the action record;
+  - the downloaded package has a manifest covering every part;
+  - the export appears in the action record.
+- **Screenshots** were reviewed at 1440 px and 390 px. They showed the reason's minimum length was not explained, so a hint was added.
 
 Nothing was pushed, published or deployed.
 
