@@ -233,6 +233,8 @@ ORG_SCOPED_TABLES: frozenset[str] = frozenset({
     # P7.5 investigation workspace: an incident's full action record, under the incident's org
     # (NULL for an install-level incident, exactly as security_alerts). Append-only.
     "incident_events",
+    # P7.5 step 4: each org's incident response targets (SLA). No rows means "No SLA set".
+    "incident_sla_targets",
     "security_notifications",
     "notification_retention_policy",
     "notification_retention_events",

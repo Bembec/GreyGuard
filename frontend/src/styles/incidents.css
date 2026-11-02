@@ -17,3 +17,26 @@
 .incident-drawer article { border-color: var(--gg-border); border-radius: var(--gg-radius-lg); background: var(--gg-surface-900); }
 .incident-evidence dt { text-transform: none; color: var(--gg-text-muted); }
 .incident-row:hover { background: var(--gg-hover); transform: none; }
+
+/* ---- Response targets (SLA), P7.5 item 5 step 4 ---- */
+.incident-sla { display: grid; gap: 0.9rem; padding: 1.1rem 1.2rem; border: 1px solid var(--gg-border); border-radius: var(--gg-radius-lg); background: var(--gg-surface-900); }
+.incident-sla h2 { display: flex; align-items: center; gap: 0.45rem; margin: 0; font-size: 0.98rem; }
+.incident-sla header p { margin: 0.3rem 0 0; color: var(--gg-text-muted); font-size: 0.84rem; }
+.incident-sla form { display: grid; gap: 0.9rem; }
+.incident-sla__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.8rem; }
+.incident-sla fieldset { display: grid; gap: 0.55rem; margin: 0; padding: 0.8rem; border: 1px solid var(--gg-border); border-radius: var(--gg-radius-sm); }
+.incident-sla legend { padding: 0 0.3rem; font-size: 0.74rem; font-weight: 800; letter-spacing: 0.06em; }
+.incident-sla__field { display: grid; grid-template-columns: minmax(110px, 1fr) 5rem 8.25rem; gap: 0.45rem; align-items: center; }
+.incident-sla__field label { color: #cbd5e1; font-size: 0.82rem; }
+.incident-sla__field input, .incident-sla__field select { min-width: 0; min-height: 34px; padding: 0.4rem 0.5rem; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: var(--gg-radius-sm); color: inherit; background: var(--gg-navy-950); font: inherit; font-size: 0.84rem; }
+.incident-sla__hint { margin: 0; color: var(--gg-text-muted); font-size: 0.82rem; line-height: 1.6; }
+.incident-sla__error { margin: 0; color: #fb7185; font-size: 0.82rem; }
+.incident-sla footer { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.incident-sla__read { display: grid; gap: 0.4rem; margin: 0; }
+.incident-sla__read div { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.incident-sla__read dt { min-width: 5.5rem; font-size: 0.76rem; font-weight: 800; letter-spacing: 0.06em; }
+.incident-sla__read dd { margin: 0; color: #cbd5e1; font-size: 0.84rem; }
+.incident-sla-badge { display: inline-block; width: max-content; margin-top: 0.35rem; padding: 0.15rem 0.45rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; }
+.incident-sla-badge--breached { color: #fecdd3; background: rgba(225, 29, 72, 0.2); border: 1px solid rgba(251, 113, 133, 0.35); }
+.incident-sla-badge--due_soon { color: #fde68a; background: rgba(217, 119, 6, 0.17); border: 1px solid rgba(251, 191, 36, 0.3); }
+@media (max-width: 680px) { .incident-sla__field { grid-template-columns: minmax(0, 1fr) 8.25rem; } .incident-sla__field label { grid-column: 1 / -1; } }

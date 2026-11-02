@@ -47,7 +47,9 @@ def test_the_workspace_brings_the_incident_its_decision_and_its_timeline_togethe
     stamps = [datetime.fromisoformat(entry["timestamp"]) for entry in result["timeline"]["entries"]]
     assert stamps == sorted(stamps, reverse=True)
     assert result["agent"]["agent_name"] == "ours_agent" and result["agent"]["graph_path"].endswith("tab=relationships")
-    assert result["sla"] == {"configured": False, "text": "No SLA set"}
+    # No defaults (owner decision 2): nothing configured means no state and no invented deadline.
+    assert result["sla"]["configured"] is False and result["sla"]["text"] == "No SLA set"
+    assert result["sla"]["state"] is None and result["sla"]["phases"] == [] and result["sla"]["breaches"] == []
     assert result["integrity"]["decision_record_intact"] is True
 
 

@@ -237,3 +237,8 @@
 }
 .incident-workspace__confirm textarea { min-height: 4.5rem; resize: vertical; }
 .incident-workspace__confirm small { color: #94a3b8; font-size: 0.78rem; }
+
+.incident-workspace__sla.is-breached, .incident-workspace__sla.is-missed { color: #fda4af; }
+.incident-workspace__sla.is-due_soon { color: #fcd34d; }
+.incident-workspace__sla.is-met, .incident-workspace__sla.is-within { color: #86efac; }
+.incident-workspace__sla a { color: var(--gg-cyan, #38bdf8); }

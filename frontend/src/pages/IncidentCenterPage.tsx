@@ -17,7 +17,10 @@ import {
   Search,
   ShieldAlert,
 } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
+
+import { IncidentSlaPanel } from "../components/incident/IncidentSlaPanel"
+import { ATTENTION, type IncidentSla } from "../lib/incidentSla"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 
@@ -54,6 +57,7 @@ export type SecurityAlert = {
   created_at: string
   updated_at: string
   resolved_at: string | null
+  sla?: IncidentSla
   evidence: Record<string, unknown>
   notes: AlertNote[]
 }
@@ -132,6 +136,7 @@ export default function IncidentCenterPage() {
   // viewer may take it (PUT /alerts/{id} still requires incident:manage server-side).
   // Filters live in the URL (P7.5 batch 4d). The range bounds resolved history only: the server
   // returns every unresolved incident whatever the range.
+  const [targetsOpen, setTargetsOpen] = useState(() => typeof window !== "undefined" && window.location.hash === "#response-targets")
   const [search, setSearch] = useUrlParam("q", "")
   const [status, setStatus] = useUrlParam("status", "ALL", ["ALL", ...incidentStatuses])
   const [severity, setSeverity] = useUrlParam("severity", "ALL", SEVERITIES)
@@ -189,8 +194,12 @@ export default function IncidentCenterPage() {
         title="Incident Center"
         icon={<ShieldAlert size={22} />}
         description="High-risk evidence turned into owned, reviewable security investigations: who has each incident, what was done and how it closed."
-        actions={<button type="button" className="gg-button" onClick={() => void refresh()}><RefreshCw size={16} aria-hidden="true" />Refresh</button>}
+        actions={<>
+          <button type="button" className="gg-button" aria-expanded={targetsOpen} aria-controls="response-targets" onClick={() => setTargetsOpen((open) => !open)}><Clock3 size={16} aria-hidden="true" />Response targets</button>
+          <button type="button" className="gg-button" onClick={() => void refresh()}><RefreshCw size={16} aria-hidden="true" />Refresh</button>
+        </>}
       />
+      {targetsOpen && <IncidentSlaPanel />}
 
       <Guidance id="incident-center" title="Working an incident">
         <ol>
@@ -244,7 +253,8 @@ export default function IncidentCenterPage() {
         <div className="incident-list">
           {more.visible.map((alert) => <button type="button" className="incident-row" key={alert.alert_id} onClick={() => openDetails(alert)}>
             <span className={`incident-severity incident-severity--${alert.severity.toLowerCase()}`}>{alert.severity}</span>
-            <span className="incident-row__main"><strong>{alert.title}</strong><small>{alert.summary}</small></span>
+            <span className="incident-row__main"><strong>{alert.title}</strong><small>{alert.summary}</small>
+              {alert.sla?.state && ATTENTION[alert.sla.state] && <span className={`incident-sla-badge incident-sla-badge--${alert.sla.state}`} title={alert.sla.text}>{ATTENTION[alert.sla.state]}</span>}</span>
             <span className="incident-row__meta"><strong>{formatIncidentStatus(alert.status)}</strong><small>{alert.agent_name ?? "System event"}</small></span>
             <span className="incident-row__time"><Clock3 size={14} />{formatDate(alert.created_at)}</span>
             <ChevronRight size={18} />

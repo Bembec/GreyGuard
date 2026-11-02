@@ -98,3 +98,44 @@ test("containment from an incident needs the typed target and a reason, and expo
   expect(JSON.stringify(pkg.parts.action_record)).toContain("revoke_credential")
   await expect(page.getByText("Incident package exported.")).toBeVisible({ timeout: 15_000 })
 })
+
+test("an admin sets response targets from the suggestions, and incidents are measured against them", async ({ page }) => {
+  await openWithSession(page, session, "/getting-started")
+  const agentName = `sla_agent_${Date.now()}`
+  const orgId = await page.evaluate(async (name) => {
+    const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionStorage.getItem("greyguard_admin_pin") ?? "" }
+    const me = await (await fetch("/api/auth/me", { headers })).json()
+    await fetch(`/api/entitlements/${me.active_org_id}`, { method: "PUT", headers, body: JSON.stringify({ plan: "FOUNDATION", status: "ACTIVE" }) })
+    const registered = await (await fetch("/api/agents", { method: "POST", headers, body: JSON.stringify({ agent_name: name, scopes: ["send_email"] }) })).json()
+    await fetch("/api/tool-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-Agent-Name": name, "X-Agent-Key": registered.credential },
+      body: JSON.stringify({ action: "send_email", target: "ops@example.com", payload: {} }) })
+    return me.active_org_id as string
+  }, agentName)
+
+  try {
+    await page.getByRole("link", { name: /Incident Response/ }).first().click()
+    await page.getByRole("button", { name: "Response targets" }).click()
+    const panel = page.getByRole("region", { name: "Response targets" })
+    await expect(panel).toContainText("No SLA set")
+    await panel.getByRole("button", { name: "Fill in the suggestions" }).click()
+    await panel.getByRole("button", { name: "Save targets" }).click()
+    await expect(panel).toContainText("Set by", { timeout: 15_000 })
+
+    await page.getByRole("button", { name: new RegExp(agentName) }).first().click()
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(agentName, { timeout: 15_000 })
+    await expect(page.getByTestId("incident-meta")).toContainText(/Acknowledge within target \((15 minutes|1 hour)\) · due/)
+
+    // Phone width: the targets form stays usable without sideways scrolling.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole("link", { name: "All incidents" }).or(page.getByRole("button", { name: "All incidents" })).first().click()
+    await page.getByRole("button", { name: "Response targets" }).click()
+    await expect(page.getByRole("region", { name: "Response targets" })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
+  } finally {
+    // Other specs expect "No SLA set": always leave the organization without targets.
+    await page.evaluate(async (org) => {
+      const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionStorage.getItem("greyguard_admin_pin") ?? "" }
+      await fetch(`/api/organizations/${org}/incident-sla`, { method: "PUT", headers, body: JSON.stringify({ targets: {} }) })
+    }, orgId)
+  }
+})

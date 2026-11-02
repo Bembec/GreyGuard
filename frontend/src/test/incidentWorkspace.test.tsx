@@ -13,7 +13,7 @@ const BASE: Workspace = {
     status: "OPEN", created_at: "2026-10-16T10:00:00+00:00", updated_at: "2026-10-16T10:00:00+00:00", event_type: "POLICY",
     agent_name: "billing_bot", request_id: "r1", resolution_note: null, install_level: false },
   owner: { name: null, email: null, kind: null, candidates: [{ email: "ada@example.com", display_name: "Ada" }] },
-  sla: { configured: false, text: "No SLA set" },
+  sla: { configured: false, state: null, text: "No SLA set", basis: null },
   explanation: null,
   timeline: { entries: [
     { type: "NOTE_ADDED", timestamp: "2026-10-16T10:05:00+00:00", actor: "ada@example.com", text: "Note: looking", path: null, action_record: true },
@@ -184,5 +184,21 @@ describe("the incident workspace", () => {
   it("never lets an incident id shape the download filename", () => {
     expect(safePackageFilename("a1")).toBe("greyguard-incident-a1.json")
     expect(safePackageFilename("../../etc/x y")).toBe("greyguard-incident-------etc-x-y.json")
+  })
+
+  it("shows the SLA state with its deadline, a breach in the timeline, and a link to the targets when none are set", async () => {
+    respond({ ...BASE,
+      sla: { configured: true, state: "breached", text: "Acknowledge target breached (15 minutes)", deadline: "2026-10-16T10:15:00+00:00",
+        basis: "Measured against your organization's current targets, from when the incident opened." },
+      timeline: { truncated: false, window: { since: "2026-10-15T10:00:00+00:00" }, entries: [{ type: "SLA_BREACH", timestamp: "2026-10-16T10:15:00+00:00",
+        actor: "GreyGuard", text: "SLA breached: not acknowledged within 15 minutes.", path: null }] } })
+    renderPage()
+    const meta = await screen.findByTestId("incident-meta")
+    expect(meta.textContent).toContain("Acknowledge target breached (15 minutes) · was due")
+    expect(screen.getByText("SLA breached: not acknowledged within 15 minutes.")).toBeTruthy()
+    cleanup()
+    respond(BASE)
+    renderPage()
+    expect((await screen.findByRole("link", { name: "Response targets" })).getAttribute("href")).toBe("/incidents#response-targets")
   })
 })

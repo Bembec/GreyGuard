@@ -75,11 +75,16 @@ EVENT_TEXT = {
 }
 
 
-def _timeline(alert: dict[str, Any], org_id: str | None, window: TimeRange) -> dict[str, Any]:
+def _timeline(alert: dict[str, Any], org_id: str | None, window: TimeRange,
+              sla_breaches: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     entries: list[dict[str, Any]] = [{
         "type": "INCIDENT_OPENED", "timestamp": alert["created_at"], "actor": "GreyGuard",
         "text": f"Incident opened: {alert['title']}.", "path": None, "trigger": True,
     }]
+    # Computed against the org's current targets, at the moment each deadline passed.
+    for breach in sla_breaches or []:
+        entries.append({"type": "SLA_BREACH", "timestamp": breach["deadline"], "actor": "GreyGuard",
+                        "text": breach["text"], "path": None})
     request_id = alert.get("request_id")
     if request_id and org_id is not None:
         details = get_tool_request_details(request_id, org_id=org_id)
@@ -191,6 +196,16 @@ def actions_for(alert: dict[str, Any], viewer: dict[str, Any]) -> dict[str, Any]
     return {"primary": primary, "others": others}
 
 
+def _sla(alert: dict[str, Any], org_id: str | None, now: datetime) -> dict[str, Any]:
+    from . import incident_sla
+
+    if org_id is None:
+        return incident_sla.evaluate(alert, {}, [], now)
+    targets = incident_sla.get_targets(org_id)["targets"]
+    changes = incident_sla.status_changes([alert["alert_id"]], org_id).get(alert["alert_id"], []) if targets else []
+    return incident_sla.evaluate(alert, targets, changes, now)
+
+
 def build_workspace(alert_id: str, *, caller_org: str, include_install_level: bool, viewer: dict[str, Any],
                     now: datetime | None = None) -> dict[str, Any] | None:
     alert = get_alert(alert_id, org_id=caller_org, include_install_level=include_install_level)
@@ -202,6 +217,8 @@ def build_workspace(alert_id: str, *, caller_org: str, include_install_level: bo
     explanation = _section("explanation", lambda: build_explanation(alert["request_id"], org_id=org_id, viewer=viewer)
                            if alert.get("request_id") and org_id is not None else None)
     explanation_ok = explanation if isinstance(explanation, dict) and "error" not in explanation else None
+    sla = _section("SLA", lambda: _sla(alert, org_id, now))
+    breaches = sla.get("breaches", []) if isinstance(sla, dict) else []
     return {
         "incident": {
             "alert_id": alert["alert_id"], "title": alert["title"], "summary": alert["summary"], "severity": alert["severity"],
@@ -210,9 +227,9 @@ def build_workspace(alert_id: str, *, caller_org: str, include_install_level: bo
             "resolution_note": alert.get("resolution_note"), "install_level": org_id is None,
         },
         "owner": _owner(alert, org_id, viewer),
-        "sla": {"configured": False, "text": "No SLA set"},
+        "sla": sla,
         "explanation": explanation,
-        "timeline": _section("timeline", lambda: _timeline(alert, org_id, window)),
+        "timeline": _section("timeline", lambda: _timeline(alert, org_id, window, breaches)),
         "agent": _section("agent", lambda: _agent(alert, org_id)),
         "related": _section("related incidents", lambda: _related(alert, org_id, include_install_level, caller_org)),
         "integrity": _section("integrity", lambda: _integrity(explanation_ok)),
@@ -358,6 +375,7 @@ def build_package(alert_id: str, *, caller_org: str, include_install_level: bool
         "action_record": incident_events(alert_id, alert_org),
         "notes": view["notes"],
         "integrity": view["integrity"],
+        "sla": view["sla"],
     }
     manifest = {name: hashlib.sha256(canonical(part).encode()).hexdigest() for name, part in parts.items()}
     exported_by = viewer.get("email") or viewer.get("admin_id")

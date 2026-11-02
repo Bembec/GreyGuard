@@ -10,6 +10,7 @@ import { PageHeader } from "../components/page/PageHeader"
 import { useShowMore } from "../components/page/ShowMore"
 import { useToast } from "../context/ToastContext"
 import { safePackageFilename } from "../lib/incidentPackage"
+import type { IncidentSla } from "../lib/incidentSla"
 import "../styles/incident-workspace.css"
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api"
@@ -26,7 +27,7 @@ export type Workspace = {
   incident: { alert_id: string; title: string; summary: string; severity: string; status: string; created_at: string; updated_at: string;
     event_type: string; agent_name: string | null; request_id: string | null; resolution_note: string | null; install_level: boolean }
   owner: { name: string | null; email: string | null; kind: "member" | "free_text" | null; candidates?: Array<{ email: string; display_name: string }> }
-  sla: { configured: boolean; text: string }
+  sla: IncidentSla | SectionError
   explanation: Explanation | null | SectionError
   timeline: { entries: Entry[]; truncated: boolean; window: { since: string } } | SectionError
   agent: null | SectionError | { agent_name: string; known: boolean; status?: string; risk_score?: number; credential_status?: string | null;
@@ -74,7 +75,20 @@ const TIMELINE_FILTERS = [
 
 const TYPE_LABELS: Record<string, string> = {
   INCIDENT_OPENED: "Opened", REQUEST: "Request", APPROVAL: "Approval", EXECUTION: "Execution", DECISION: "Decision",
-  AUTHENTICATION: "Authentication", STATUS_CHANGED: "Status", ASSIGNED: "Owner", NOTE_ADDED: "Note", CONTAINMENT: "Containment", EXPORTED: "Export",
+  AUTHENTICATION: "Authentication", STATUS_CHANGED: "Status", ASSIGNED: "Owner", NOTE_ADDED: "Note", CONTAINMENT: "Containment", EXPORTED: "Export", SLA_BREACH: "SLA",
+}
+
+const OPEN_STATES = ["within", "due_soon", "breached"]
+
+function SlaMeta({ sla }: { sla: IncidentSla | SectionError }) {
+  if ("error" in sla) return <span><Clock3 size={14} aria-hidden="true" /> SLA could not be loaded</span>
+  const due = sla.deadline && sla.state && OPEN_STATES.includes(sla.state) ? ` · ${sla.state === "breached" ? "was due" : "due"} ${formatDate(sla.deadline)}` : ""
+  return (
+    <span className={sla.state ? `incident-workspace__sla is-${sla.state}` : undefined} title={sla.basis ?? undefined}>
+      <Clock3 size={14} aria-hidden="true" /> {sla.text}{due}
+      {!sla.configured && sla.text === "No SLA set" && <> · <Link to="/incidents#response-targets">Response targets</Link></>}
+    </span>
+  )
 }
 
 function SectionFailure({ value, onRetry }: { value: SectionError; onRetry: () => void }) {
@@ -194,7 +208,7 @@ export default function IncidentWorkspacePage() {
             <span className={`incident-workspace__badge severity--${incident.severity.toLowerCase()}`}>{incident.severity}</span>
             <span className={`incident-workspace__badge status--${incident.status.toLowerCase()}`}>{incident.status}</span>
             <span><UserRound size={14} aria-hidden="true" /> {data.owner.name ? <>{data.owner.name}{data.owner.kind === "free_text" && <small> (legacy owner)</small>}</> : "No owner"}</span>
-            <span><Clock3 size={14} aria-hidden="true" /> {data.sla.text}</span>
+            <SlaMeta sla={data.sla} />
             <span>Opened {formatDate(incident.created_at)}</span>
             {incident.install_level && <span className="incident-workspace__badge">Install-level</span>}
           </div>

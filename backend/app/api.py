@@ -72,7 +72,7 @@ from .enterprise_sso import (
     initialize_enterprise_sso,
     list_enabled_providers_for_login,
 )
-from . import control_graph, decision_explanation, incident_workspace, organizations
+from . import control_graph, decision_explanation, incident_sla, incident_workspace, organizations
 from .time_range import parse_time_range
 from . import entitlements
 from . import billing
@@ -326,6 +326,7 @@ async def lifespan(_app: FastAPI):
         )
         initialize_policy_integrations()
         initialize_alert_database()
+        incident_sla.initialize_incident_sla()
         initialize_secret_manager()
         initialize_notification_database()
         initialize_service_accounts()
@@ -1878,6 +1879,47 @@ class PageViewRequest(BaseModel):
 
 class AnalyticsSettingRequest(BaseModel):
     enabled: bool
+
+
+class IncidentSlaTarget(BaseModel):
+    acknowledge_minutes: int | None = Field(default=None, ge=1, le=incident_sla.MAX_MINUTES)
+    resolve_minutes: int | None = Field(default=None, ge=1, le=incident_sla.MAX_MINUTES)
+
+
+class IncidentSlaRequest(BaseModel):
+    """The whole set of targets; a severity left out has no target."""
+
+    targets: dict[Literal["CRITICAL", "HIGH"], IncidentSlaTarget]
+
+
+def _sla_org(org_id: str, administrator: dict) -> None:
+    """SLA targets are read and changed for the active organization only. Another org is the same
+    404 whether or not it exists or the caller belongs to it."""
+    if org_id != organizations.resolve_org_id(administrator) or organizations.get_membership(org_id, administrator["admin_id"]) is None:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+
+
+@app.get("/organizations/{org_id}/incident-sla")
+def get_incident_sla(org_id: str, x_admin_pin: str | None = Header(default=None)):
+    """The org's incident response targets (P7.5 item 5, step 4). Any read role."""
+    administrator = require_admin(x_admin_pin)
+    _sla_org(org_id, administrator)
+    return {**incident_sla.get_targets(org_id), "can_edit": has_permission(administrator, "admin:manage")}
+
+
+@app.put("/organizations/{org_id}/incident-sla")
+def put_incident_sla(org_id: str, payload: IncidentSlaRequest, x_admin_pin: str | None = Header(default=None)):
+    """Replace the org's targets. admin:manage (the permission layer); an empty set means "No SLA set"."""
+    administrator = require_admin(x_admin_pin)
+    if not has_permission(administrator, "admin:manage"):
+        raise HTTPException(status_code=403, detail="Changing response targets needs the Platform Administrator role.")
+    _sla_org(org_id, administrator)
+    try:
+        result = incident_sla.set_targets(org_id, {severity: target.model_dump() for severity, target in payload.targets.items()},
+                                          administrator.get("email") or policy_actor(administrator))
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {**result, "can_edit": True}
 
 
 @app.post("/analytics/page-view", status_code=204)
@@ -4291,7 +4333,12 @@ def administrator_alerts(
     Unresolved alerts are returned whatever the range: open work is never hidden by one."""
     scope = alert_scope(require_admin(x_admin_pin))
     time_range = parse_time_range(since, until, org_id=scope["org_id"])
-    return get_alerts(status, severity, agent_name, limit, **scope, time_range=time_range)
+    result = get_alerts(status, severity, agent_name, limit, **scope, time_range=time_range)
+    # SLA state per incident (P7.5 step 4): one targets read and one action-record read per page.
+    states = incident_sla.evaluate_many(result["alerts"], scope["org_id"])
+    for alert in result["alerts"]:
+        alert["sla"] = states[alert["alert_id"]]
+    return result
 
 
 @app.get("/incidents/{alert_id}/workspace")
