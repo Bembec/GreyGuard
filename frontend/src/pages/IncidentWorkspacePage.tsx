@@ -1,19 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, Bot, CircleHelp, Clock3, Copy, FileSearch, Link2, RefreshCw, ShieldCheck, UserRound } from "lucide-react"
+import { ArrowLeft, Bot, CircleHelp, Clock3, Copy, Download, FileSearch, Link2, RefreshCw, ShieldAlert, ShieldCheck, UserRound } from "lucide-react"
 import { useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 
 import { EmptyState, ErrorState, LoadingState } from "../components/AsyncState"
+import { ConfirmDialog } from "../components/ConfirmDialog"
 import { ExplanationCard, type Explanation } from "../components/explanation/ExplanationCard"
 import { PageHeader } from "../components/page/PageHeader"
 import { useShowMore } from "../components/page/ShowMore"
 import { useToast } from "../context/ToastContext"
+import { safePackageFilename } from "../lib/incidentPackage"
 import "../styles/incident-workspace.css"
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api"
 
 type SectionError = { error: string }
-type Action = { id: string; label: string; to_status?: string; requires_note?: boolean; available: boolean; unavailable_reason: string | null }
+type Action = { id: string; label: string; to_status?: string; requires_note?: boolean; target?: string | null; confirm_text?: string | null;
+  available: boolean; unavailable_reason: string | null }
+
+const CONTAINMENT = ["revoke_credential", "disable_agent", "disable_tool", "terminate_isolation"]
+
 type Entry = { type: string; timestamp: string; actor: string; text: string; path: string | null; trigger?: boolean; action_record?: boolean }
 
 export type Workspace = {
@@ -90,6 +96,9 @@ export default function IncidentWorkspacePage() {
   const [note, setNote] = useState("")
   const [noteOpen, setNoteOpen] = useState(false)
   const [ownerChoice, setOwnerChoice] = useState<string | null>(null)
+  const [containing, setContaining] = useState<Action | null>(null)
+  const [typed, setTyped] = useState("")
+  const [reason, setReason] = useState("")
 
   const workspace = useQuery({
     queryKey: ["incident-workspace", alertId],
@@ -114,6 +123,26 @@ export default function IncidentWorkspacePage() {
     mutationFn: (text: string) => call(`/alerts/${encodeURIComponent(alertId)}/notes`, { method: "POST", body: JSON.stringify({ note: text }) }),
     onSuccess: () => { setNote(""); setNoteOpen(false); refresh(); pushToast({ tone: "success", title: "Note added", message: "It is in the action record." }) },
     onError: (error: Error) => pushToast({ tone: "error", title: "Note not added", message: error.message }),
+  })
+  const contain = useMutation({
+    mutationFn: (input: { action: string; confirm: string; reason: string }) =>
+      call<{ summary: string }>(`/incidents/${encodeURIComponent(alertId)}/actions`, { method: "POST", body: JSON.stringify(input) }),
+    onSuccess: (result) => { setContaining(null); setTyped(""); setReason(""); refresh(); pushToast({ tone: "success", title: "Containment applied", message: `GreyGuard ${result.summary}. It is in the action record.` }) },
+    onError: (error: Error) => pushToast({ tone: "error", title: "Not applied", message: error.message }),
+  })
+  const exportPackage = useMutation({
+    mutationFn: () => call<{ manifest: { package: string } }>(`/incidents/${encodeURIComponent(alertId)}/package`, { method: "POST" }),
+    onSuccess: (pkg) => {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(pkg, null, 2)], { type: "application/json" }))
+      const link = document.createElement("a")
+      link.href = url
+      link.download = safePackageFilename(alertId)
+      link.click()
+      URL.revokeObjectURL(url)
+      refresh()
+      pushToast({ tone: "success", title: "Package exported", message: `SHA-256 ${pkg.manifest.package.slice(0, 12)}…; the export is in the action record.` })
+    },
+    onError: (error: Error) => pushToast({ tone: "error", title: "Not exported", message: error.message }),
   })
   const verify = useMutation({
     mutationFn: () => call<{ valid: boolean; records_checked: number }>("/audit-integrity/verify", { method: "POST" }),
@@ -157,6 +186,7 @@ export default function IncidentWorkspacePage() {
           <button type="button" className="gg-button" onClick={() => navigate("/incidents")}><ArrowLeft size={16} aria-hidden="true" />All incidents</button>
           <button type="button" className="gg-button" onClick={() => { void navigator.clipboard?.writeText(window.location.href); pushToast({ tone: "info", title: "Link copied", message: "Anyone opening it still needs access to this organization." }) }}><Copy size={16} aria-hidden="true" />Copy link</button>
           <button type="button" className="gg-button" onClick={() => void workspace.refetch()}><RefreshCw size={16} aria-hidden="true" />Refresh</button>
+          <button type="button" className="gg-button" disabled={exportPackage.isPending} onClick={() => exportPackage.mutate()}><Download size={16} aria-hidden="true" />Export package</button>
           {primary && <button type="button" className="gg-button gg-button--primary" disabled={!primary.available || change.isPending} onClick={() => start(primary)}>{primary.label}</button>}
         </>}
         meta={
@@ -293,6 +323,19 @@ export default function IncidentWorkspacePage() {
             ) : <Unavailable reason={noteAction?.unavailable_reason ?? null} />}
           </section>
 
+          <section aria-labelledby="containment-heading">
+            <h2 id="containment-heading"><ShieldAlert size={15} aria-hidden="true" /> Containment</h2>
+            <p className="incident-workspace__hint">Each action uses the same rights as its own page, asks you to type what it acts on, and is recorded with your reason.</p>
+            <ul className="incident-workspace__actions">
+              {actions.others.filter((action) => CONTAINMENT.includes(action.id)).map((action) => (
+                <li key={action.id}>
+                  <button type="button" className="gg-button" disabled={!action.available} onClick={() => { setContaining(action); setTyped(""); setReason("") }}>{action.label}</button>
+                  {!action.available && <Unavailable reason={action.unavailable_reason} />}
+                </li>
+              ))}
+            </ul>
+          </section>
+
           <section aria-labelledby="actions-heading">
             <h2 id="actions-heading">Actions</h2>
             <ul className="incident-workspace__actions">
@@ -307,6 +350,27 @@ export default function IncidentWorkspacePage() {
           <p className="incident-workspace__why"><CircleHelp size={13} aria-hidden="true" /><span><strong>Why am I seeing this?</strong> {data.why_you_see_this}</span></p>
         </aside>
       </div>
+
+      <ConfirmDialog
+        open={Boolean(containing)}
+        title={containing?.label ?? ""}
+        description={containing ? `This acts on ${containing.target === "TERMINATE" ? "every running isolated execution in this organization" : containing.target}. It takes effect immediately and is recorded in this incident.` : ""}
+        confirmLabel={containing?.label ?? "Confirm"}
+        busy={contain.isPending}
+        confirmDisabled={!containing || typed.trim() !== containing.confirm_text || reason.trim().length < 5}
+        onCancel={() => setContaining(null)}
+        onConfirm={() => containing && contain.mutate({ action: containing.id, confirm: typed.trim(), reason: reason.trim() })}
+      >
+        {containing && (
+          <div className="incident-workspace__confirm">
+            <label htmlFor="containment-confirm">Type <code>{containing.confirm_text}</code> to confirm</label>
+            <input id="containment-confirm" value={typed} autoComplete="off" onChange={(event) => setTyped(event.target.value)} />
+            <label htmlFor="containment-reason">Reason (recorded)</label>
+            <textarea id="containment-reason" value={reason} maxLength={1000} aria-describedby="containment-reason-hint" onChange={(event) => setReason(event.target.value)} />
+            <small id="containment-reason-hint">At least 5 characters. It goes into the incident's action record.</small>
+          </div>
+        )}
+      </ConfirmDialog>
 
       {primary && (
         <div className="incident-workspace__mobile-bar">

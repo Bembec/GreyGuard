@@ -385,6 +385,13 @@ def required_permission(method: str, path: str) -> str:
         return "read"
     if method.upper() == "GET":
         return "read"
+    # P7.5 investigation workspace. Exporting an incident package is a read (owner decision: auditors
+    # may export; each export is recorded). Acting from an incident is an incident change; each
+    # action then also applies the same guard as its own route (api.incident_action).
+    if path.startswith("/incidents/") and path.endswith("/package"):
+        return "read"
+    if path.startswith("/incidents/") and path.endswith("/actions"):
+        return "incident:manage"
     if path.startswith("/alerts") or path.startswith("/notifications"):
         return "incident:manage"
     if path.startswith("/tool-requests/") and path.endswith("/decision"):

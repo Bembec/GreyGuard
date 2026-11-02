@@ -175,8 +175,11 @@ def test_an_auditor_sees_every_action_disabled_with_a_role_only_reason(world):
     actions = workspace(make_auditor(), alert["alert_id"])["actions"]
     assert actions["primary"]["label"] == "Acknowledge" and actions["primary"]["available"] is False
     assert actions["primary"]["unavailable_reason"] == "Your role, Auditor, can view incidents but not change them."
+    # Owner decision 4 (step 3): auditors may export the package. Nothing else is open to them.
+    assert [action["id"] for action in actions["others"] if action["available"]] == ["export"]
     for action in actions["others"]:
-        assert action["available"] is False and "ours_agent" not in action["unavailable_reason"]
+        if action["id"] != "export":
+            assert action["available"] is False and "ours_agent" not in action["unavailable_reason"]
     admin = workspace(world["ours"], alert["alert_id"])["actions"]
     assert admin["primary"]["available"] is True and admin["primary"]["unavailable_reason"] is None
 

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ToastProvider } from "../context/ToastContext"
+import { safePackageFilename } from "../lib/incidentPackage"
 import IncidentWorkspacePage, { type Workspace } from "../pages/IncidentWorkspacePage"
 
 const BASE: Workspace = {
@@ -27,6 +28,10 @@ const BASE: Workspace = {
     others: [
       { id: "note", label: "Add a note", available: true, unavailable_reason: null },
       { id: "status:DISMISSED", label: "Dismiss", to_status: "DISMISSED", requires_note: true, available: true, unavailable_reason: null },
+      { id: "revoke_credential", label: "Revoke the agent's credential", target: "billing_bot", confirm_text: "billing_bot", available: true, unavailable_reason: null },
+      { id: "terminate_isolation", label: "Stop running isolated executions", target: "TERMINATE", confirm_text: "TERMINATE", available: false,
+        unavailable_reason: "Your role, Security Admin, cannot do this: it needs the Platform Administrator role." },
+      { id: "export", label: "Export the incident package", available: true, unavailable_reason: null },
       { id: "verify_chain", label: "Verify the audit chain", available: false, unavailable_reason: "Only an install operator can verify the install-wide audit chain." },
     ],
   },
@@ -62,7 +67,7 @@ function renderPage() {
 }
 
 beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock) })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe("the incident workspace", () => {
   it("shows the incident, its owner and SLA state, the timeline and the agent", async () => {
@@ -129,5 +134,55 @@ describe("the incident workspace", () => {
     renderPage()
     expect(await screen.findByText("Incident not found")).toBeTruthy()
     expect(screen.getByText("It does not exist, or it is not in your organization.")).toBeTruthy()
+  })
+
+  it("contains only after the exact target is typed and a reason is given, and posts both", async () => {
+    respond(BASE)
+    renderPage()
+    fireEvent.click(await screen.findByRole("button", { name: "Revoke the agent's credential" }))
+    const dialog = screen.getByRole("alertdialog")
+    const confirm = () => within(dialog).getAllByRole("button", { name: "Revoke the agent's credential" }).at(-1) as HTMLButtonElement
+    expect(confirm().disabled).toBe(true)
+    fireEvent.change(within(dialog).getByLabelText(/to confirm/), { target: { value: "billing_bo" } })
+    fireEvent.change(within(dialog).getByLabelText("Reason (recorded)"), { target: { value: "leaked key" } })
+    expect(confirm().disabled).toBe(true)
+    fireEvent.change(within(dialog).getByLabelText(/to confirm/), { target: { value: "billing_bot" } })
+    expect(confirm().disabled).toBe(false)
+    fireEvent.click(confirm())
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/incidents/a1/actions"))).toBe(true))
+    const post = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/incidents/a1/actions"))!
+    expect((post[1] as RequestInit).method).toBe("POST")
+    expect(JSON.parse(String((post[1] as RequestInit).body))).toEqual({ action: "revoke_credential", confirm: "billing_bot", reason: "leaked key" })
+  })
+
+  it("shows a containment action the role cannot take as disabled, with the reason", async () => {
+    respond(BASE)
+    renderPage()
+    expect((await screen.findByRole("button", { name: "Stop running isolated executions" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/it needs the Platform Administrator role/)).toBeTruthy()
+  })
+
+  it("exports the package with a POST, so the export is recorded", async () => {
+    respond(BASE)
+    if (!URL.createObjectURL) Object.assign(URL, { createObjectURL: () => "", revokeObjectURL: () => undefined })
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:x")
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined)
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined)
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (String(url).endsWith("/package")) return { ok: true, status: 200, json: async () => ({ manifest: { package: "abcdef0123456789" } }) }
+      if ((init?.method ?? "GET") !== "GET") return { ok: true, status: 200, json: async () => ({}) }
+      return { ok: true, status: 200, json: async () => BASE }
+    })
+    renderPage()
+    fireEvent.click(await screen.findByRole("button", { name: "Export package" }))
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled())
+    const post = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/incidents/a1/package"))!
+    expect((post[1] as RequestInit).method).toBe("POST")
+    expect(await screen.findByText(/SHA-256 abcdef012345/)).toBeTruthy()
+  })
+
+  it("never lets an incident id shape the download filename", () => {
+    expect(safePackageFilename("a1")).toBe("greyguard-incident-a1.json")
+    expect(safePackageFilename("../../etc/x y")).toBe("greyguard-incident-------etc-x-y.json")
   })
 })

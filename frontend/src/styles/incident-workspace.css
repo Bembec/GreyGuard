@@ -222,3 +222,18 @@
   font: inherit;
   font-size: 0.8rem;
 }
+
+.incident-workspace__confirm { display: grid; gap: 0.4rem; margin-top: 0.8rem; }
+.incident-workspace__confirm label { color: #cbd5e1; font-size: 0.82rem; }
+.incident-workspace__confirm input,
+.incident-workspace__confirm textarea {
+  min-height: 34px;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  color: #f1f5f9;
+  background: #020617;
+  font: inherit;
+}
+.incident-workspace__confirm textarea { min-height: 4.5rem; resize: vertical; }
+.incident-workspace__confirm small { color: #94a3b8; font-size: 0.78rem; }

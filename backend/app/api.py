@@ -418,6 +418,7 @@ OFFBOARDING_ALLOWED = re.compile(
     r"^/(auth/|organizations/|compliance-reports|alerts/|billing/contact$|policy-emergency-controls$"
     r"|agents/[^/]+/credential/revoke$|agents/[^/]+/reset$|gateways/[^/]+/revoke$|secrets/(emergency-revoke|[^/]+/revoke)$|service-accounts/[^/]+/revoke$"
     r"|execution-isolation/emergency-terminate$|capability-removals/actions/emergency-shutdown$"
+    r"|incidents/[^/]+/(actions|package)$"
     r"|enterprise-identity/workloads/[^/]+/revoke$)")
 
 
@@ -4303,6 +4304,46 @@ def incident_workspace_view(alert_id: str, x_admin_pin: str | None = Header(defa
     scope = alert_scope(administrator)
     result = incident_workspace.build_workspace(alert_id, caller_org=scope["org_id"], include_install_level=scope["include_install_level"],
                                                 viewer=administrator)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Incident not found.")
+    return result
+
+
+class IncidentActionRequest(BaseModel):
+    """Containment from an incident: what, why, and the typed confirmation."""
+
+    action: Literal["revoke_credential", "disable_agent", "disable_tool", "terminate_isolation"]
+    reason: str = Field(min_length=1, max_length=1000)
+    confirm: str = Field(min_length=1, max_length=120)
+
+
+@app.post("/incidents/{alert_id}/actions")
+def incident_action(alert_id: str, payload: IncidentActionRequest, x_admin_pin: str | None = Header(default=None)):
+    """Take a containment action from an incident (P7.5 item 5, owner decision 1).
+
+    The permission layer requires incident:manage for this route; the action then applies the
+    same guard as its own route. A foreign or missing incident is the same 404."""
+    administrator = require_admin(x_admin_pin)
+    scope = alert_scope(administrator)
+    try:
+        return incident_workspace.run_containment(alert_id, payload.action, payload.reason, payload.confirm,
+                                                  caller_org=scope["org_id"], include_install_level=scope["include_install_level"],
+                                                  viewer=administrator)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail="Incident not found.") from error
+    except incident_workspace.ActionForbidden as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    except incident_workspace.ActionRefused as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/incidents/{alert_id}/package")
+def incident_package(alert_id: str, x_admin_pin: str | None = Header(default=None)):
+    """Export the incident package. Any read role may (owner decision 4); every export is recorded."""
+    administrator = require_admin(x_admin_pin)
+    scope = alert_scope(administrator)
+    result = incident_workspace.build_package(alert_id, caller_org=scope["org_id"],
+                                              include_install_level=scope["include_install_level"], viewer=administrator)
     if result is None:
         raise HTTPException(status_code=404, detail="Incident not found.")
     return result

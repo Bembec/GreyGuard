@@ -54,3 +54,47 @@ test("an incident is investigated on its own page and every change is recorded",
   await expect(bar.getByRole("button", { name: "Start investigating" })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
 })
+
+test("containment from an incident needs the typed target and a reason, and export downloads a verifiable package", async ({ page }) => {
+  await openWithSession(page, session, "/getting-started")
+  const agentName = `contain_agent_${Date.now()}`
+  const alertId = await page.evaluate(async (name) => {
+    const headers = { "Content-Type": "application/json", "X-Admin-Pin": sessionStorage.getItem("greyguard_admin_pin") ?? "" }
+    const me = await (await fetch("/api/auth/me", { headers })).json()
+    await fetch(`/api/entitlements/${me.active_org_id}`, { method: "PUT", headers, body: JSON.stringify({ plan: "FOUNDATION", status: "ACTIVE" }) })
+    const registered = await (await fetch("/api/agents", { method: "POST", headers, body: JSON.stringify({ agent_name: name, scopes: ["send_email"] }) })).json()
+    await fetch("/api/tool-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-Agent-Name": name, "X-Agent-Key": registered.credential },
+      body: JSON.stringify({ action: "send_email", target: "ops@example.com", payload: {} }) })
+    const alerts = await (await fetch("/api/alerts", { headers })).json()
+    const list = (Array.isArray(alerts) ? alerts : alerts.alerts ?? alerts.items ?? []) as { alert_id: string; agent_name: string }[]
+    return list.find((alert) => alert.agent_name === name)?.alert_id ?? ""
+  }, agentName)
+  expect(alertId).not.toBe("")
+
+  await page.evaluate((path) => { window.history.pushState({}, "", path); window.dispatchEvent(new PopStateEvent("popstate")) }, `/incidents/${alertId}`)
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(agentName, { timeout: 15_000 })
+
+  // Revoke: the confirm button stays disabled until the exact agent name and a reason are given.
+  await page.getByRole("button", { name: "Revoke the agent's credential" }).click()
+  const dialog = page.getByRole("alertdialog")
+  const confirm = dialog.getByRole("button", { name: "Revoke the agent's credential" })
+  await dialog.getByLabel(/to confirm/).fill("wrong_name")
+  await dialog.getByLabel("Reason (recorded)").fill("Suspicious send_email attempts.")
+  await expect(confirm).toBeDisabled()
+  await dialog.getByLabel(/to confirm/).fill(agentName)
+  await confirm.click()
+  await page.getByRole("button", { name: "Action record" }).click()
+  await expect(page.getByText(`Containment: revoked the credential of ${agentName}.`)).toBeVisible({ timeout: 15_000 })
+
+  // Export: a JSON download whose manifest covers every part, and the export is recorded.
+  const downloadPromise = page.waitForEvent("download")
+  await page.getByRole("button", { name: "Export package" }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe(`greyguard-incident-${alertId.replace(/[^a-zA-Z0-9_-]/g, "-")}.json`)
+  const { readFile } = await import("node:fs/promises")
+  const pkg = JSON.parse(await readFile((await download.path())!, "utf8"))
+  expect(pkg.format).toBe("greyguard.incident-package/1")
+  expect(Object.keys(pkg.manifest.parts).sort()).toEqual(Object.keys(pkg.parts).sort())
+  expect(JSON.stringify(pkg.parts.action_record)).toContain("revoke_credential")
+  await expect(page.getByText("Incident package exported.")).toBeVisible({ timeout: 15_000 })
+})

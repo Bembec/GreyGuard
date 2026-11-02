@@ -184,6 +184,8 @@ def actions_for(alert: dict[str, Any], viewer: dict[str, Any]) -> dict[str, Any]
     if alert["status"] not in ("RESOLVED", "DISMISSED"):
         others.append({"id": "status:DISMISSED", "label": "Dismiss", "to_status": "DISMISSED", "requires_note": True,
                        "available": manage, "unavailable_reason": reason})
+    others.extend(containment_actions(alert, viewer))
+    others.append({"id": "export", "label": "Export the incident package", "available": True, "unavailable_reason": None})
     others.append({"id": "verify_chain", "label": "Verify the audit chain", "available": bool(viewer.get("install_operator")),
                    "unavailable_reason": None if viewer.get("install_operator") else "Only an install operator can verify the install-wide audit chain."})
     return {"primary": primary, "others": others}
@@ -220,3 +222,156 @@ def build_workspace(alert_id: str, *, caller_org: str, include_install_level: bo
                              if org_id is None else "You see this because your role can read your organization's incidents."),
         "generated_at": now.isoformat(),
     }
+
+
+# --- Containment from the incident (step 3; owner decision 1, 2026-10-16) -------------------------
+#
+# Each action applies the same guard as its own route, plus incident:manage (acting from an incident
+# is an incident change; the permission layer requires it for /incidents/{id}/actions):
+#   revoke_credential   identity:manage            (as POST /agents/{name}/credential/revoke)
+#   disable_agent       Platform Administrator     (as PUT /policy-emergency-controls)
+#   disable_tool        Platform Administrator     (as PUT /policy-emergency-controls)
+#   terminate_isolation Platform Administrator     (as POST /execution-isolation/emergency-terminate)
+# Every action needs a typed confirmation and a reason, acts only on the incident's own agent or
+# tool in the incident's own org, and is appended to the incident's action record.
+
+CONTAINMENT = {
+    "revoke_credential": {"label": "Revoke the agent's credential", "needs": "permission:identity:manage"},
+    "disable_agent": {"label": "Emergency-disable the agent", "needs": "role:PLATFORM_ADMIN"},
+    "disable_tool": {"label": "Emergency-disable the tool", "needs": "role:PLATFORM_ADMIN"},
+    "terminate_isolation": {"label": "Stop running isolated executions", "needs": "role:PLATFORM_ADMIN"},
+}
+MIN_REASON = 5
+
+
+class ActionRefused(ValueError):
+    """The request is malformed or not applicable (400)."""
+
+
+class ActionForbidden(PermissionError):
+    """The viewer may not take this action (403)."""
+
+
+def _allowed(viewer: dict[str, Any], needs: str) -> bool:
+    kind, _, value = needs.partition(":")
+    return _has(viewer, value) if kind == "permission" else viewer.get("role") == value
+
+
+def _target(action: str, alert: dict[str, Any]) -> str | None:
+    """What the action acts on, and what the person must type to confirm it."""
+    if action in ("revoke_credential", "disable_agent"):
+        return alert.get("agent_name")
+    if action == "disable_tool":
+        return alert.get("action")
+    return "TERMINATE"
+
+
+def containment_actions(alert: dict[str, Any], viewer: dict[str, Any]) -> list[dict[str, Any]]:
+    from . import main
+
+    actions = []
+    for action, spec in CONTAINMENT.items():
+        target = _target(action, alert)
+        reason = None
+        if alert.get("org_id") is None:
+            reason = "Containment is not available for install-level incidents: they belong to no organization."
+        elif action != "terminate_isolation" and not target:
+            reason = "This incident names no agent or tool to act on."
+        elif action == "disable_tool" and target not in main.permissions:
+            reason = "This incident's action is not a tool GreyGuard controls."
+        elif not _has(viewer, "incident:manage") or not _allowed(viewer, spec["needs"]):
+            needs = "identity management rights" if spec["needs"].startswith("permission") else "the Platform Administrator role"
+            reason = f"Your role, {_role(viewer)}, cannot do this: it needs {needs}."
+        actions.append({"id": action, "label": spec["label"], "target": target, "confirm_text": target,
+                        "available": reason is None, "unavailable_reason": reason})
+    return actions
+
+
+def run_containment(alert_id: str, action: str, reason: str, confirm: str, *, caller_org: str, include_install_level: bool,
+                    viewer: dict[str, Any]) -> dict[str, Any]:
+    from . import execution_isolation, main
+    from .alerts import record_incident_event
+    from .policy_control import get_emergency_controls, update_emergency_controls
+
+    if action not in CONTAINMENT:
+        raise ActionRefused("Unknown containment action.")
+    alert = get_alert(alert_id, org_id=caller_org, include_install_level=include_install_level)
+    if alert is None:
+        raise KeyError("Incident not found.")
+    available = next(item for item in containment_actions(alert, viewer) if item["id"] == action)
+    if not available["available"]:
+        # The same answer whether the reason is the role or the incident: nothing else leaks.
+        if available["unavailable_reason"].startswith("Your role"):
+            raise ActionForbidden(available["unavailable_reason"])
+        raise ActionRefused(available["unavailable_reason"])
+    if len((reason or "").strip()) < MIN_REASON:
+        raise ActionRefused("Give a reason of at least five characters; it goes into the action record.")
+    target = available["target"]
+    if (confirm or "").strip() != target:
+        raise ActionRefused(f"Type {target} exactly to confirm.")
+    org_id = alert["org_id"]
+    if action in ("revoke_credential", "disable_agent") and main.agent_org_id(main.normalize_agent_name(target)) != org_id:
+        raise KeyError("Incident not found.")  # never act across orgs, and never say why
+    actor = viewer.get("email") or viewer.get("admin_id")
+
+    if action == "revoke_credential":
+        main.revoke_agent_credential(target, actor=viewer.get("admin_id") or actor, org_id=org_id)
+        summary = f"revoked the credential of {target}"
+    elif action in ("disable_agent", "disable_tool"):
+        controls = get_emergency_controls(org_id=org_id)
+        agents, tools = list(controls["disabled_agents"]), list(controls["disabled_tools"])
+        (agents if action == "disable_agent" else tools).append(target)
+        update_emergency_controls(controls["global_deny"], sorted(set(agents)), sorted(set(tools)),
+                                  controls["disabled_integrations"], viewer.get("admin_id") or actor, org_id=org_id)
+        summary = f"emergency-disabled the {'agent' if action == 'disable_agent' else 'tool'} {target}"
+    else:
+        result = execution_isolation.emergency_terminate(viewer.get("admin_id") or actor, org_id)
+        summary = f"stopped running isolated executions ({result.get('terminated', 0) if isinstance(result, dict) else 0} stopped)"
+
+    with sqlite3.connect(database_path) as connection:
+        record_incident_event(connection, alert_id, org_id, actor, "CONTAINMENT",
+                              {"action": action, "target": target, "reason": reason.strip(), "summary": summary})
+    return {"action": action, "target": target, "summary": summary, "recorded": True}
+
+
+# --- The incident package (step 3; owner decision 4: auditors may export, every export recorded) ----
+
+def build_package(alert_id: str, *, caller_org: str, include_install_level: bool, viewer: dict[str, Any]) -> dict[str, Any] | None:
+    import hashlib
+
+    from .alerts import record_incident_event
+    from .decision_provenance import canonical, get_decision_records
+
+    view = build_workspace(alert_id, caller_org=caller_org, include_install_level=include_install_level, viewer=viewer)
+    if view is None:
+        return None
+    # The incident's own org: None for an install-level incident (visible only to operators).
+    alert_org = None if view["incident"]["install_level"] else caller_org
+    request_id = view["incident"]["request_id"]
+    records = get_decision_records([request_id], org_id=alert_org) if request_id and alert_org else {}
+    parts = {
+        "incident": view["incident"],
+        "owner": {key: value for key, value in view["owner"].items() if key != "candidates"},
+        "explanation": view["explanation"],
+        "timeline": view["timeline"],
+        "decision_records": list(records.values()),
+        "action_record": incident_events(alert_id, alert_org),
+        "notes": view["notes"],
+        "integrity": view["integrity"],
+    }
+    manifest = {name: hashlib.sha256(canonical(part).encode()).hexdigest() for name, part in parts.items()}
+    exported_by = viewer.get("email") or viewer.get("admin_id")
+    exported_at = datetime.now(timezone.utc).isoformat()
+    package = {
+        "format": "greyguard.incident-package/1",
+        "exported_at": exported_at,
+        "exported_by": exported_by,
+        "parts": parts,
+        "manifest": {"algorithm": "sha256", "parts": manifest,
+                     "package": hashlib.sha256(canonical(manifest).encode()).hexdigest()},
+        "note": "Redacted evidence only. Verify a part by hashing its canonical JSON (sorted keys, no spaces).",
+    }
+    with sqlite3.connect(database_path) as connection:
+        record_incident_event(connection, alert_id, alert_org, exported_by, "EXPORTED",
+                              {"package_sha256": package["manifest"]["package"]})
+    return package
