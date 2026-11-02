@@ -590,7 +590,7 @@ The owner follows P7.5 here. The table is updated with every batch; the detailed
 | 2. Command Center with role presets | ✅ Done | batch 3 `edb8d36` |
 | 3. Universal page anatomy | ✅ Done, except contextual docs links, which wait for hosted docs | batches 2, 4, 4d; `p7.5-gap-matrix.md`, `p7.5-time-range-saved-views-design.md` |
 | 4. Control Graph | ✅ Done, including the 15-second cache (DEV-001 closed) | `p7.5-control-graph-design.md`; `eabf0e1`, `6e381db`, `d3104e5` |
-| 5. Investigation workspace | 🔨 **In progress**: steps 1, 2 and 3 done (step 3: containment from the incident and the incident package); next step 4, SLA settings | `p7.5-investigation-workspace-design.md` |
+| 5. Investigation workspace | ✅ Done: workspace, containment, incident package and response targets (SLA, no defaults) | `p7.5-investigation-workspace-design.md` |
 | 6. Decision explainability | ✅ Explanation card done (`d6cbc2f`); it is also reused in the workspace | same design |
 | 7. Safe change management | Not started | |
 | 8. Unified action inbox | Not started | |
@@ -907,6 +907,61 @@ Nothing was pushed, published or deployed.
   - the downloaded package has a manifest covering every part;
   - the export appears in the action record.
 - **Screenshots** were reviewed at 1440 px and 390 px. They showed the reason's minimum length was not explained, so a hint was added.
+
+Nothing was pushed, published or deployed.
+
+
+**P7.5 item 5, step 4: incident response targets (SLA), 2026-11-02. Item 5 is complete.**
+- **No defaults (owner decision 2):** until an organization sets targets, every incident shows "No SLA set", and no deadline is ever shown.
+  - The suggested values (Critical: acknowledge 15 minutes, resolve 4 hours; High: 1 hour and 24 hours) are offered by a "Fill in the suggestions" button when an admin first sets targets.
+  - Nothing is saved until the admin chooses Save.
+- **Targets:** for each severity incidents can have (CRITICAL, HIGH), there is an optional time to acknowledge and an optional time to resolve, from 1 minute to 365 days.
+  - The time to resolve cannot be shorter than the time to acknowledge.
+  - They are stored in `incident_sla_targets`, which is org-scoped, so organization export and deletion include it. Migration `20261102_38` adds the table, and both PostgreSQL and SQLite enforce the same checks on it.
+  - Each save records who made it and when.
+- **Who can do what:**
+  - `GET /organizations/{id}/incident-sla` is open to any read role.
+  - `PUT` needs `admin:manage`, checked both by the permission layer and in the route.
+  - Both work for the caller's active organization only. Any other organization returns the same 404, including one the caller is also a member of.
+  - Auditors and analysts see the targets read-only.
+- **Measurement:** computed when an incident is read, against the organization's current targets, from when the incident opened. The page says so.
+  - The acknowledgement and the resolution come from the incident's recorded status changes.
+  - The states are within target, due soon (the last 25%), breached, met and missed.
+  - An incident closed before the action record existed is "not measurable", never guessed. A recorded close also never stands in for an unrecorded acknowledgement.
+  - Install-level incidents have no targets.
+  - One organization's targets never measure another organization's incidents.
+- **Where it shows:**
+  - The workspace header shows the state and deadline, or "No SLA set" with a link to the targets.
+  - Breaches appear on the timeline at the moment the deadline passed.
+  - Incident Center shows an "SLA breached" or "SLA due soon" badge on rows at every width, and has a "Response targets" panel.
+  - The incident package includes the SLA state.
+
+**Verification run:**
+- **Backend:** 947 passed in one full run.
+- **New tests:** `test_incident_sla.py`, 33 tests covering:
+  - nothing set by default and suggestions never applied;
+  - setting, attribution, clearing and a partial target;
+  - invalid input refused with nothing changed;
+  - the permission mapping;
+  - auditors and analysts refused, with the database unchanged, and the route's own check as well as the permission layer's;
+  - another org, a missing org and a second org the caller belongs to, all the same 404;
+  - saving never touches another org's targets;
+  - one org's targets and events never measure another org's incidents;
+  - the table is org-scoped;
+  - a breach on the workspace, its timeline and Incident Center;
+  - acknowledgement taken from the action record;
+  - the SLA state in the package;
+  - every state, including not measurable;
+  - install-level incidents.
+- **Updated test:** `test_incident_workspace.py` now checks the meaning of "No SLA set" (no state, no deadline, no breaches) instead of the old placeholder shape.
+- **Mutation checks:** 17 of 17 caught. The first run caught 12. The 5 misses each gained a test. One of them was a real flaw: a recorded close was standing in for an unrecorded acknowledgement, which is a guess, so it was removed.
+- **PostgreSQL:**
+  - migration `20261102_38` went up, down and up again;
+  - the database refused an unknown severity, 0 minutes, a row with no times, and a duplicate;
+  - the incident suites (SLA, workspace, containment and alerts) passed each test alone on a fresh database, 71 of 71, and the SLA suite again after its final changes, 33 of 33.
+- **Frontend:** 254 unit tests (8 new: durations, the form, the panel, and the workspace's SLA state), type check, lint (no new warnings) and build passed.
+- **Playwright:** 78 passed, 0 flaky. The new test fills the suggestions, saves, sees the incident measured, checks the phone layout, and always removes its targets afterwards.
+- **Screenshots** were reviewed at 1440 px and 390 px, including a real breach. They showed the unit dropdowns were cut off ("minute:", "m"), and these were widened.
 
 Nothing was pushed, published or deployed.
 
